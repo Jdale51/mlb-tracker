@@ -1,6 +1,0 @@
-{
-  "routes": [
-    { "src": "/api/odds", "dest": "/api/odds.js" },
-    { "src": "/(.*)", "dest": "/index.html" }
-  ]
-}
