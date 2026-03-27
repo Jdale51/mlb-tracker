@@ -1,6 +1,11 @@
 {
-  "rewrites": [
-    { "source": "/api/odds", "destination": "/api/odds.js" },
-    { "source": "/(.*)", "destination": "/index.html" }
+  "version": 2,
+  "builds": [
+    { "src": "index.html", "use": "@vercel/static" },
+    { "src": "api/odds.js", "use": "@vercel/node" }
+  ],
+  "routes": [
+    { "src": "/api/odds", "dest": "/api/odds.js" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
