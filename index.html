@@ -252,9 +252,9 @@ function renderStats(gs,id){
   const done=gs.filter(g=>g.awayR!==null);
   const tot=done.reduce((s,g)=>s+(g.awayR||0)+(g.homeR||0),0);
   const avg=done.length?(tot/done.length).toFixed(1):'—';
-  const wou=done.filter(g=>g.ou!=null);
-  const ov=wou.filter(g=>ouSt((g.awayR||0)+(g.homeR||0),g.ou)==='over').length;
-  const un=wou.filter(g=>ouSt((g.awayR||0)+(g.homeR||0),g.ou)==='under').length;
+const wou=done.filter(g=>g.ou!=null);
+const ov=wou.filter(g=>ouSt(g.awayR+g.homeR,g.ou)==='over').length;
+const un=wou.filter(g=>ouSt(g.awayR+g.homeR,g.ou)==='under').length;
   document.getElementById(id).innerHTML=`
     <div class="sstat"><div class="snum">${done.length?tot:'—'}</div><div class="slbl">Slate Runs</div></div>
     <div class="sstat"><div class="snum">${avg}</div><div class="slbl">Avg / Game</div></div>
@@ -285,10 +285,17 @@ function renderGames(gs,id,live){
       </div>
       <div class="gfoot">
         ${runs!==null?`<span class="rbadge">${runs} runs</span>`:''}
-        ${ou!=null?`<div class="outrack"><div class="oufill ${st||'under'}" style="width:${pct}%"></div></div>
-          <span class="oupill ${st||'push'}">${st==='over'?'OVER ':st==='under'?'UNDER ':'PUSH '}${ou}</span>
-          ${book?`<span class="oubook">${book}</span>`:''}`
-        :`<span class="oulbl">${g.status==='scheduled'?'Awaiting first pitch':'O/U unavailable'}</span>`}
+      ${ou!=null?
+  g.status==='final'?
+    `<div class="outrack"><div class="oufill ${st||'push'}" style="width:${pct}%"></div></div>
+     <span class="oupill ${st||'push'}">${st==='over'?'OVER ':st==='under'?'UNDER ':'PUSH '}${ou}</span>
+     ${book?`<span class="oubook">${book}</span>`:''}`
+  :g.status==='live'?
+    `<span class="oulbl" style="color:var(--red)">Live O/U ${ou}</span>
+     ${book?`<span class="oubook">${book}</span>`:''}`
+  :`<span class="oulbl">O/U ${ou}</span>
+    ${book?`<span class="oubook">${book}</span>`:''}`
+:`<span class="oulbl">O/U unavailable</span>`}
       </div>
     </div>`;
   }).join('');
