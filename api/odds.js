@@ -1,5 +1,3 @@
-// Vercel serverless function — odds proxy with time-aware PST caching
-
 const ODDS_API_KEY = 'aef1c06336685a4a20c89a57d3f56262';
 const ODDS_URL = `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${ODDS_API_KEY}&regions=us&markets=totals&oddsFormat=american`;
 
@@ -8,9 +6,25 @@ let cache = { data: null, fetchedAt: 0 };
 function getCacheTTL() {
   const nowUTC = new Date();
   const pstHour = ((nowUTC.getUTCHours() - 8) + 24) % 24;
-  if (pstHour >= 23 || pstHour < 9) return Infinity;        // dead zone 11pm-9am
-  if (pstHour >= 9 && pstHour < 16) return 60 * 60 * 1000; // pregame 1hr
-  return 15 * 60 * 1000;                                     // live window 15min
+  if (pstHour >= 23 || pstHour < 9) return Infinity;
+  if (pstHour >= 9 && pstHour < 16) return 60 * 60 * 1000;
+  return 15 * 60 * 1000;
+}
+
+function filterToday(data) {
+  // Get today's date in PST as YYYY-MM-DD
+  const nowUTC = new Date();
+  const pstOffset = -8 * 60;
+  const pstTime = new Date(nowUTC.getTime() + pstOffset * 60000);
+  const todayPST = pstTime.toISOString().split('T')[0];
+
+  return data.filter(game => {
+    // commence_time is UTC — convert to PST date for comparison
+    const gameUTC = new Date(game.commence_time);
+    const gamePST = new Date(gameUTC.getTime() + pstOffset * 60000);
+    const gameDatePST = gamePST.toISOString().split('T')[0];
+    return gameDatePST === todayPST;
+  });
 }
 
 module.exports = async function handler(req, res) {
@@ -24,7 +38,7 @@ module.exports = async function handler(req, res) {
 
   if (cacheValid) {
     res.setHeader('X-Cache', `HIT - ${Math.round(age / 60000)}m old`);
-    return res.status(200).json(cache.data);
+    return res.status(200).json(filterToday(cache.data));
   }
 
   try {
@@ -33,11 +47,11 @@ module.exports = async function handler(req, res) {
     const data = await upstream.json();
     cache = { data, fetchedAt: Date.now() };
     res.setHeader('X-Cache', 'MISS - fresh fetch');
-    return res.status(200).json(data);
+    return res.status(200).json(filterToday(data));
   } catch (err) {
     if (cache.data) {
       res.setHeader('X-Cache', 'STALE - upstream error');
-      return res.status(200).json(cache.data);
+      return res.status(200).json(filterToday(cache.data));
     }
     return res.status(500).json({ error: err.message });
   }
