@@ -420,7 +420,7 @@ async function refreshOdds(){
   try{
     const resp=await fetchOdds();
     oddsMap=buildOddsMap(resp.games||[]);
-    grandSalami=resp.grandSalami||null;
+    grandSalami=resp.grandSalami||grandSalami;
     document.getElementById('opill').textContent=`O/U: ${Object.keys(oddsMap).length} lines`;
     document.getElementById('opill').className='pill pill-y';
     // Set countdown based on server fetch time
