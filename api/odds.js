@@ -1,4 +1,4 @@
-const { put, list, head } = require('@vercel/blob');
+const { put, list } = require('@vercel/blob');
 
 const ODDS_API_KEY = 'aef1c06336685a4a20c89a57d3f56262';
 const ODDS_URL = `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${ODDS_API_KEY}&regions=us&markets=totals&oddsFormat=american`;
@@ -34,14 +34,10 @@ function filterToday(data) {
 
 async function readHistory() {
   try {
-    const { blobs } = await list({ token: process.env.BLOB_READ_WRITE_TOKEN });
+    const { blobs } = await list();
     const blob = blobs.find(b => b.pathname === 'history.json');
     if (!blob) return [];
-    // For private blobs, use head to get a fresh URL with auth
-    const { downloadUrl } = await head(blob.url, { token: process.env.BLOB_READ_WRITE_TOKEN });
-    const res = await fetch(downloadUrl || blob.url, {
-      headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` }
-    });
+    const res = await fetch(blob.url);
     return await res.json();
   } catch(e) {
     console.error('readHistory error:', e.message);
@@ -57,9 +53,9 @@ async function saveRecord(record) {
     if (idx >= 0) history[idx] = { ...history[idx], ...record };
     else history.push(record);
     await put('history.json', JSON.stringify(history), {
+      access: 'public',
       addRandomSuffix: false,
       contentType: 'application/json',
-      token: process.env.BLOB_READ_WRITE_TOKEN,
     });
   } catch(e) {
     console.error('Failed to save record:', e.message);
