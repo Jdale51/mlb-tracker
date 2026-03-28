@@ -416,6 +416,7 @@ function renderGames(gs, id, live){
         <div class="team">
           <div class="tabbr ${aw?'w':''}">${g.away}</div>
           <div class="tfull">${g.awayFull||''}</div>
+          ${openLine?`<div class="line-open" style="margin-top:4px;">Open: O/U ${openLine}</div>`:''}
         </div>
         <div style="display:flex;flex-direction:column;align-items:center;padding:0 10px;flex-shrink:0;">
           <div class="sctr" style="padding:0;">
