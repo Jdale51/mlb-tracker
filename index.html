@@ -419,12 +419,12 @@ function renderGames(gs, id, live){
           ${openLine?`<div class="line-open" style="margin-top:4px;">Open: O/U ${openLine}</div>`:''}
         </div>
         <div style="display:flex;flex-direction:column;align-items:center;padding:0 10px;flex-shrink:0;">
+          ${inn?`<div style="font-size:10px;color:var(--red);margin-bottom:2px;text-align:center;">${g.inning}</div>`:''}
           <div class="sctr" style="padding:0;">
-            <span class="sco ${aw?'w':''}">${g.awayR!==null?g.awayR:'—'}</span>
+            <span class="sco ${aw?'w':''}">${g.status==='scheduled'?'—':g.awayR!==null?g.awayR:'—'}</span>
             <span class="sdash">-</span>
-            <span class="sco ${hw?'w':''}">${g.homeR!==null?g.homeR:'—'}</span>
+            <span class="sco ${hw?'w':''}">${g.status==='scheduled'?'—':g.homeR!==null?g.homeR:'—'}</span>
           </div>
-
         </div>
         <div class="team r"><div class="tabbr ${hw?'w':''}">${g.home}</div><div class="tfull">${g.homeFull||''}</div></div>
       </div>
