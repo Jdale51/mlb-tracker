@@ -156,7 +156,7 @@ function getOddsInterval() {
 
 let games = [];
 let oddsMap = {};
-let grandSalami = { line: 67.5, overPrice: 100, underPrice: -120, book: 'DraftKings' }; // today's manual line
+let grandSalami = null;
 let sCD = SCORES_MS/1000, oCD = getOddsInterval()/1000, timer = null;
 
 const ABBR = {
@@ -465,7 +465,7 @@ function startTimer(){
     sCD--;
     if(oCD!==Infinity) oCD--;
     if(sCD<=0){sCD=SCORES_MS/1000;refreshScores();}
-    if(oCD<=0){oCD=getOddsInterval()/1000;refreshOdds();}
+    if(oCD<=0){const interval=getOddsInterval();if(interval===Infinity){oCD=Infinity;}else{oCD=interval/1000;refreshOdds();}}
     document.getElementById('countdown').textContent=`Scores in ${fmt(sCD)} · Odds in ${fmt(oCD)}`;
   },1000);
 }
