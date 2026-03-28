@@ -1,4 +1,4 @@
-const { list } = require('@vercel/blob');
+const { list, head } = require('@vercel/blob');
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -6,18 +6,19 @@ module.exports = async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json');
 
   try {
-    const { blobs } = await list();
-    console.log('All blobs:', JSON.stringify(blobs.map(b => ({ pathname: b.pathname, url: b.url }))));
-    
-    const historyBlob = blobs.find(b => b.pathname === 'history.json');
-    if (!historyBlob) {
-      console.log('history.json not found in blob store');
+    const { blobs } = await list({ token: process.env.BLOB_READ_WRITE_TOKEN });
+    console.log('Blobs found:', blobs.map(b => b.pathname));
+    const blob = blobs.find(b => b.pathname === 'history.json');
+    if (!blob) {
+      console.log('No history.json found');
       return res.status(200).json([]);
     }
-
-    const response = await fetch(historyBlob.url);
+    const { downloadUrl } = await head(blob.url, { token: process.env.BLOB_READ_WRITE_TOKEN });
+    const response = await fetch(downloadUrl || blob.url, {
+      headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` }
+    });
     const text = await response.text();
-    console.log('History content:', text);
+    console.log('History:', text);
     const history = JSON.parse(text);
     return res.status(200).json(history.sort((a,b) => b.date.localeCompare(a.date)));
   } catch(e) {
