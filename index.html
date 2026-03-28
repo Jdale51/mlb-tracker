@@ -583,14 +583,15 @@ async function loadYesterday(){
 
 async function init(){
   renderGrandSalami();
-  // Fetch pregame lines FIRST so they're available when scores/odds render
+  // Step 1: Fetch pregame lines FIRST — must complete before any render
   try {
     const linesResp = await fetchPregameLines();
     pregameLines = linesResp.pregameLines || {};
+    console.log('Pregame lines loaded:', Object.keys(pregameLines).length, 'games');
   } catch(e) {
     console.error('fetchPregameLines error:', e);
   }
-  // Then fetch everything else in parallel
+  // Step 2: Now fetch scores and odds — pregameLines is ready for renderGames
   await Promise.all([
     refreshScores(),
     refreshOdds(),
