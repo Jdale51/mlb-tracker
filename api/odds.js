@@ -1,4 +1,4 @@
-const { put, list } = require('@vercel/blob');
+const { put, list, head } = require('@vercel/blob');
 
 const ODDS_API_KEY = 'aef1c06336685a4a20c89a57d3f56262';
 const ODDS_URL = `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${ODDS_API_KEY}&regions=us&markets=totals&oddsFormat=american`;
@@ -34,12 +34,19 @@ function filterToday(data) {
 
 async function readHistory() {
   try {
-    const { blobs } = await list();
+    const { blobs } = await list({ token: process.env.BLOB_READ_WRITE_TOKEN });
     const blob = blobs.find(b => b.pathname === 'history.json');
     if (!blob) return [];
-    const res = await fetch(blob.url);
+    // For private blobs, use head to get a fresh URL with auth
+    const { downloadUrl } = await head(blob.url, { token: process.env.BLOB_READ_WRITE_TOKEN });
+    const res = await fetch(downloadUrl || blob.url, {
+      headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` }
+    });
     return await res.json();
-  } catch(e) { return []; }
+  } catch(e) {
+    console.error('readHistory error:', e.message);
+    return [];
+  }
 }
 
 async function saveRecord(record) {
@@ -50,12 +57,12 @@ async function saveRecord(record) {
     if (idx >= 0) history[idx] = { ...history[idx], ...record };
     else history.push(record);
     await put('history.json', JSON.stringify(history), {
-      access: 'public',
       addRandomSuffix: false,
       contentType: 'application/json',
+      token: process.env.BLOB_READ_WRITE_TOKEN,
     });
   } catch(e) {
-    console.error('Failed to save record:', e);
+    console.error('Failed to save record:', e.message);
   }
 }
 
@@ -64,7 +71,6 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST');
   res.setHeader('Content-Type', 'application/json');
 
-  // POST: save actual runs
   if (req.method === 'POST') {
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
@@ -85,7 +91,6 @@ module.exports = async function handler(req, res) {
 
   if (cacheValid) {
     res.setHeader('X-Cache', `HIT - ${Math.round(age / 60000)}m old`);
-    res.setHeader('X-Fetched-At', String(cache.fetchedAt));
     return res.status(200).json({ games: filterToday(cache.data), grandSalami: cache.grandSalami, secondsUntilNext: getSecondsUntilNext() });
   }
 
@@ -95,7 +100,6 @@ module.exports = async function handler(req, res) {
     const data = await upstream.json();
     cache = { data, grandSalami: null, fetchedAt: Date.now() };
 
-    // Save pregame record
     const todayGames = filterToday(data);
     if (todayGames.length > 0) {
       const naive = todayGames.reduce((sum, g) => {
@@ -116,12 +120,10 @@ module.exports = async function handler(req, res) {
     }
 
     res.setHeader('X-Cache', 'MISS - fresh fetch');
-    res.setHeader('X-Fetched-At', String(cache.fetchedAt));
     return res.status(200).json({ games: filterToday(data), grandSalami: null, secondsUntilNext: getSecondsUntilNext() });
   } catch (err) {
     if (cache.data) {
-      res.setHeader('X-Cache', 'STALE - upstream error');
-      res.setHeader('X-Fetched-At', String(cache.fetchedAt));
+      res.setHeader('X-Cache', 'STALE');
       return res.status(200).json({ games: filterToday(cache.data), grandSalami: cache.grandSalami, secondsUntilNext: getSecondsUntilNext() });
     }
     return res.status(500).json({ error: err.message });
