@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+]<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -148,15 +148,15 @@ const BOOK = 'draftkings';
 const SCORES_MS = 60000;
 
 function getOddsInterval() {
-  const pstHour = ((new Date().getUTCHours() - 8) + 24) % 24;
-  if (pstHour >= 23 || pstHour < 7) return Infinity;
+  const pstHour = ((new Date().getUTCHours() - 7) + 24) % 24;
+  if (pstHour >= 23 || pstHour < 9) return Infinity;
   if (pstHour >= 9 && pstHour < 16) return 60 * 60 * 1000;
   return 15 * 60 * 1000;
 }
 
 let games = [];
 let oddsMap = {};
-let grandSalami = null;
+let grandSalami = { line: 67.5, overPrice: 100, underPrice: -120, book: 'DraftKings' }; // today's manual line
 let sCD = SCORES_MS/1000, oCD = getOddsInterval()/1000, timer = null;
 
 const ABBR = {
@@ -174,19 +174,31 @@ const ABBR = {
 
 function ta(name){ return ABBR[name] || name.split(' ').pop().slice(0,3).toUpperCase(); }
 
-const yest = [
-  {away:'PIT',home:'NYM',awayFull:'Pittsburgh Pirates',homeFull:'New York Mets',status:'final',time:'Final',awayR:7,homeR:11,ou:8.5,book:'DraftKings'},
-  {away:'CWS',home:'MIL',awayFull:'Chicago White Sox',homeFull:'Milwaukee Brewers',status:'final',time:'Final',awayR:2,homeR:14,ou:7.5,book:'DraftKings'},
-  {away:'WSH',home:'CHC',awayFull:'Washington Nationals',homeFull:'Chicago Cubs',status:'final',time:'Final',awayR:10,homeR:4,ou:8.0,book:'DraftKings'},
-  {away:'MIN',home:'BAL',awayFull:'Minnesota Twins',homeFull:'Baltimore Orioles',status:'final',time:'Final',awayR:1,homeR:2,ou:8.0,book:'DraftKings'},
-  {away:'LAA',home:'HOU',awayFull:'Los Angeles Angels',homeFull:'Houston Astros',status:'final',time:'Final',awayR:3,homeR:0,ou:8.5,book:'DraftKings'},
-  {away:'DET',home:'SD',awayFull:'Detroit Tigers',homeFull:'San Diego Padres',status:'final',time:'Final',awayR:8,homeR:2,ou:8.5,book:'DraftKings'},
-  {away:'BOS',home:'CIN',awayFull:'Boston Red Sox',homeFull:'Cincinnati Reds',status:'final',time:'Final',awayR:3,homeR:0,ou:8.0,book:'DraftKings'},
-  {away:'TEX',home:'PHI',awayFull:'Texas Rangers',homeFull:'Philadelphia Phillies',status:'final',time:'Final',awayR:3,homeR:5,ou:8.5,book:'DraftKings'},
-  {away:'TB',home:'STL',awayFull:'Tampa Bay Rays',homeFull:'St. Louis Cardinals',status:'final',time:'Final',awayR:7,homeR:9,ou:8.5,book:'DraftKings'},
-  {away:'AZ',home:'LAD',awayFull:'Arizona Diamondbacks',homeFull:'Los Angeles Dodgers',status:'final',time:'Final',awayR:2,homeR:8,ou:8.5,book:'DraftKings'},
-  {away:'CLE',home:'SEA',awayFull:'Cleveland Guardians',homeFull:'Seattle Mariners',status:'final',time:'Final',awayR:6,homeR:4,ou:8.0,book:'DraftKings'},
-];
+let yestGames = [];
+
+async function fetchYesterday() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  const yesterday = d.toLocaleDateString('en-CA');
+  const res = await fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${yesterday}&hydrate=linescore`);
+  if (!res.ok) throw new Error(`MLB API ${res.status}`);
+  const data = await res.json();
+  const raw = (data.dates && data.dates[0]) ? data.dates[0].games : [];
+  return raw.map(g => {
+    const state = g.status.abstractGameState;
+    const awayR = g.teams.away.score != null ? g.teams.away.score : null;
+    const homeR = g.teams.home.score != null ? g.teams.home.score : null;
+    return {
+      away: ta(g.teams.away.team.name),
+      home: ta(g.teams.home.team.name),
+      awayFull: g.teams.away.team.name,
+      homeFull: g.teams.home.team.name,
+      status: state==='Final'?'final':state==='Live'?'live':'scheduled',
+      time: state==='Final'?'Final':'',
+      awayR, homeR, ou: null, book: null,
+    };
+  });
+}
 
 async function fetchScores() {
   const today = new Date().toLocaleDateString('en-CA');
@@ -465,7 +477,7 @@ function startTimer(){
     sCD--;
     if(oCD!==Infinity) oCD--;
     if(sCD<=0){sCD=SCORES_MS/1000;refreshScores();}
-    if(oCD<=0){const interval=getOddsInterval();if(interval===Infinity){oCD=Infinity;}else{oCD=interval/1000;refreshOdds();}}
+    if(oCD<=0){oCD=getOddsInterval()/1000;refreshOdds();}
     document.getElementById('countdown').textContent=`Scores in ${fmt(sCD)} · Odds in ${fmt(oCD)}`;
   },1000);
 }
@@ -477,13 +489,20 @@ function showTab(t){
   document.getElementById('view-yesterday').style.display=t==='yesterday'?'block':'none';
   document.getElementById('view-history').style.display=t==='history'?'block':'none';
   if(t==='history') fetchHistory().then(renderHistory).catch(()=>renderHistory([]));
+  if(t==='yesterday' && !yestGames.length) fetchYesterday().then(data=>{yestGames=data;renderStats(yestGames,'yest-stats');renderGames(yestGames,'yest-games',false);}).catch(e=>console.error(e));
 }
 
 async function init(){
-  renderStats(yest,'yest-stats');
-  renderGames(yest,'yest-games',false);
-  renderGrandSalami(); // show manual line immediately
-  await Promise.all([refreshScores(),refreshOdds()]);
+  renderGrandSalami();
+  await Promise.all([
+    refreshScores(),
+    refreshOdds(),
+    fetchYesterday().then(data => {
+      yestGames = data;
+      renderStats(yestGames,'yest-stats');
+      renderGames(yestGames,'yest-games',false);
+    }).catch(e => console.error('Yesterday fetch error:', e))
+  ]);
   startTimer();
 }
 
