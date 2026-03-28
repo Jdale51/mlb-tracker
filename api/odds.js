@@ -1,474 +1,161 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MLB Run Tracker</title>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --green:#00C46A;--red:#FF3B3B;--blue:#2B7FFF;
-    --bg:#0A0D12;--surface:#12161E;--surface2:#1C2230;
-    --border:rgba(255,255,255,0.07);--text:#F0F2F7;--muted:#6B7280;--accent:#F5C518;
-  }
-  *{box-sizing:border-box;margin:0;padding:0;}
-  body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;}
-  .header{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
-  .logo{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:26px;letter-spacing:1px;color:var(--text);display:flex;align-items:center;gap:8px;}
-  .logo-dot{width:9px;height:9px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 2s infinite;}
-  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
-  .header-right{text-align:right;}
-  .status-row{display:flex;align-items:center;gap:8px;justify-content:flex-end;flex-wrap:wrap;}
-  .pill{font-size:11px;padding:2px 8px;border-radius:3px;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:0.5px;}
-  .pill-g{background:rgba(0,196,106,0.12);color:var(--green);}
-  .pill-y{background:rgba(245,197,24,0.12);color:var(--accent);}
-  .pill-r{background:rgba(255,59,59,0.12);color:var(--red);}
-  .refresh-row{display:flex;gap:6px;margin-top:5px;justify-content:flex-end;}
-  .rbtn{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;background:transparent;border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:4px;cursor:pointer;}
-  .rbtn:hover{border-color:rgba(255,255,255,0.2);color:var(--text);}
-  .countdown{font-size:10px;color:var(--muted);margin-top:3px;text-align:right;}
-  .tabs{display:flex;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}
-  .tab{padding:11px 18px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;cursor:pointer;color:var(--muted);border:none;background:transparent;border-bottom:3px solid transparent;}
-  .tab.active{color:var(--text);border-bottom-color:var(--accent);}
-  .total-bar{background:var(--surface2);border-bottom:1px solid var(--border);padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-  .total-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;margin-bottom:2px;}
-  .total-num{font-family:'Barlow Condensed',sans-serif;font-size:42px;font-weight:900;color:var(--accent);line-height:1;letter-spacing:-1px;}
-  .total-num.gs{color:#B06AFF;}
-  .total-meta{font-size:10px;color:var(--muted);line-height:1.7;margin-top:3px;}
-  .slate-bar{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border-bottom:1px solid var(--border);}
-  .sstat{background:var(--surface);padding:12px 16px;text-align:center;}
-  .snum{font-family:'Barlow Condensed',sans-serif;font-size:30px;font-weight:900;color:var(--text);line-height:1;}
-  .slbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:3px;}
-  .games{padding:10px 12px;display:flex;flex-direction:column;gap:8px;}
-  .game{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
-  .gtop{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;border-bottom:1px solid var(--border);background:var(--surface2);}
-  .gstatus{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:2px 7px;border-radius:3px;}
-  .sf{background:rgba(107,114,128,0.2);color:var(--muted);}
-  .sl{background:rgba(255,59,59,0.15);color:var(--red);}
-  .su{background:rgba(43,127,255,0.15);color:var(--blue);}
-  .gtime{font-size:11px;color:var(--muted);}
-  .inn{font-size:10px;color:var(--red);margin-left:6px;}
-  .gbody{display:flex;align-items:center;padding:10px 12px;}
-  .team{flex:1;}
-  .team.r{text-align:right;}
-  .tabbr{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:var(--text);}
-  .tabbr.w{color:var(--green);}
-  .tfull{font-size:10px;color:var(--muted);margin-top:1px;}
-  .sctr{display:flex;align-items:center;gap:8px;padding:0 10px;flex-shrink:0;}
-  .sco{font-family:'Barlow Condensed',sans-serif;font-size:34px;font-weight:900;color:var(--text);min-width:26px;text-align:center;line-height:1;}
-  .sco.w{color:var(--green);}
-  .sdash{color:var(--muted);font-size:16px;}
-  .gfoot{display:flex;align-items:center;gap:8px;padding:7px 12px;border-top:1px solid var(--border);flex-wrap:wrap;}
-  .rbadge{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;background:var(--surface2);padding:2px 8px;border-radius:4px;color:var(--text);}
-  .outrack{flex:1;height:4px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;max-width:70px;}
-  .oufill{height:100%;border-radius:2px;}
-  .oufill.over{background:var(--green);}
-  .oufill.under{background:var(--blue);}
-  .oupill{font-size:11px;font-weight:700;font-family:'Barlow Condensed',sans-serif;padding:2px 7px;border-radius:3px;}
-  .oupill.over{background:rgba(0,196,106,0.15);color:var(--green);}
-  .oupill.under{background:rgba(43,127,255,0.15);color:var(--blue);}
-  .oupill.push{background:rgba(107,114,128,0.15);color:var(--muted);}
-  .oulbl{font-size:11px;color:var(--muted);}
-  .oubook{font-size:10px;color:var(--muted);margin-left:auto;}
-  .loading{padding:36px 16px;text-align:center;}
-  .spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 10px;}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .ltxt{font-size:13px;color:var(--muted);}
-  .hist-wrap{padding:12px;}
-  .hist-table{width:100%;border-collapse:collapse;font-size:13px;}
-  .hist-table th{font-family:'Barlow Condensed',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);}
-  .hist-table td{padding:10px 10px;border-bottom:1px solid var(--border);color:var(--text);}
-  .hist-table tr:last-child td{border-bottom:none;}
-  .res-over{color:var(--green);font-weight:700;font-family:'Barlow Condensed',sans-serif;}
-  .res-under{color:var(--blue);font-weight:700;font-family:'Barlow Condensed',sans-serif;}
-  .res-push{color:var(--muted);font-weight:700;font-family:'Barlow Condensed',sans-serif;}
-  .res-pending{color:var(--muted);font-style:italic;}
-  .hist-empty{padding:40px;text-align:center;color:var(--muted);font-size:13px;}
-</style>
-</head>
-<body>
+const { put, list } = require('@vercel/blob');
 
-<div class="header">
-  <div class="logo"><span class="logo-dot"></span>MLB RUN TRACKER</div>
-  <div class="header-right">
-    <div class="status-row">
-      <span id="spill" class="pill pill-g">Scores: loading</span>
-      <span id="opill" class="pill pill-y">O/U: loading</span>
-    </div>
-    <div class="refresh-row">
-      <button class="rbtn" onclick="refreshScores()">↻ Scores</button>
-      <button class="rbtn" onclick="refreshOdds()">↻ Odds</button>
-    </div>
-    <div id="countdown" class="countdown"></div>
-  </div>
-</div>
+const ODDS_API_KEY = 'aef1c06336685a4a20c89a57d3f56262';
+const ODDS_URL = `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${ODDS_API_KEY}&regions=us&markets=totals&oddsFormat=american`;
 
-<div class="tabs">
-  <button class="tab active" onclick="showTab('today')">Today</button>
-  <button class="tab" onclick="showTab('yesterday')">Yesterday</button>
-  <button class="tab" onclick="showTab('history')">History</button>
-</div>
+let cache = { data: null, grandSalami: null, fetchedAt: 0 };
 
-<div id="view-today">
-  <div class="total-bar">
-    <div>
-      <div class="total-lbl">Implied Slate Total</div>
-      <div class="total-num" id="slate-num">—</div>
-      <div class="total-meta" id="slate-meta">Waiting for O/U lines...</div>
-    </div>
-    <div>
-      <div class="total-lbl">Grand Salami</div>
-      <div class="total-num gs" id="gs-num">—</div>
-      <div class="total-meta" id="gs-meta">Waiting for lines...</div>
-    </div>
-  </div>
-  <div class="slate-bar" id="today-stats">
-    <div class="sstat"><div class="snum">—</div><div class="slbl">Slate Runs</div></div>
-    <div class="sstat"><div class="snum">—</div><div class="slbl">Avg / Game</div></div>
-    <div class="sstat"><div class="snum">—</div><div class="slbl">O / U</div></div>
-  </div>
-  <div class="games" id="today-games">
-    <div class="loading"><div class="spinner"></div><div class="ltxt">Loading today's slate...</div></div>
-  </div>
-</div>
-
-<div id="view-yesterday" style="display:none;">
-  <div class="slate-bar" id="yest-stats"></div>
-  <div class="games" id="yest-games"></div>
-</div>
-
-<div id="view-history" style="display:none;">
-  <div class="hist-wrap">
-    <div id="hist-content"><div class="loading"><div class="spinner"></div><div class="ltxt">Loading history...</div></div></div>
-  </div>
-</div>
-
-<script>
-const BOOK = 'draftkings';
-const SCORES_MS = 60000;
-
-function getOddsInterval() {
+function getCacheTTL() {
   const pstHour = ((new Date().getUTCHours() - 8) + 24) % 24;
   if (pstHour >= 23 || pstHour < 9) return Infinity;
   if (pstHour >= 9 && pstHour < 16) return 60 * 60 * 1000;
   return 15 * 60 * 1000;
 }
 
-let games = [];
-let oddsMap = {};
-let grandSalami = { line: 67.5, overPrice: 100, underPrice: -120, book: 'DraftKings' }; // today's manual line
-let sCD = SCORES_MS/1000, oCD = getOddsInterval()/1000, timer = null;
+function getSecondsUntilNext() {
+  const ttl = getCacheTTL();
+  if (ttl === Infinity) return Infinity;
+  const age = Date.now() - cache.fetchedAt;
+  return Math.max(0, Math.ceil((ttl - age) / 1000));
+}
 
-const ABBR = {
-  'New York Yankees':'NYY','San Francisco Giants':'SF','Athletics':'ATH','Oakland Athletics':'ATH',
-  'Toronto Blue Jays':'TOR','Colorado Rockies':'COL','Miami Marlins':'MIA',
-  'Kansas City Royals':'KC','Atlanta Braves':'ATL','Los Angeles Angels':'LAA',
-  'Houston Astros':'HOU','Detroit Tigers':'DET','San Diego Padres':'SD',
-  'Cleveland Guardians':'CLE','Seattle Mariners':'SEA','Arizona Diamondbacks':'AZ',
-  'Los Angeles Dodgers':'LAD','New York Mets':'NYM','Chicago Cubs':'CHC',
-  'Milwaukee Brewers':'MIL','St. Louis Cardinals':'STL','Pittsburgh Pirates':'PIT',
-  'Chicago White Sox':'CWS','Washington Nationals':'WSH','Minnesota Twins':'MIN',
-  'Baltimore Orioles':'BAL','Boston Red Sox':'BOS','Cincinnati Reds':'CIN',
-  'Philadelphia Phillies':'PHI','Texas Rangers':'TEX','Tampa Bay Rays':'TB',
-};
+function getTodayPST() {
+  const pst = new Date(Date.now() + -8 * 60 * 60000);
+  return pst.toISOString().split('T')[0];
+}
 
-function ta(name){ return ABBR[name] || name.split(' ').pop().slice(0,3).toUpperCase(); }
-
-const yest = [
-  {away:'PIT',home:'NYM',awayFull:'Pittsburgh Pirates',homeFull:'New York Mets',status:'final',time:'Final',awayR:7,homeR:11,ou:8.5,book:'DraftKings'},
-  {away:'CWS',home:'MIL',awayFull:'Chicago White Sox',homeFull:'Milwaukee Brewers',status:'final',time:'Final',awayR:2,homeR:14,ou:7.5,book:'DraftKings'},
-  {away:'WSH',home:'CHC',awayFull:'Washington Nationals',homeFull:'Chicago Cubs',status:'final',time:'Final',awayR:10,homeR:4,ou:8.0,book:'DraftKings'},
-  {away:'MIN',home:'BAL',awayFull:'Minnesota Twins',homeFull:'Baltimore Orioles',status:'final',time:'Final',awayR:1,homeR:2,ou:8.0,book:'DraftKings'},
-  {away:'LAA',home:'HOU',awayFull:'Los Angeles Angels',homeFull:'Houston Astros',status:'final',time:'Final',awayR:3,homeR:0,ou:8.5,book:'DraftKings'},
-  {away:'DET',home:'SD',awayFull:'Detroit Tigers',homeFull:'San Diego Padres',status:'final',time:'Final',awayR:8,homeR:2,ou:8.5,book:'DraftKings'},
-  {away:'BOS',home:'CIN',awayFull:'Boston Red Sox',homeFull:'Cincinnati Reds',status:'final',time:'Final',awayR:3,homeR:0,ou:8.0,book:'DraftKings'},
-  {away:'TEX',home:'PHI',awayFull:'Texas Rangers',homeFull:'Philadelphia Phillies',status:'final',time:'Final',awayR:3,homeR:5,ou:8.5,book:'DraftKings'},
-  {away:'TB',home:'STL',awayFull:'Tampa Bay Rays',homeFull:'St. Louis Cardinals',status:'final',time:'Final',awayR:7,homeR:9,ou:8.5,book:'DraftKings'},
-  {away:'AZ',home:'LAD',awayFull:'Arizona Diamondbacks',homeFull:'Los Angeles Dodgers',status:'final',time:'Final',awayR:2,homeR:8,ou:8.5,book:'DraftKings'},
-  {away:'CLE',home:'SEA',awayFull:'Cleveland Guardians',homeFull:'Seattle Mariners',status:'final',time:'Final',awayR:6,homeR:4,ou:8.0,book:'DraftKings'},
-];
-
-async function fetchScores() {
-  const today = new Date().toLocaleDateString('en-CA');
-  const res = await fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}&hydrate=linescore`);
-  if (!res.ok) throw new Error(`MLB API ${res.status}`);
-  const data = await res.json();
-  const raw = (data.dates && data.dates[0]) ? data.dates[0].games : [];
-  return raw.map(g => {
-    const state = g.status.abstractGameState;
-    const ls = g.linescore || {};
-    const awayR = g.teams.away.score != null ? g.teams.away.score : null;
-    const homeR = g.teams.home.score != null ? g.teams.home.score : null;
-    const timeLbl = new Date(g.gameDate).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
-    return {
-      away: ta(g.teams.away.team.name),
-      home: ta(g.teams.home.team.name),
-      awayFull: g.teams.away.team.name,
-      homeFull: g.teams.home.team.name,
-      status: state==='Final'?'final':state==='Live'?'live':'scheduled',
-      time: state==='Final'?'Final':timeLbl,
-      awayR, homeR,
-      inning: (state==='Live'&&ls.currentInning)?`${ls.inningHalf==='Top'?'T':'B'}${ls.currentInning}`:null,
-    };
+function filterToday(data) {
+  const todayPST = getTodayPST();
+  return data.filter(game => {
+    const gamePST = new Date(new Date(game.commence_time).getTime() + -8 * 60 * 60000);
+    return gamePST.toISOString().split('T')[0] === todayPST;
   });
 }
 
-async function fetchOdds() {
-  const res = await fetch('/api/odds');
-  if (!res.ok) throw new Error(`Odds API ${res.status}`);
-  return res.json();
-}
-
-async function fetchHistory() {
-  const res = await fetch('/api/history');
-  if (!res.ok) throw new Error(`History API ${res.status}`);
-  return res.json();
-}
-
-async function saveActualRuns(totalRuns) {
-  const today = new Date().toLocaleDateString('en-CA');
-  const gs = grandSalami ? grandSalami.line : null;
-  const result = gs !== null ? (totalRuns > gs ? 'over' : totalRuns < gs ? 'under' : 'push') : null;
-  await fetch('/api/odds', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ date: today, actualRuns: totalRuns, result })
-  });
-}
-
-function toImpl(p){ return p>0?100/(p+100):Math.abs(p)/(Math.abs(p)+100); }
-function fairTotal(overP,underP,point){
-  const pO=toImpl(overP),pU=toImpl(underP);
-  return point+(pO/(pO+pU)-0.5)/0.05;
-}
-
-function buildOddsMap(data){
-  const seen={};
-  for(const g of data){
-    const hk=g.home_team.split(' ').pop().toLowerCase();
-    const ak=g.away_team.split(' ').pop().toLowerCase();
-    const key=`${ak}-${hk}`;
-    if(!seen[key]||(g.bookmakers?.length||0)>(seen[key].bookmakers?.length||0)) seen[key]=g;
-  }
-  const map={};
-  for(const[key,g] of Object.entries(seen)){
-    const bk=(g.bookmakers||[]).find(b=>b.key===BOOK)||(g.bookmakers||[])[0];
-    if(!bk) continue;
-    const mkt=bk.markets.find(m=>m.key==='totals');
-    if(!mkt) continue;
-    const ov=mkt.outcomes.find(o=>o.name==='Over');
-    const un=mkt.outcomes.find(o=>o.name==='Under');
-    if(!ov||!un) continue;
-    const ft=parseFloat(fairTotal(ov.price,un.price,ov.point).toFixed(2));
-    map[key]={ou:ov.point,ft,book:bk.title,op:ov.price,up:un.price};
-  }
-  return map;
-}
-
-function getOu(g){
-  const hk=(g.homeFull||g.home||'').split(' ').pop().toLowerCase();
-  const ak=(g.awayFull||g.away||'').split(' ').pop().toLowerCase();
-  return oddsMap[`${ak}-${hk}`]||{ou:null,ft:null,book:null};
-}
-
-function ouSt(runs,ou,status){
-  if(runs===null||ou==null) return null;
-  if(status!=='final'&&status!=='live') return null;
-  return runs>ou?'over':runs<ou?'under':'push';
-}
-
-function renderSlateTotal(){
-  const vals=Object.values(oddsMap);
-  if(!vals.length){
-    document.getElementById('slate-num').textContent='—';
-    document.getElementById('slate-meta').textContent='Waiting for O/U lines...';
-    return;
-  }
-  const imp=parseFloat(vals.reduce((s,v)=>s+v.ft,0).toFixed(2));
-  const naive=parseFloat(vals.reduce((s,v)=>s+v.ou,0).toFixed(2));
-  document.getElementById('slate-num').textContent=imp.toFixed(2);
-  document.getElementById('slate-meta').innerHTML=`${vals.length} games · Naive: ${naive}<br>Juice-adjusted · DK`;
-}
-
-function renderGrandSalami(){
-  if(!grandSalami||!grandSalami.line){
-    document.getElementById('gs-num').textContent='—';
-    document.getElementById('gs-meta').textContent='Not available';
-    return;
-  }
-  document.getElementById('gs-num').textContent=grandSalami.line;
-  const op=grandSalami.overPrice>0?`+${grandSalami.overPrice}`:grandSalami.overPrice||'';
-  const up=grandSalami.underPrice>0?`+${grandSalami.underPrice}`:grandSalami.underPrice||'';
-  document.getElementById('gs-meta').innerHTML=`${op&&up?`O ${op} / U ${up}<br>`:''}${grandSalami.book||'DraftKings'}`;
-}
-
-function renderStats(gs,id){
-  const done=gs.filter(g=>g.awayR!==null&&g.homeR!==null&&g.status!=='scheduled');
-  const tot=done.reduce((s,g)=>s+(g.awayR||0)+(g.homeR||0),0);
-  const avg=done.length?(tot/done.length).toFixed(1):'—';
-  const wou=done.filter(g=>g.ou!=null);
-  const ov=wou.filter(g=>ouSt(g.awayR+g.homeR,g.ou,g.status)==='over').length;
-  const un=wou.filter(g=>ouSt(g.awayR+g.homeR,g.ou,g.status)==='under').length;
-  document.getElementById(id).innerHTML=`
-    <div class="sstat"><div class="snum">${done.length?tot:'—'}</div><div class="slbl">Slate Runs</div></div>
-    <div class="sstat"><div class="snum">${avg}</div><div class="slbl">Avg / Game</div></div>
-    <div class="sstat"><div class="snum" style="color:var(--green)">${ov}<span style="color:var(--muted);font-size:20px"> / </span><span style="color:var(--blue)">${un}</span></div><div class="slbl">Over / Under</div></div>`;
-
-  // Only auto-save for today's games, not yesterday's
-  if(id === 'today-stats') {
-    const allFinal = gs.length > 0 && gs.every(g=>g.status==='final');
-    if(allFinal && done.length > 0) saveActualRuns(tot);
+async function readHistory() {
+  try {
+    const { blobs } = await list();
+    const blob = blobs.find(b => b.pathname === 'history.json');
+    if (!blob) return [];
+    const res = await fetch(blob.url);
+    return await res.json();
+  } catch(e) {
+    console.error('readHistory error:', e.message);
+    return [];
   }
 }
 
-function renderGames(gs,id,live){
-  document.getElementById(id).innerHTML=gs.map(g=>{
-    const {ou,book}=live?getOu(g):{ou:g.ou,book:g.book};
-    if(live){g.ou=ou;g.book=book;}
-    const runs=g.awayR!==null&&g.homeR!==null?g.awayR+g.homeR:null;
-    const st=ouSt(runs,ou,g.status);
-    const pct=runs&&ou?Math.min(100,Math.round((runs/(ou*1.8))*100)):0;
-    const aw=g.awayR!==null&&g.awayR>g.homeR,hw=g.homeR!==null&&g.homeR>g.awayR;
-    const sc=g.status==='final'?'sf':g.status==='live'?'sl':'su';
-    const sl=g.status==='final'?'Final':g.status==='live'?'● Live':'Upcoming';
-    const inn=g.status==='live'&&g.inning?`<span class="inn">${g.inning}</span>`:'';
-    return `<div class="game">
-      <div class="gtop"><span class="gstatus ${sc}">${sl}</span>${inn}<span class="gtime">${g.time||''}</span></div>
-      <div class="gbody">
-        <div class="team"><div class="tabbr ${aw?'w':''}">${g.away}</div><div class="tfull">${g.awayFull||''}</div></div>
-        <div class="sctr">
-          <span class="sco ${aw?'w':''}">${g.awayR!==null?g.awayR:'—'}</span>
-          <span class="sdash">-</span>
-          <span class="sco ${hw?'w':''}">${g.homeR!==null?g.homeR:'—'}</span>
-        </div>
-        <div class="team r"><div class="tabbr ${hw?'w':''}">${g.home}</div><div class="tfull">${g.homeFull||''}</div></div>
-      </div>
-      <div class="gfoot">
-        ${runs!==null?`<span class="rbadge">${runs} runs</span>`:''}
-        ${ou!=null?
-          g.status==='final'?
-            `<div class="outrack"><div class="oufill ${st||'push'}" style="width:${pct}%"></div></div>
-             <span class="oupill ${st||'push'}">${st==='over'?'OVER ':st==='under'?'UNDER ':'PUSH '}${ou}</span>
-             ${book?`<span class="oubook">${book}</span>`:''}`
-          :g.status==='live'?
-            `<span class="oulbl" style="color:var(--red)">Live O/U ${ou}</span>${book?`<span class="oubook">${book}</span>`:''}`
-          :`<span class="oulbl">O/U ${ou}</span>${book?`<span class="oubook">${book}</span>`:''}`
-        :`<span class="oulbl">O/U unavailable</span>`}
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function renderHistory(records){
-  const el=document.getElementById('hist-content');
-  if(!records.length){
-    el.innerHTML=`<div class="hist-empty">No history yet — data will appear here after games complete.</div>`;
-    return;
-  }
-  const rows=records.map(r=>{
-    const resCls=r.result==='over'?'res-over':r.result==='under'?'res-under':r.result==='push'?'res-push':'res-pending';
-    const resLbl=r.result?r.result.toUpperCase():'Pending';
-    const gap=r.actualRuns!==null&&r.grandSalamLine?((r.actualRuns-r.grandSalamLine).toFixed(1)):'-';
-    const gapColor=parseFloat(gap)>0?'color:var(--green)':parseFloat(gap)<0?'color:var(--blue)':'';
-    return `<tr>
-      <td>${r.date}</td>
-      <td>${r.gamesOnSlate||'-'}</td>
-      <td>${r.grandSalamLine||'-'}</td>
-      <td>${r.naiveTotal||'-'}</td>
-      <td>${r.actualRuns!==null&&r.actualRuns!==undefined?r.actualRuns:'-'}</td>
-      <td style="${gapColor}">${gap}</td>
-      <td class="${resCls}">${resLbl}</td>
-    </tr>`;
-  }).join('');
-  el.innerHTML=`<table class="hist-table">
-    <thead><tr>
-      <th>Date</th><th>Games</th><th>Grand Salami</th><th>Naive Total</th><th>Actual Runs</th><th>Gap</th><th>Result</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-  </table>`;
-}
-
-function redraw(){renderGames(games,'today-games',true);renderStats(games,'today-stats');}
-
-async function refreshScores(){
-  document.getElementById('spill').textContent='Scores: updating...';
-  try{
-    const data=await fetchScores();
-    games=data;
-    const live=games.filter(g=>g.status==='live').length;
-    const fin=games.filter(g=>g.status==='final').length;
-    document.getElementById('spill').textContent=`Scores: ${live?live+' live · ':''}${fin} final`;
-    document.getElementById('spill').className='pill pill-g';
-    sCD=SCORES_MS/1000;
-    redraw();
-  }catch(e){
-    document.getElementById('spill').textContent='Scores: error';
-    document.getElementById('spill').className='pill pill-r';
-    console.error(e);
+async function saveRecord(record) {
+  try {
+    let history = await readHistory();
+    // Remove ALL existing records for this date to prevent duplicates
+    history = history.filter(r => r.date !== record.date);
+    history.push(record);
+    await put('history.json', JSON.stringify(history), {
+      access: 'public',
+      addRandomSuffix: false,
+      contentType: 'application/json',
+    });
+  } catch(e) {
+    console.error('Failed to save record:', e.message);
   }
 }
 
-async function refreshOdds(){
-  document.getElementById('opill').textContent='O/U: updating...';
-  try{
-    const resp=await fetchOdds();
-    oddsMap=buildOddsMap(resp.games||[]);
-    // Only overwrite grandSalami if server returned one — otherwise keep existing
-    if(resp.grandSalami) grandSalami=resp.grandSalami;
-    document.getElementById('opill').textContent=`O/U: ${Object.keys(oddsMap).length} lines`;
-    document.getElementById('opill').className='pill pill-y';
-    // Sync countdown to server
-    if(resp.secondsUntilNext===Infinity||resp.secondsUntilNext>86400){
-      oCD=Infinity;
-    } else if(resp.secondsUntilNext!==undefined){
-      oCD=resp.secondsUntilNext;
-    } else {
-      oCD=getOddsInterval()/1000;
+async function getTodayGrandSalami() {
+  // Pull Grand Salami from today's history record if API didn't return one
+  // Only returns if date matches today — no stale bleed from yesterday
+  try {
+    const history = await readHistory();
+    const today = getTodayPST();
+    const todayRecord = history.find(r => r.date === today);
+    if (todayRecord && todayRecord.grandSalamLine) {
+      return { line: todayRecord.grandSalamLine, overPrice: todayRecord.gsOverPrice || null, underPrice: todayRecord.gsUnderPrice || null, book: todayRecord.gsBook || 'DraftKings' };
     }
-    renderSlateTotal();
-    renderGrandSalami();
-    redraw();
-  }catch(e){
-    document.getElementById('opill').textContent='O/U: error';
-    document.getElementById('opill').className='pill pill-r';
-    console.error(e);
+    return null;
+  } catch(e) { return null; }
+}
+
+module.exports = async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST');
+  res.setHeader('Content-Type', 'application/json');
+
+  if (req.method === 'POST') {
+    try {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      const { date, actualRuns, result, grandSalamLine, naiveTotal, gamesOnSlate, gsOverPrice, gsUnderPrice, gsBook } = body || {};
+      if (date) {
+        // Read existing record to merge, don't overwrite fields not included in this POST
+        let history = await readHistory();
+        const existing = history.find(r => r.date === date) || {};
+        await saveRecord({
+          ...existing,
+          date,
+          ...(actualRuns !== undefined && { actualRuns }),
+          ...(result !== undefined && { result }),
+          ...(grandSalamLine !== undefined && { grandSalamLine }),
+          ...(naiveTotal !== undefined && { naiveTotal }),
+          ...(gamesOnSlate !== undefined && { gamesOnSlate }),
+          ...(gsOverPrice !== undefined && { gsOverPrice }),
+          ...(gsUnderPrice !== undefined && { gsUnderPrice }),
+          ...(gsBook !== undefined && { gsBook }),
+        });
+        return res.status(200).json({ ok: true });
+      }
+      return res.status(400).json({ error: 'Missing date' });
+    } catch(e) {
+      return res.status(500).json({ error: e.message });
+    }
   }
-}
 
-function fmt(s){
-  if(s===Infinity||s>86400) return 'paused';
-  return s>=60?`${Math.ceil(s/60)}m`:`${s}s`;
-}
+  const ttl = getCacheTTL();
+  const age = Date.now() - cache.fetchedAt;
+  const cacheValid = cache.data && age < ttl;
 
-function startTimer(){
-  if(timer) clearInterval(timer);
-  timer=setInterval(()=>{
-    sCD--;
-    if(oCD!==Infinity) oCD--;
-    if(sCD<=0){sCD=SCORES_MS/1000;refreshScores();}
-    if(oCD<=0){oCD=getOddsInterval()/1000;refreshOdds();}
-    document.getElementById('countdown').textContent=`Scores in ${fmt(sCD)} · Odds in ${fmt(oCD)}`;
-  },1000);
-}
+  if (cacheValid) {
+    res.setHeader('X-Cache', `HIT - ${Math.round(age / 60000)}m old`);
+    const gs = cache.grandSalami || await getTodayGrandSalami();
+    return res.status(200).json({ games: filterToday(cache.data), grandSalami: gs, secondsUntilNext: getSecondsUntilNext() });
+  }
 
-function showTab(t){
-  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',
-    (t==='today'&&i===0)||(t==='yesterday'&&i===1)||(t==='history'&&i===2)));
-  document.getElementById('view-today').style.display=t==='today'?'block':'none';
-  document.getElementById('view-yesterday').style.display=t==='yesterday'?'block':'none';
-  document.getElementById('view-history').style.display=t==='history'?'block':'none';
-  if(t==='history') fetchHistory().then(renderHistory).catch(()=>renderHistory([]));
-}
+  try {
+    const upstream = await fetch(ODDS_URL);
+    if (!upstream.ok) throw new Error(`Odds API ${upstream.status}`);
+    const data = await upstream.json();
+    cache = { data, grandSalami: null, fetchedAt: Date.now() };
 
-async function init(){
-  renderStats(yest,'yest-stats');
-  renderGames(yest,'yest-games',false);
-  renderGrandSalami(); // show manual line immediately
-  await Promise.all([refreshScores(),refreshOdds()]);
-  startTimer();
-}
+    const todayGames = filterToday(data);
+    if (todayGames.length > 0) {
+      const naive = todayGames.reduce((sum, g) => {
+        const bk = (g.bookmakers || []).find(b => b.key === 'draftkings') || (g.bookmakers || [])[0];
+        if (!bk) return sum;
+        const mkt = (bk.markets || []).find(m => m.key === 'totals');
+        const ov = mkt && mkt.outcomes.find(o => o.name === 'Over');
+        return sum + (ov ? ov.point : 0);
+      }, 0);
 
-init();
-</script>
-</body>
-</html>
+      // Read existing today record to preserve grandSalamLine if already set manually
+      const history = await readHistory();
+      const existing = history.find(r => r.date === getTodayPST()) || {};
+      await saveRecord({
+        ...existing,
+        date: getTodayPST(),
+        naiveTotal: parseFloat(naive.toFixed(2)),
+        gamesOnSlate: todayGames.length,
+        actualRuns: existing.actualRuns ?? null,
+        result: existing.result ?? null,
+      });
+    }
+
+    const gs = await getTodayGrandSalami();
+    res.setHeader('X-Cache', 'MISS - fresh fetch');
+    return res.status(200).json({ games: filterToday(data), grandSalami: gs, secondsUntilNext: getSecondsUntilNext() });
+  } catch (err) {
+    if (cache.data) {
+      const gs = cache.grandSalami || await getTodayGrandSalami();
+      res.setHeader('X-Cache', 'STALE');
+      return res.status(200).json({ games: filterToday(cache.data), grandSalami: gs, secondsUntilNext: getSecondsUntilNext() });
+    }
+    return res.status(500).json({ error: err.message });
+  }
+};
