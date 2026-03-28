@@ -411,7 +411,7 @@ function renderGames(gs, id, live){
       : '';
 
     return `<div class="game">
-      <div class="gtop"><span class="gstatus ${sc}">${sl}</span><span class="gtime">${g.time||''}</span></div>
+      <div class="gtop"><span class="gstatus ${sc}">${sl}</span>${inn}<span class="gtime">${g.time||''}</span></div>
       <div class="gbody">
         <div class="team">
           <div class="tabbr ${aw?'w':''}">${g.away}</div>
@@ -419,7 +419,6 @@ function renderGames(gs, id, live){
           ${openLine?`<div class="line-open" style="margin-top:4px;">Open: O/U ${openLine}</div>`:''}
         </div>
         <div style="display:flex;flex-direction:column;align-items:center;padding:0 10px;flex-shrink:0;">
-          ${inn?`<div style="font-size:10px;color:var(--red);margin-bottom:2px;text-align:center;">${g.inning}</div>`:''}
           <div class="sctr" style="padding:0;">
             <span class="sco ${aw?'w':''}">${g.status==='scheduled'?'—':g.awayR!==null?g.awayR:'—'}</span>
             <span class="sdash">-</span>
