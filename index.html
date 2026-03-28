@@ -149,7 +149,7 @@ const SCORES_MS = 60000;
 
 function getOddsInterval() {
   const pstHour = ((new Date().getUTCHours() - 8) + 24) % 24;
-  if (pstHour >= 23 || pstHour < 9) return Infinity;
+  if (pstHour >= 23 || pstHour < 7) return Infinity;
   if (pstHour >= 9 && pstHour < 16) return 60 * 60 * 1000;
   return 15 * 60 * 1000;
 }
