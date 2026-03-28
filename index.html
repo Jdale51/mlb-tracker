@@ -278,16 +278,35 @@ function ouSt(runs,ou,status){
 }
 
 function renderSlateTotal(){
-  const vals=Object.values(oddsMap);
-  if(!vals.length){
+  if(!games.length||!Object.keys(oddsMap).length){
     document.getElementById('slate-num').textContent='—';
     document.getElementById('slate-meta').textContent='Waiting for O/U lines...';
     return;
   }
-  const imp=parseFloat(vals.reduce((s,v)=>s+v.ft,0).toFixed(2));
-  const naive=parseFloat(vals.reduce((s,v)=>s+v.ou,0).toFixed(2));
-  document.getElementById('slate-num').textContent=imp.toFixed(2);
-  document.getElementById('slate-meta').innerHTML=`${vals.length} games · Naive: ${naive}<br>Juice-adjusted · DK`;
+
+  let total=0;
+  let breakdown={final:0,live:0,upcoming:0};
+
+  for(const g of games){
+    const hk=(g.homeFull||g.home||'').split(' ').pop().toLowerCase();
+    const ak=(g.awayFull||g.away||'').split(' ').pop().toLowerCase();
+    const odds=oddsMap[`${ak}-${hk}`];
+
+    if(g.status==='final'&&g.awayR!==null&&g.homeR!==null){
+      total+=g.awayR+g.homeR;
+      breakdown.final++;
+    } else if(g.status==='live'&&odds){
+      total+=odds.ft;
+      breakdown.live++;
+    } else if(g.status==='scheduled'&&odds){
+      total+=odds.ft;
+      breakdown.upcoming++;
+    }
+  }
+
+  document.getElementById('slate-num').textContent=total.toFixed(2);
+  document.getElementById('slate-meta').innerHTML=
+    `${breakdown.final} final · ${breakdown.live} live · ${breakdown.upcoming} upcoming<br>Juice-adjusted · DK`;
 }
 
 function renderGrandSalami(){
