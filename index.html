@@ -158,7 +158,7 @@ function getOddsInterval() {
 
 let games = [];
 let oddsMap = {};
-let grandSalami = null;
+let grandSalami = { line: 67.5, overPrice: 100, underPrice: -120, book: 'DraftKings' };
 let serverFetchedAt = 0;
 let sCD = SCORES_MS/1000, oCD = getOddsInterval()/1000, timer = null;
 
