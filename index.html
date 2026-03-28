@@ -58,6 +58,9 @@
   .sco{font-family:'Barlow Condensed',sans-serif;font-size:34px;font-weight:900;color:var(--text);min-width:26px;text-align:center;line-height:1;}
   .sco.w{color:var(--green);}
   .sdash{color:var(--muted);font-size:16px;}
+  .line-center{text-align:center;margin-top:4px;}
+  .line-open{font-size:10px;color:var(--muted);font-family:'Barlow Condensed',sans-serif;letter-spacing:0.5px;}
+  .line-live{font-size:10px;color:var(--accent);font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:0.5px;}
   .gfoot{display:flex;align-items:center;gap:8px;padding:7px 12px;border-top:1px solid var(--border);flex-wrap:wrap;}
   .rbadge{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;background:var(--surface2);padding:2px 8px;border-radius:4px;color:var(--text);}
   .outrack{flex:1;height:4px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;max-width:70px;}
@@ -149,15 +152,20 @@ const SCORES_MS = 60000;
 
 function getOddsInterval() {
   const pstHour = ((new Date().getUTCHours() - 7) + 24) % 24;
-  if (pstHour >= 23 || pstHour < 9) return Infinity;
-  if (pstHour >= 9 && pstHour < 16) return 60 * 60 * 1000;
+  if (pstHour >= 23 || pstHour < 7) return Infinity;
+  if (pstHour >= 7 && pstHour < 16) return 60 * 60 * 1000;
   return 15 * 60 * 1000;
 }
 
+// State
 let games = [];
-let oddsMap = {};
+let oddsMap = {};           // live/pregame odds from Odds API — used for implied total
+let pregameLines = {};      // opening lines from blob — used for O/U counter
 let grandSalami = null;
-let sCD = SCORES_MS/1000, oCD = getOddsInterval()/1000, timer = null;
+let yestGames = [];
+let sCD = SCORES_MS/1000;
+let oCD = getOddsInterval()/1000;
+let timer = null;
 
 const ABBR = {
   'New York Yankees':'NYY','San Francisco Giants':'SF','Athletics':'ATH','Oakland Athletics':'ATH',
@@ -174,31 +182,20 @@ const ABBR = {
 
 function ta(name){ return ABBR[name] || name.split(' ').pop().slice(0,3).toUpperCase(); }
 
-let yestGames = [];
-
-async function fetchYesterday() {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  const yesterday = d.toLocaleDateString('en-CA');
-  const res = await fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${yesterday}&hydrate=linescore`);
-  if (!res.ok) throw new Error(`MLB API ${res.status}`);
-  const data = await res.json();
-  const raw = (data.dates && data.dates[0]) ? data.dates[0].games : [];
-  return raw.map(g => {
-    const state = g.status.abstractGameState;
-    const awayR = g.teams.away.score != null ? g.teams.away.score : null;
-    const homeR = g.teams.home.score != null ? g.teams.home.score : null;
-    return {
-      away: ta(g.teams.away.team.name),
-      home: ta(g.teams.home.team.name),
-      awayFull: g.teams.away.team.name,
-      homeFull: g.teams.home.team.name,
-      status: state==='Final'?'final':state==='Live'?'live':'scheduled',
-      time: state==='Final'?'Final':'',
-      awayR, homeR, ou: null, book: null,
-    };
-  });
+// Get the pregame line key for a game (matches blob format)
+function gameKey(g) {
+  const hk = (g.homeFull||g.home||'').split(' ').pop().toLowerCase();
+  const ak = (g.awayFull||g.away||'').split(' ').pop().toLowerCase();
+  return `${ak}-${hk}`;
 }
+
+// Get pregame line for a game from the blob cache
+function getPregameLine(g) {
+  const key = gameKey(g);
+  return pregameLines[key] || null;
+}
+
+// ── FETCH FUNCTIONS ──────────────────────────────────────────────────────────
 
 async function fetchScores() {
   const today = new Date().toLocaleDateString('en-CA');
@@ -231,6 +228,36 @@ async function fetchOdds() {
   return res.json();
 }
 
+async function fetchPregameLines() {
+  const res = await fetch('/api/lines');
+  if (!res.ok) throw new Error(`Lines API ${res.status}`);
+  return res.json();
+}
+
+async function fetchYesterday() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  const yesterday = d.toLocaleDateString('en-CA');
+  const res = await fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${yesterday}&hydrate=linescore`);
+  if (!res.ok) throw new Error(`MLB API ${res.status}`);
+  const data = await res.json();
+  const raw = (data.dates && data.dates[0]) ? data.dates[0].games : [];
+  return raw.map(g => {
+    const state = g.status.abstractGameState;
+    const awayR = g.teams.away.score != null ? g.teams.away.score : null;
+    const homeR = g.teams.home.score != null ? g.teams.home.score : null;
+    return {
+      away: ta(g.teams.away.team.name),
+      home: ta(g.teams.home.team.name),
+      awayFull: g.teams.away.team.name,
+      homeFull: g.teams.home.team.name,
+      status: state==='Final'?'final':state==='Live'?'live':'scheduled',
+      time: state==='Final'?'Final':'',
+      awayR, homeR, ou: null, book: null,
+    };
+  });
+}
+
 async function fetchHistory() {
   const res = await fetch('/api/history');
   if (!res.ok) throw new Error(`History API ${res.status}`);
@@ -247,6 +274,8 @@ async function saveActualRuns(totalRuns) {
     body: JSON.stringify({ date: today, actualRuns: totalRuns, result })
   });
 }
+
+// ── ODDS MAP (for implied total only) ────────────────────────────────────────
 
 function toImpl(p){ return p>0?100/(p+100):Math.abs(p)/(Math.abs(p)+100); }
 function fairTotal(overP,underP,point){
@@ -277,17 +306,18 @@ function buildOddsMap(data){
   return map;
 }
 
-function getOu(g){
-  const hk=(g.homeFull||g.home||'').split(' ').pop().toLowerCase();
-  const ak=(g.awayFull||g.away||'').split(' ').pop().toLowerCase();
-  return oddsMap[`${ak}-${hk}`]||{ou:null,ft:null,book:null};
+function getOdds(g){
+  return oddsMap[gameKey(g)]||{ou:null,ft:null,book:null};
 }
 
-function ouSt(runs,ou,status){
-  if(runs===null||ou==null) return null;
+// O/U status always uses pregame line, not live line
+function ouSt(runs, pregameLine, status){
+  if(runs===null||pregameLine==null) return null;
   if(status!=='final'&&status!=='live') return null;
-  return runs>ou?'over':runs<ou?'under':'push';
+  return runs>pregameLine?'over':runs<pregameLine?'under':'push';
 }
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
 
 function renderSlateTotal(){
   if(!games.length||!Object.keys(oddsMap).length){
@@ -295,15 +325,10 @@ function renderSlateTotal(){
     document.getElementById('slate-meta').textContent='Waiting for O/U lines...';
     return;
   }
-
   let total=0;
   let breakdown={final:0,live:0,upcoming:0};
-
   for(const g of games){
-    const hk=(g.homeFull||g.home||'').split(' ').pop().toLowerCase();
-    const ak=(g.awayFull||g.away||'').split(' ').pop().toLowerCase();
-    const odds=oddsMap[`${ak}-${hk}`];
-
+    const odds=oddsMap[gameKey(g)];
     if(g.status==='final'&&g.awayR!==null&&g.homeR!==null){
       total+=g.awayR+g.homeR;
       breakdown.final++;
@@ -315,7 +340,6 @@ function renderSlateTotal(){
       breakdown.upcoming++;
     }
   }
-
   document.getElementById('slate-num').textContent=total.toFixed(2);
   document.getElementById('slate-meta').innerHTML=
     `${breakdown.final} final · ${breakdown.live} live · ${breakdown.upcoming} upcoming<br>Juice-adjusted · DK`;
@@ -333,57 +357,86 @@ function renderGrandSalami(){
   document.getElementById('gs-meta').innerHTML=`${op&&up?`O ${op} / U ${up}<br>`:''}${grandSalami.book||'DraftKings'}`;
 }
 
-function renderStats(gs,id){
+function renderStats(gs, id, usePregame){
   const done=gs.filter(g=>g.awayR!==null&&g.homeR!==null&&g.status!=='scheduled');
   const tot=done.reduce((s,g)=>s+(g.awayR||0)+(g.homeR||0),0);
   const avg=done.length?(tot/done.length).toFixed(1):'—';
-  const wou=done.filter(g=>g.ou!=null);
-  const ov=wou.filter(g=>ouSt(g.awayR+g.homeR,g.ou,g.status)==='over').length;
-  const un=wou.filter(g=>ouSt(g.awayR+g.homeR,g.ou,g.status)==='under').length;
+
+  // O/U counter uses pregame lines if available, else falls back to stored ou
+  const wou = done.filter(g => {
+    const line = usePregame ? getPregameLine(g)?.line : g.ou;
+    return line != null;
+  });
+  const ov = wou.filter(g => {
+    const line = usePregame ? getPregameLine(g)?.line : g.ou;
+    return ouSt(g.awayR+g.homeR, line, g.status)==='over';
+  }).length;
+  const un = wou.filter(g => {
+    const line = usePregame ? getPregameLine(g)?.line : g.ou;
+    return ouSt(g.awayR+g.homeR, line, g.status)==='under';
+  }).length;
+
   document.getElementById(id).innerHTML=`
     <div class="sstat"><div class="snum">${done.length?tot:'—'}</div><div class="slbl">Slate Runs</div></div>
     <div class="sstat"><div class="snum">${avg}</div><div class="slbl">Avg / Game</div></div>
     <div class="sstat"><div class="snum" style="color:var(--green)">${ov}<span style="color:var(--muted);font-size:20px"> / </span><span style="color:var(--blue)">${un}</span></div><div class="slbl">Over / Under</div></div>`;
 
-  // Only auto-save for today's games, not yesterday's
-  if(id === 'today-stats') {
-    const allFinal = gs.length > 0 && gs.every(g=>g.status==='final');
-    if(allFinal && done.length > 0) saveActualRuns(tot);
+  // Auto-save when all today's games are final
+  if(id==='today-stats'){
+    const allFinal=gs.length>0&&gs.every(g=>g.status==='final');
+    if(allFinal&&done.length>0) saveActualRuns(tot);
   }
 }
 
-function renderGames(gs,id,live){
+function renderGames(gs, id, live){
   document.getElementById(id).innerHTML=gs.map(g=>{
-    const {ou,book}=live?getOu(g):{ou:g.ou,book:g.book};
-    if(live){g.ou=ou;g.book=book;}
+    const odds = live ? getOdds(g) : {ou:g.ou,book:g.book,ft:null};
+    const pregame = live ? getPregameLine(g) : null;
+    const openLine = pregame ? pregame.line : null;      // opening/pregame line
+    const liveLineVal = odds.ou;                         // current live line
+    // For O/U status and display: use pregame line if available, else live
+    const gradeLine = openLine || liveLineVal;
     const runs=g.awayR!==null&&g.homeR!==null?g.awayR+g.homeR:null;
-    const st=ouSt(runs,ou,g.status);
-    const pct=runs&&ou?Math.min(100,Math.round((runs/(ou*1.8))*100)):0;
+    const st=ouSt(runs, gradeLine, g.status);
+    const pct=runs&&gradeLine?Math.min(100,Math.round((runs/(gradeLine*1.8))*100)):0;
     const aw=g.awayR!==null&&g.awayR>g.homeR,hw=g.homeR!==null&&g.homeR>g.awayR;
     const sc=g.status==='final'?'sf':g.status==='live'?'sl':'su';
     const sl=g.status==='final'?'Final':g.status==='live'?'● Live':'Upcoming';
     const inn=g.status==='live'&&g.inning?`<span class="inn">${g.inning}</span>`:'';
+
+    // Build line movement indicator: "Live 6.5 → Open 8.5"
+    // Show when live and we have both lines and they differ
+    const lineMovement = live && openLine && liveLineVal && openLine !== liveLineVal
+      ? `<span class="oulbl" style="margin-left:4px;color:var(--muted)">· Open ${openLine}</span>`
+      : '';
+
     return `<div class="game">
       <div class="gtop"><span class="gstatus ${sc}">${sl}</span>${inn}<span class="gtime">${g.time||''}</span></div>
       <div class="gbody">
-        <div class="team"><div class="tabbr ${aw?'w':''}">${g.away}</div><div class="tfull">${g.awayFull||''}</div></div>
-        <div class="sctr">
-          <span class="sco ${aw?'w':''}">${g.awayR!==null?g.awayR:'—'}</span>
-          <span class="sdash">-</span>
-          <span class="sco ${hw?'w':''}">${g.homeR!==null?g.homeR:'—'}</span>
+        <div class="team">
+          <div class="tabbr ${aw?'w':''}">${g.away}</div>
+          <div class="tfull">${g.awayFull||''}</div>
+          ${openLine?`<div class="line-open" style="margin-top:4px;">Open: O/U ${openLine}</div>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;padding:0 10px;flex-shrink:0;">
+          <div class="sctr" style="padding:0;">
+            <span class="sco ${aw?'w':''}">${g.awayR!==null?g.awayR:'—'}</span>
+            <span class="sdash">-</span>
+            <span class="sco ${hw?'w':''}">${g.homeR!==null?g.homeR:'—'}</span>
+          </div>
+          ${liveLineVal&&g.status==='live'?`<div class="line-live" style="margin-top:3px;">Live: O/U ${liveLineVal}</div>`:''}
         </div>
         <div class="team r"><div class="tabbr ${hw?'w':''}">${g.home}</div><div class="tfull">${g.homeFull||''}</div></div>
       </div>
       <div class="gfoot">
         ${runs!==null?`<span class="rbadge">${runs} runs</span>`:''}
-        ${ou!=null?
+        ${gradeLine!=null?
           g.status==='final'?
             `<div class="outrack"><div class="oufill ${st||'push'}" style="width:${pct}%"></div></div>
-             <span class="oupill ${st||'push'}">${st==='over'?'OVER ':st==='under'?'UNDER ':'PUSH '}${ou}</span>
-             ${book?`<span class="oubook">${book}</span>`:''}`
+             <span class="oupill ${st||'push'}">${st==='over'?'OVER ':st==='under'?'UNDER ':'PUSH '}${gradeLine}</span>`
           :g.status==='live'?
-            `<span class="oulbl" style="color:var(--red)">Live O/U ${ou}</span>${book?`<span class="oubook">${book}</span>`:''}`
-          :`<span class="oulbl">O/U ${ou}</span>${book?`<span class="oubook">${book}</span>`:''}`
+            `<span class="oulbl">O/U ${liveLineVal||gradeLine}</span>`
+          :`<span class="oulbl">O/U ${gradeLine}</span>`
         :`<span class="oulbl">O/U unavailable</span>`}
       </div>
     </div>`;
@@ -399,14 +452,21 @@ function renderHistory(records){
   const rows=records.map(r=>{
     const resCls=r.result==='over'?'res-over':r.result==='under'?'res-under':r.result==='push'?'res-push':'res-pending';
     const resLbl=r.result?r.result.toUpperCase():'Pending';
-    const gap=r.actualRuns!==null&&r.grandSalamLine?((r.actualRuns-r.grandSalamLine).toFixed(1)):'-';
+    const gap=r.actualRuns!=null&&r.grandSalamLine?((r.actualRuns-r.grandSalamLine).toFixed(1)):'-';
     const gapColor=parseFloat(gap)>0?'color:var(--green)':parseFloat(gap)<0?'color:var(--blue)':'';
+    // Count per-game overs/unders from pregame lines
+    let gameOvers=0,gameUnders=0;
+    if(r.pregameLines){
+      Object.keys(r.pregameLines).forEach(k=>{
+        // We don't store per-game final scores in history yet, so skip for now
+      });
+    }
     return `<tr>
       <td>${r.date}</td>
       <td>${r.gamesOnSlate||'-'}</td>
       <td>${r.grandSalamLine||'-'}</td>
       <td>${r.naiveTotal||'-'}</td>
-      <td>${r.actualRuns!==null&&r.actualRuns!==undefined?r.actualRuns:'-'}</td>
+      <td>${r.actualRuns!=null?r.actualRuns:'-'}</td>
       <td style="${gapColor}">${gap}</td>
       <td class="${resCls}">${resLbl}</td>
     </tr>`;
@@ -419,7 +479,13 @@ function renderHistory(records){
   </table>`;
 }
 
-function redraw(){renderGames(games,'today-games',true);renderStats(games,'today-stats');}
+// ── REFRESH ───────────────────────────────────────────────────────────────────
+
+function redraw(){
+  renderGames(games,'today-games',true);
+  renderStats(games,'today-stats',true);
+  renderSlateTotal();
+}
 
 async function refreshScores(){
   document.getElementById('spill').textContent='Scores: updating...';
@@ -444,11 +510,9 @@ async function refreshOdds(){
   try{
     const resp=await fetchOdds();
     oddsMap=buildOddsMap(resp.games||[]);
-    // Only overwrite grandSalami if server returned one — otherwise keep existing
     if(resp.grandSalami) grandSalami=resp.grandSalami;
     document.getElementById('opill').textContent=`O/U: ${Object.keys(oddsMap).length} lines`;
     document.getElementById('opill').className='pill pill-y';
-    // Sync countdown to server
     if(resp.secondsUntilNext===Infinity||resp.secondsUntilNext>86400){
       oCD=Infinity;
     } else if(resp.secondsUntilNext!==undefined){
@@ -456,7 +520,6 @@ async function refreshOdds(){
     } else {
       oCD=getOddsInterval()/1000;
     }
-    renderSlateTotal();
     renderGrandSalami();
     redraw();
   }catch(e){
@@ -489,19 +552,43 @@ function showTab(t){
   document.getElementById('view-yesterday').style.display=t==='yesterday'?'block':'none';
   document.getElementById('view-history').style.display=t==='history'?'block':'none';
   if(t==='history') fetchHistory().then(renderHistory).catch(()=>renderHistory([]));
-  if(t==='yesterday' && !yestGames.length) fetchYesterday().then(data=>{yestGames=data;renderStats(yestGames,'yest-stats');renderGames(yestGames,'yest-games',false);}).catch(e=>console.error(e));
+  if(t==='yesterday'&&!yestGames.length) loadYesterday();
+}
+
+async function loadYesterday(){
+  try{
+    // Fetch yesterday's scores and yesterday's pregame lines from history
+    const [scores, hist] = await Promise.all([
+      fetchYesterday(),
+      fetchHistory()
+    ]);
+    // Get yesterday's date
+    const d=new Date(); d.setDate(d.getDate()-1);
+    const yestDate=d.toLocaleDateString('en-CA');
+    const yestRecord=hist.find(r=>r.date===yestDate);
+    const yestPregame=yestRecord?.pregameLines||{};
+
+    // Attach pregame lines to each game for display
+    yestGames=scores.map(g=>({
+      ...g,
+      ou: yestPregame[gameKey(g)]?.line||null,
+      book: yestPregame[gameKey(g)]?.book||null,
+    }));
+    renderStats(yestGames,'yest-stats',false);
+    renderGames(yestGames,'yest-games',false);
+  }catch(e){
+    console.error('Yesterday error:',e);
+  }
 }
 
 async function init(){
   renderGrandSalami();
-  await Promise.all([
+  // Fetch pregame lines, scores, odds, and yesterday in parallel
+  const [linesResp] = await Promise.all([
+    fetchPregameLines().then(r=>{ pregameLines=r.pregameLines||{}; }).catch(e=>console.error(e)),
     refreshScores(),
     refreshOdds(),
-    fetchYesterday().then(data => {
-      yestGames = data;
-      renderStats(yestGames,'yest-stats');
-      renderGames(yestGames,'yest-games',false);
-    }).catch(e => console.error('Yesterday fetch error:', e))
+    loadYesterday(),
   ]);
   startTimer();
 }
