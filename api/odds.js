@@ -6,8 +6,8 @@ const ODDS_URL = `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiK
 let cache = { data: null, grandSalami: null, fetchedAt: 0 };
 
 function getCacheTTL() {
-  const pstHour = ((new Date().getUTCHours() - 8) + 24) % 24;
-  if (pstHour >= 23 || pstHour < 7) return Infinity;
+  const pstHour = ((new Date().getUTCHours() - 7) + 24) % 24;
+  if (pstHour >= 23 || pstHour < 9) return Infinity;
   if (pstHour >= 9 && pstHour < 16) return 60 * 60 * 1000;
   return 15 * 60 * 1000;
 }
@@ -20,14 +20,14 @@ function getSecondsUntilNext() {
 }
 
 function getTodayPST() {
-  const pst = new Date(Date.now() + -8 * 60 * 60000);
+  const pst = new Date(Date.now() + -7 * 60 * 60000);
   return pst.toISOString().split('T')[0];
 }
 
 function filterToday(data) {
   const todayPST = getTodayPST();
   return data.filter(game => {
-    const gamePST = new Date(new Date(game.commence_time).getTime() + -8 * 60 * 60000);
+    const gamePST = new Date(new Date(game.commence_time).getTime() + -7 * 60 * 60000);
     return gamePST.toISOString().split('T')[0] === todayPST;
   });
 }
