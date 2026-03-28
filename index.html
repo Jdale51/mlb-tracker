@@ -158,7 +158,7 @@ function getOddsInterval() {
 
 let games = [];
 let oddsMap = {};
-let grandSalami = { line: 67.5, overPrice: 100, underPrice: -120, book: 'DraftKings' };
+let grandSalami = null;
 let serverFetchedAt = 0;
 let sCD = SCORES_MS/1000, oCD = getOddsInterval()/1000, timer = null;
 
@@ -420,14 +420,14 @@ async function refreshOdds(){
   try{
     const resp=await fetchOdds();
     oddsMap=buildOddsMap(resp.games||[]);
-    grandSalami=resp.grandSalami||grandSalami;
+    grandSalami=resp.grandSalami||null;
     document.getElementById('opill').textContent=`O/U: ${Object.keys(oddsMap).length} lines`;
     document.getElementById('opill').className='pill pill-y';
-    // Set countdown based on server fetch time
-    if(serverFetchedAt){
-      const elapsed=Math.floor((Date.now()-serverFetchedAt)/1000);
-      const interval=getOddsInterval()/1000;
-      oCD=Math.max(0,interval-elapsed);
+    // Use server-provided countdown so all devices stay in sync
+    if(resp.secondsUntilNext===Infinity||resp.secondsUntilNext>86400){
+      oCD=Infinity;
+    } else if(resp.secondsUntilNext!==undefined){
+      oCD=resp.secondsUntilNext;
     } else {
       oCD=getOddsInterval()/1000;
     }
