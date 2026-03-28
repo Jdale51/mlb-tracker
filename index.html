@@ -379,7 +379,7 @@ function renderStats(gs, id, usePregame){
   document.getElementById(id).innerHTML=`
     <div class="sstat"><div class="snum">${done.length?tot:'—'}</div><div class="slbl">Slate Runs</div></div>
     <div class="sstat"><div class="snum">${avg}</div><div class="slbl">Avg / Game</div></div>
-    <div class="sstat"><div class="snum" style="color:var(--green)">${ov}<span style="color:var(--muted);font-size:20px"> / </span><span style="color:var(--blue)">${un}</span></div><div class="slbl">Over / Under</div></div>`;
+    <div class="sstat"><div class="snum" style="color:var(--green)">${ov}<span style="color:var(--muted);font-size:20px"> / </span><span style="color:var(--red)">${un}</span></div><div class="slbl">Over / Under</div></div>`;
 
   // Auto-save when all today's games are final
   if(id==='today-stats'){
