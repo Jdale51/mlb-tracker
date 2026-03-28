@@ -411,7 +411,7 @@ function renderGames(gs, id, live){
       : '';
 
     return `<div class="game">
-      <div class="gtop"><span class="gstatus ${sc}">${sl}</span>${inn}<span class="gtime">${g.time||''}</span></div>
+      <div class="gtop"><span class="gstatus ${sc}">${sl}</span><span class="gtime">${g.time||''}</span></div>
       <div class="gbody">
         <div class="team">
           <div class="tabbr ${aw?'w':''}">${g.away}</div>
@@ -428,15 +428,13 @@ function renderGames(gs, id, live){
         <div class="team r"><div class="tabbr ${hw?'w':''}">${g.home}</div><div class="tfull">${g.homeFull||''}</div></div>
       </div>
       <div class="gfoot">
-        ${runs!==null?`<span class="rbadge">${runs} runs</span>`:''}
-        ${gradeLine!=null?
-          g.status==='final'?
+        ${(g.status==='live'||g.status==='final')&&runs!==null?`<span class="rbadge">${runs} runs</span>`:''}
+        ${g.status==='final'&&runs!==null?
             `<div class="outrack"><div class="oufill ${st||'push'}" style="width:${pct}%"></div></div>
              <span class="oupill ${st||'push'}">${st==='over'?'OVER ':st==='under'?'UNDER ':'PUSH '}${gradeLine}</span>`
           :g.status==='live'?
             `<span class="oulbl" style="color:var(--accent)">Live: O/U ${liveLineVal||gradeLine}</span>`
-          :`<span class="oulbl">Open: O/U ${gradeLine}</span>`
-        :`<span class="oulbl">O/U unavailable</span>`}
+          :''}
       </div>
     </div>`;
   }).join('');
