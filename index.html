@@ -379,7 +379,7 @@ function renderStats(gs, id, usePregame){
   document.getElementById(id).innerHTML=`
     <div class="sstat"><div class="snum">${done.length?tot:'—'}</div><div class="slbl">Slate Runs</div></div>
     <div class="sstat"><div class="snum">${avg}</div><div class="slbl">Avg / Game</div></div>
-    <div class="sstat"><div class="snum" style="color:var(--green)">${ov}<span style="color:var(--muted);font-size:20px"> / </span><span style="color:var(--red)">${un}</span></div><div class="slbl">Over / Under</div></div>`;
+    <div class="sstat"><div class="snum" style="color:var(--green)">${ov}<span style="color:var(--muted);font-size:20px"> / </span><span style="color:var(--blue)">${un}</span></div><div class="slbl">Over / Under</div></div>`;
 
   // Auto-save when all today's games are final
   if(id==='today-stats'){
@@ -583,9 +583,15 @@ async function loadYesterday(){
 
 async function init(){
   renderGrandSalami();
-  // Fetch pregame lines, scores, odds, and yesterday in parallel
-  const [linesResp] = await Promise.all([
-    fetchPregameLines().then(r=>{ pregameLines=r.pregameLines||{}; }).catch(e=>console.error(e)),
+  // Fetch pregame lines FIRST so they're available when scores/odds render
+  try {
+    const linesResp = await fetchPregameLines();
+    pregameLines = linesResp.pregameLines || {};
+  } catch(e) {
+    console.error('fetchPregameLines error:', e);
+  }
+  // Then fetch everything else in parallel
+  await Promise.all([
     refreshScores(),
     refreshOdds(),
     loadYesterday(),
