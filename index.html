@@ -97,15 +97,14 @@
 <div class="header">
   <div class="logo"><span class="logo-dot"></span>MLB RUN TRACKER</div>
   <div class="header-right">
-    <div class="status-row">
+    <div class="hcol">
       <span id="spill" class="pill pill-g">Scores: loading</span>
-      <span id="opill" class="pill pill-y">O/U: loading</span>
-    </div>
-    <div class="refresh-row">
       <button class="rbtn" onclick="refreshScores()">↻ Scores</button>
-      <button class="rbtn" onclick="refreshOdds()">↻ Odds</button>
     </div>
-    <div id="countdown" class="countdown"></div>
+    <div class="hcol">
+      <span id="opill" class="pill pill-y">O/U: loading</span>
+      <span id="lines-updated" class="lines-updated">—</span>
+    </div>
   </div>
 </div>
 
@@ -535,6 +534,9 @@ async function refreshOdds(){
     if(resp.grandSalami) grandSalami=resp.grandSalami;
     document.getElementById('opill').textContent=`O/U: ${Object.keys(oddsMap).length} lines`;
     document.getElementById('opill').className='pill pill-y';
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+    document.getElementById('lines-updated').textContent=`Updated: ${timeStr}`;
     if(resp.secondsUntilNext===Infinity||resp.secondsUntilNext>86400){
       oCD=Infinity;
     } else if(resp.secondsUntilNext!==undefined){
@@ -563,7 +565,7 @@ function startTimer(){
     if(oCD!==Infinity) oCD--;
     if(sCD<=0){sCD=SCORES_MS/1000;refreshScores();}
     if(oCD<=0){const iv=getOddsInterval();if(iv===Infinity){oCD=Infinity;}else{oCD=iv/1000;refreshOdds();}}
-    document.getElementById('countdown').textContent=`Scores in ${fmt(sCD)} · Odds in ${fmt(oCD)}`;
+    // countdown removed from header
   },1000);
 }
 
