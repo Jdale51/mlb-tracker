@@ -198,8 +198,9 @@ module.exports = async function handler(req, res) {
       await saveRecord({
         ...existing,
         date: today,
-        naiveTotal: parseFloat(naive.toFixed(2)),
-        gamesOnSlate: todayGames.length,
+        // Only save naiveTotal and gamesOnSlate if not already set — preserves morning values
+        naiveTotal: existing.naiveTotal ?? parseFloat(naive.toFixed(2)),
+        gamesOnSlate: existing.gamesOnSlate ?? todayGames.length,
         pregameLines,
         actualRuns: existing.actualRuns ?? null,
         result: existing.result ?? null,
