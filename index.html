@@ -534,8 +534,8 @@ async function refreshOdds(){
     if(resp.grandSalami) grandSalami=resp.grandSalami;
     document.getElementById('opill').textContent=`O/U: ${Object.keys(oddsMap).length} lines`;
     document.getElementById('opill').className='pill pill-y';
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+    const ts = resp.oddsLastFetched ? new Date(resp.oddsLastFetched) : new Date();
+    const timeStr = ts.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
     document.getElementById('lines-updated').textContent=`Updated: ${timeStr}`;
     if(resp.secondsUntilNext===Infinity||resp.secondsUntilNext>86400){
       oCD=Infinity;
