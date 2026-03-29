@@ -163,7 +163,8 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({
       games: filterToday(cache.data),
       grandSalami: gs,
-      secondsUntilNext: getSecondsUntilNext()
+      secondsUntilNext: getSecondsUntilNext(),
+      oddsLastFetched: cache.fetchedAt
     });
   }
 
@@ -210,7 +211,8 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({
       games: filterToday(data),
       grandSalami: gs,
-      secondsUntilNext: getSecondsUntilNext()
+      secondsUntilNext: getSecondsUntilNext(),
+      oddsLastFetched: cache.fetchedAt
     });
   } catch (err) {
     if (cache.data) {
@@ -219,7 +221,8 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({
         games: filterToday(cache.data),
         grandSalami: gs,
-        secondsUntilNext: getSecondsUntilNext()
+        secondsUntilNext: getSecondsUntilNext(),
+        oddsLastFetched: cache.fetchedAt
       });
     }
     return res.status(500).json({ error: err.message });
