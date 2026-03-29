@@ -1,9 +1,18 @@
 const { list } = require('@vercel/blob');
 
+let linesCache = { data: null, loadedAt: 0 };
+const CACHE_MS = 24 * 60 * 60 * 1000; // cache all day — lines only saved once in morning
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET');
   res.setHeader('Content-Type', 'application/json');
+
+  // Serve from memory if fresh
+  const age = Date.now() - linesCache.loadedAt;
+  if (linesCache.data && age < CACHE_MS) {
+    return res.status(200).json(linesCache.data);
+  }
 
   try {
     const { blobs } = await list();
@@ -17,12 +26,11 @@ module.exports = async function handler(req, res) {
     const today = pst.toISOString().split('T')[0];
 
     const todayRecord = history.find(r => r.date === today);
-    return res.status(200).json({
-      date: today,
-      pregameLines: todayRecord?.pregameLines || {}
-    });
+    const result = { date: today, pregameLines: todayRecord?.pregameLines || {} };
+    linesCache = { data: result, loadedAt: Date.now() };
+    return res.status(200).json(result);
   } catch(e) {
     console.error('Lines error:', e.message);
-    return res.status(200).json({ pregameLines: {} });
+    return res.status(200).json(linesCache.data || { pregameLines: {} });
   }
 };
