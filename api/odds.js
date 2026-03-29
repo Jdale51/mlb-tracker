@@ -4,6 +4,9 @@ const ODDS_API_KEY = 'aef1c06336685a4a20c89a57d3f56262';
 const ODDS_URL = `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${ODDS_API_KEY}&regions=us&markets=totals&oddsFormat=american`;
 
 let cache = { data: null, grandSalami: null, fetchedAt: 0 };
+// In-memory history cache — avoids repeated blob reads
+let historyCache = { data: null, loadedAt: 0 };
+const HISTORY_CACHE_MS = 24 * 60 * 60 * 1000; // cache all day — only changes on explicit POST
 
 function getCacheTTL() {
   const pstHour = ((new Date().getUTCHours() - 7) + 24) % 24;
@@ -32,16 +35,22 @@ function filterToday(data) {
   });
 }
 
-async function readHistory() {
+async function readHistory(forceRefresh = false) {
+  const age = Date.now() - historyCache.loadedAt;
+  if (!forceRefresh && historyCache.data && age < HISTORY_CACHE_MS) {
+    return historyCache.data;
+  }
   try {
     const { blobs } = await list();
     const blob = blobs.find(b => b.pathname === 'history.json');
     if (!blob) return [];
     const res = await fetch(blob.url);
-    return await res.json();
+    const data = await res.json();
+    historyCache = { data, loadedAt: Date.now() };
+    return data;
   } catch(e) {
     console.error('readHistory error:', e.message);
-    return [];
+    return historyCache.data || [];
   }
 }
 
@@ -51,6 +60,8 @@ async function writeHistory(history) {
     addRandomSuffix: false,
     contentType: 'application/json',
   });
+  // Update in-memory cache after write
+  historyCache = { data: history, loadedAt: Date.now() };
 }
 
 async function saveRecord(record) {
