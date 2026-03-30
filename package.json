@@ -2,6 +2,7 @@
   "name": "mlb-tracker",
   "version": "1.0.0",
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "@vercel/blob": "^0.27.0"
   }
 }
