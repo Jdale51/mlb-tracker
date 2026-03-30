@@ -269,8 +269,16 @@ async function fetchHistory() {
 
 async function saveActualRuns(totalRuns) {
   const today = new Date().toLocaleDateString('en-CA');
-  const gs = grandSalami ? grandSalami.line : null;
-  const result = gs !== null ? (totalRuns > gs ? 'over' : totalRuns < gs ? 'under' : 'push') : null;
+  // Use in-memory GS line if available, otherwise fetch from blob
+  let gsLine = grandSalami ? grandSalami.line : null;
+  if (!gsLine) {
+    try {
+      const hist = await fetch('/api/history').then(r => r.json());
+      const todayRecord = hist.find(r => r.date === today);
+      gsLine = todayRecord ? todayRecord.grandSalamLine : null;
+    } catch(e) { console.error('Could not fetch GS line:', e); }
+  }
+  const result = gsLine !== null ? (totalRuns > gsLine ? 'over' : totalRuns < gsLine ? 'under' : 'push') : null;
   await fetch('/api/odds', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
