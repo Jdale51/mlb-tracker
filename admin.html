@@ -1,41 +1,295 @@
-const { list } = require('@vercel/blob');
-
-let linesCache = { data: null, loadedAt: 0 };
-const CACHE_MS = 24 * 60 * 60 * 1000; // cache all day — lines only saved once in morning
-let blobUrl = null;
-
-module.exports = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET');
-  res.setHeader('Content-Type', 'application/json');
-
-  // Serve from memory if fresh
-  const age = Date.now() - linesCache.loadedAt;
-  if (linesCache.data && age < CACHE_MS) {
-    return res.status(200).json(linesCache.data);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MLB Tracker Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green:#00C46A;--red:#FF3B3B;--blue:#2B7FFF;
+    --bg:#0A0D12;--surface:#12161E;--surface2:#1C2230;
+    --border:rgba(255,255,255,0.07);--text:#F0F2F7;--muted:#6B7280;--accent:#F5C518;
+    --purple:#B06AFF;
   }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;max-width:480px;margin:0 auto;padding:16px;}
+  .header{display:flex;align-items:center;gap:10px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border);}
+  .logo{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:20px;color:var(--accent);}
+  .back{font-size:12px;color:var(--muted);text-decoration:none;margin-left:auto;border:1px solid var(--border);padding:4px 10px;border-radius:4px;}
+  .back:hover{color:var(--text);}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;}
+  .card-title{font-family:'Barlow Condensed',sans-serif;font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:14px;}
+  .field{margin-bottom:12px;}
+  .field:last-child{margin-bottom:0;}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;}
+  .field input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-family:'Barlow',sans-serif;font-size:16px;}
+  .field input:focus{outline:none;border-color:var(--accent);}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .btn{width:100%;padding:13px;border:none;border-radius:10px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;letter-spacing:1px;cursor:pointer;margin-top:4px;}
+  .btn-primary{background:var(--purple);color:#fff;}
+  .btn-primary:hover{opacity:0.9;}
+  .btn-success{background:var(--green);color:#fff;}
+  .btn-success:hover{opacity:0.9;}
+  .btn-danger{background:var(--red);color:#fff;}
+  .btn-danger:hover{opacity:0.9;}
+  .btn:disabled{opacity:0.5;cursor:not-allowed;}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 20px;font-size:14px;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:0.5px;opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:nowrap;}
+  .toast.show{opacity:1;}
+  .toast.ok{border-color:var(--green);color:var(--green);}
+  .toast.err{border-color:var(--red);color:var(--red);}
+  .date-display{font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:var(--accent);margin-bottom:4px;}
+  .history-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;}
+  .history-row:last-child{border-bottom:none;}
+  .history-date{color:var(--muted);}
+  .history-gs{color:var(--purple);font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;}
+  .history-result{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;}
+  .over{color:var(--green);}
+  .under{color:var(--blue);}
+  .pending{color:var(--muted);font-style:italic;}
+  #lock-screen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;}
+  #lock-screen h2{font-family:'Barlow Condensed',sans-serif;font-size:24px;color:var(--accent);}
+  #pin-input{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-size:24px;text-align:center;width:160px;letter-spacing:8px;}
+  #pin-input:focus{outline:none;border-color:var(--accent);}
+  #pin-error{color:var(--red);font-size:13px;height:16px;}
+</style>
+</head>
+<body>
 
+<div id="lock-screen">
+  <h2>⛳ ADMIN</h2>
+  <input type="password" id="pin-input" placeholder="••••" maxlength="4" inputmode="numeric">
+  <div id="pin-error"></div>
+</div>
+
+<div id="main-content" style="display:none;">
+  <div class="header">
+    <div class="logo">⚾ MLB ADMIN</div>
+    <a href="/" class="back">← Tracker</a>
+  </div>
+
+  <!-- Today's Date -->
+  <div class="card">
+    <div class="card-title">Today's Slate</div>
+    <div class="date-display" id="today-date">—</div>
+    <div style="font-size:11px;color:var(--muted);" id="today-status">Loading...</div>
+  </div>
+
+  <!-- Grand Salami -->
+  <div class="card">
+    <div class="card-title">Set Grand Salami Line</div>
+    <div class="field">
+      <label>Grand Salami Line</label>
+      <input type="number" id="gs-line" placeholder="e.g. 104" step="0.5">
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>Over Price</label>
+        <input type="number" id="gs-over" placeholder="-110">
+      </div>
+      <div class="field">
+        <label>Under Price</label>
+        <input type="number" id="gs-under" placeholder="-110">
+      </div>
+    </div>
+    <div class="field">
+      <label>Book</label>
+      <input type="text" id="gs-book" placeholder="DraftKings" value="DraftKings">
+    </div>
+    <button class="btn btn-primary" onclick="saveGrandSalami()">SAVE GRAND SALAMI</button>
+  </div>
+
+  <!-- End of Day Result -->
+  <div class="card">
+    <div class="card-title">Save End of Day Result</div>
+    <div class="row2">
+      <div class="field">
+        <label>Actual Runs</label>
+        <input type="number" id="actual-runs" placeholder="e.g. 128">
+      </div>
+      <div class="field">
+        <label>Result</label>
+        <input type="text" id="result" placeholder="over / under">
+      </div>
+    </div>
+    <button class="btn btn-success" onclick="saveResult()">SAVE RESULT</button>
+  </div>
+
+  <!-- History -->
+  <div class="card">
+    <div class="card-title">Recent History</div>
+    <div id="history-list"><div style="color:var(--muted);font-size:13px;">Loading...</div></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const PIN = '1234'; // Change this to your preferred PIN
+
+function checkPin() {
+  const input = document.getElementById('pin-input').value;
+  if (input === PIN) {
+    document.getElementById('lock-screen').style.display = 'none';
+    document.getElementById('main-content').style.display = 'block';
+    init();
+  } else if (input.length === 4) {
+    document.getElementById('pin-error').textContent = 'Incorrect PIN';
+    document.getElementById('pin-input').value = '';
+  }
+}
+
+document.getElementById('pin-input').addEventListener('input', checkPin);
+
+function getTodayPDT() {
+  const pst = new Date(Date.now() + -7 * 60 * 60000);
+  return pst.toISOString().split('T')[0];
+}
+
+function showToast(msg, type='ok') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast show ${type}`;
+  setTimeout(() => t.className = 'toast', 2500);
+}
+
+async function loadHistory() {
   try {
-    // Use cached URL or fetch from list() once
-    if (!blobUrl) {
-      const { blobs } = await list();
-      const blob = blobs.find(b => b.pathname === 'history.json');
-      if (!blob) return res.status(200).json({ pregameLines: {} });
-      blobUrl = blob.url;
+    const res = await fetch('/api/history');
+    const history = await res.json();
+    const today = getTodayPDT();
+    const todayRecord = history.find(r => r.date === today);
+
+    // Update today status
+    if (todayRecord) {
+      const status = [];
+      if (todayRecord.grandSalamLine) status.push(`GS: ${todayRecord.grandSalamLine}`);
+      if (todayRecord.gamesOnSlate) status.push(`${todayRecord.gamesOnSlate} games`);
+      if (todayRecord.naiveTotal) status.push(`Naive: ${todayRecord.naiveTotal}`);
+      document.getElementById('today-status').textContent = status.join(' · ') || 'No data yet';
+
+      // Pre-fill GS fields if already set
+      if (todayRecord.grandSalamLine) {
+        document.getElementById('gs-line').value = todayRecord.grandSalamLine;
+        document.getElementById('gs-over').value = todayRecord.gsOverPrice || '';
+        document.getElementById('gs-under').value = todayRecord.gsUnderPrice || '';
+        document.getElementById('gs-book').value = todayRecord.gsBook || 'DraftKings';
+      }
+      if (todayRecord.actualRuns) {
+        document.getElementById('actual-runs').value = todayRecord.actualRuns;
+        document.getElementById('result').value = todayRecord.result || '';
+      }
+    } else {
+      document.getElementById('today-status').textContent = 'No record yet — odds fetch will create one';
     }
 
-    const response = await fetch(blobUrl);
-    const history = await response.json();
-
-    const pst = new Date(Date.now() + -7 * 60 * 60000);
-    const today = pst.toISOString().split('T')[0];
-
-    const todayRecord = history.find(r => r.date === today);
-    const result = { date: today, pregameLines: todayRecord?.pregameLines || {} };
-    linesCache = { data: result, loadedAt: Date.now() };
-    return res.status(200).json(result);
+    // Render recent history
+    const recent = history.slice(0, 7);
+    document.getElementById('history-list').innerHTML = recent.map(r => {
+      const resCls = r.result === 'over' ? 'over' : r.result === 'under' ? 'under' : 'pending';
+      const resLbl = r.result ? r.result.toUpperCase() : 'Pending';
+      return `<div class="history-row">
+        <span class="history-date">${r.date}</span>
+        <span class="history-gs">${r.grandSalamLine || '—'}</span>
+        <span style="color:var(--muted);font-size:12px;">${r.actualRuns != null ? r.actualRuns + ' runs' : '—'}</span>
+        <span class="history-result ${resCls}">${resLbl}</span>
+      </div>`;
+    }).join('') || '<div style="color:var(--muted);font-size:13px;">No history yet</div>';
   } catch(e) {
-    console.error('Lines error:', e.message);
-    return res.status(200).json(linesCache.data || { pregameLines: {} });
+    document.getElementById('today-status').textContent = 'Error loading data';
+    console.error(e);
   }
-};
+}
+
+async function saveGrandSalami() {
+  const line = parseFloat(document.getElementById('gs-line').value);
+  const over = parseInt(document.getElementById('gs-over').value);
+  const under = parseInt(document.getElementById('gs-under').value);
+  const book = document.getElementById('gs-book').value || 'DraftKings';
+
+  if (!line) { showToast('Enter a line first', 'err'); return; }
+
+  const btn = document.querySelector('.btn-primary');
+  btn.disabled = true;
+  btn.textContent = 'SAVING...';
+
+  try {
+    const res = await fetch('/api/odds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date: getTodayPDT(),
+        grandSalamLine: line,
+        gsOverPrice: over || -110,
+        gsUnderPrice: under || -110,
+        gsBook: book
+      })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast('Grand Salami saved ✓', 'ok');
+      loadHistory();
+    } else {
+      showToast('Save failed', 'err');
+    }
+  } catch(e) {
+    showToast('Error: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'SAVE GRAND SALAMI';
+  }
+}
+
+async function saveResult() {
+  const runs = parseInt(document.getElementById('actual-runs').value);
+  let result = document.getElementById('result').value.toLowerCase().trim();
+
+  if (!runs) { showToast('Enter actual runs', 'err'); return; }
+  if (!['over','under','push'].includes(result)) {
+    // Auto-calculate if blank
+    const res = await fetch('/api/history');
+    const history = await res.json();
+    const today = getTodayPDT();
+    const todayRecord = history.find(r => r.date === today);
+    if (todayRecord && todayRecord.grandSalamLine) {
+      result = runs > todayRecord.grandSalamLine ? 'over' : runs < todayRecord.grandSalamLine ? 'under' : 'push';
+      document.getElementById('result').value = result;
+    } else {
+      showToast('Enter result: over/under/push', 'err');
+      return;
+    }
+  }
+
+  const btn = document.querySelector('.btn-success');
+  btn.disabled = true;
+  btn.textContent = 'SAVING...';
+
+  try {
+    const res = await fetch('/api/odds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: getTodayPDT(), actualRuns: runs, result })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(`${runs} runs · ${result.toUpperCase()} saved ✓`, 'ok');
+      loadHistory();
+    } else {
+      showToast('Save failed', 'err');
+    }
+  } catch(e) {
+    showToast('Error: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'SAVE RESULT';
+  }
+}
+
+function init() {
+  document.getElementById('today-date').textContent = getTodayPDT();
+  loadHistory();
+}
+</script>
+</body>
+</html>
