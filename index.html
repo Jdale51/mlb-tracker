@@ -98,12 +98,12 @@
   <div class="logo"><span class="logo-dot"></span>MLB RUN TRACKER</div>
   <table style="border-collapse:collapse;white-space:nowrap;">
     <tr>
-      <td style="text-align:center;padding:0 8px;"><span id="spill" class="pill pill-g">Scores: loading</span></td>
-      <td style="text-align:center;padding:0 8px;"><span id="opill" class="pill pill-y">O/U: loading</span></td>
+      <td style="text-align:center;padding:0 6px;"><span id="spill" class="pill pill-g" style="font-size:10px;white-space:nowrap;display:inline-block;">Scores: loading</span></td>
+      <td style="text-align:center;padding:0 6px;"><span id="opill" class="pill pill-y" style="font-size:10px;white-space:nowrap;display:inline-block;">O/U: loading</span></td>
     </tr>
     <tr>
-      <td style="text-align:center;padding:2px 8px 0;"><button class="rbtn" onclick="refreshScores()">↻ Scores</button></td>
-      <td style="text-align:center;padding:2px 8px 0;"><span id="lines-updated" class="rbtn" style="display:inline-block;">—</span></td>
+      <td style="text-align:center;padding:2px 6px 0;"><button class="rbtn" style="font-size:10px;padding:2px 7px;" onclick="refreshScores()">↻ Scores</button></td>
+      <td style="text-align:center;padding:2px 6px 0;"><span id="lines-updated" class="rbtn" style="display:inline-block;font-size:10px;padding:2px 7px;">—</span></td>
     </tr>
   </table>
 </div>
@@ -122,7 +122,7 @@
       <div class="total-meta" id="slate-meta">Waiting for O/U lines...</div>
     </div>
     <div style="display:flex;align-items:center;justify-content:center;padding:0 8px;">
-      <img src="logo.png" alt="The Grand Salami Tracker" style="height:52px;width:auto;">
+      <img src="logo.png" alt="The Grand Salami Tracker" style="height:70px;width:auto;">
     </div>
     <div>
       <div class="total-lbl">Grand Salami</div>
@@ -161,6 +161,13 @@ function getOddsInterval() {
   if (pstHour >= 23 || pstHour < 7) return Infinity;
   if (pstHour >= 7 && pstHour < 16) return 60 * 60 * 1000;
   return 15 * 60 * 1000;
+}
+
+// Always use PDT (UTC-7) regardless of device timezone
+function getPDTDate(offsetDays) {
+  offsetDays = offsetDays || 0;
+  var d = new Date(Date.now() + (-7 * 60 * 60 * 1000) + (offsetDays * 86400000));
+  return d.toISOString().split('T')[0];
 }
 
 // State
@@ -204,7 +211,7 @@ function getPregameLine(g) {
 // ── FETCH FUNCTIONS ──────────────────────────────────────────────────────────
 
 async function fetchScores() {
-  const today = new Date().toLocaleDateString('en-CA');
+  const today = getPDTDate();
   const res = await fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}&hydrate=linescore`);
   if (!res.ok) throw new Error(`MLB API ${res.status}`);
   const data = await res.json();
@@ -241,9 +248,7 @@ async function fetchPregameLines() {
 }
 
 async function fetchYesterday() {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  const yesterday = d.toLocaleDateString('en-CA');
+  const yesterday = getPDTDate(-1);
   const res = await fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${yesterday}&hydrate=linescore`);
   if (!res.ok) throw new Error(`MLB API ${res.status}`);
   const data = await res.json();
@@ -271,7 +276,7 @@ async function fetchHistory() {
 }
 
 async function saveActualRuns(totalRuns) {
-  const today = new Date().toLocaleDateString('en-CA');
+  const today = getPDTDate();
   // Use in-memory GS line if available, otherwise fetch from blob
   let gsLine = grandSalami ? grandSalami.line : null;
   if (!gsLine) {
@@ -526,7 +531,7 @@ async function refreshScores(){
     games=data;
     const live=games.filter(g=>g.status==='live').length;
     const fin=games.filter(g=>g.status==='final').length;
-    document.getElementById('spill').textContent=`Scores: ${live?live+' live · ':''}${fin} final`;
+    document.getElementById('spill').textContent=`${live} Live · ${fin} Final`;
     document.getElementById('spill').className='pill pill-g';
     sCD=SCORES_MS/1000;
     redraw();
@@ -598,8 +603,7 @@ async function loadYesterday(){
       fetchHistory()
     ]);
     // Get yesterday's date
-    const d=new Date(); d.setDate(d.getDate()-1);
-    const yestDate=d.toLocaleDateString('en-CA');
+    const yestDate=getPDTDate(-1);
     const yestRecord=hist.find(r=>r.date===yestDate);
     const yestPregame=yestRecord?.pregameLines||{};
 
