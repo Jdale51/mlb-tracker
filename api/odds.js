@@ -35,16 +35,26 @@ function filterToday(data) {
   });
 }
 
+// Cached blob URL — avoids list() on every request
+let blobUrl = null;
+
+async function getBlobUrl() {
+  if (blobUrl) return blobUrl;
+  const { blobs } = await list();
+  const blob = blobs.find(b => b.pathname === 'history.json');
+  if (blob) blobUrl = blob.url;
+  return blobUrl;
+}
+
 async function readHistory(forceRefresh = false) {
   const age = Date.now() - historyCache.loadedAt;
   if (!forceRefresh && historyCache.data && age < HISTORY_CACHE_MS) {
     return historyCache.data;
   }
   try {
-    const { blobs } = await list();
-    const blob = blobs.find(b => b.pathname === 'history.json');
-    if (!blob) return [];
-    const res = await fetch(blob.url);
+    const url = await getBlobUrl();
+    if (!url) return [];
+    const res = await fetch(url);
     const data = await res.json();
     historyCache = { data, loadedAt: Date.now() };
     return data;
@@ -55,11 +65,13 @@ async function readHistory(forceRefresh = false) {
 }
 
 async function writeHistory(history) {
-  await put('history.json', JSON.stringify(history), {
+  const result = await put('history.json', JSON.stringify(history), {
     access: 'public',
     addRandomSuffix: false,
     contentType: 'application/json',
   });
+  // Cache the URL so we never need to list() again
+  if (result && result.url) blobUrl = result.url;
   // Update in-memory cache after write
   historyCache = { data: history, loadedAt: Date.now() };
 }
@@ -89,6 +101,13 @@ async function getTodayGrandSalami() {
       };
     }
     return null;
+  } catch(e) { return null; }
+}
+
+async function getTodayRecord() {
+  try {
+    const history = await readHistory();
+    return history.find(r => r.date === getTodayPDT()) || null;
   } catch(e) { return null; }
 }
 
@@ -128,7 +147,7 @@ module.exports = async function handler(req, res) {
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       const { date, actualRuns, result, grandSalamLine, naiveTotal, gamesOnSlate,
-              gsOverPrice, gsUnderPrice, gsBook } = body || {};
+              gsOverPrice, gsUnderPrice, gsBook, todayPick } = body || {};
       if (date) {
         let history = await readHistory();
         const existing = history.find(r => r.date === date) || {};
@@ -143,6 +162,7 @@ module.exports = async function handler(req, res) {
           ...(gsOverPrice !== undefined && { gsOverPrice }),
           ...(gsUnderPrice !== undefined && { gsUnderPrice }),
           ...(gsBook !== undefined && { gsBook }),
+          ...(todayPick !== undefined && { todayPick }),
         });
         return res.status(200).json({ ok: true });
       }
@@ -163,6 +183,7 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({
       games: filterToday(cache.data),
       grandSalami: gs,
+      todayPick: (await getTodayRecord())?.todayPick || null,
       secondsUntilNext: getSecondsUntilNext(),
       oddsLastFetched: cache.fetchedAt
     });
@@ -222,6 +243,7 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({
         games: filterToday(cache.data),
         grandSalami: gs,
+        todayPick: (await getTodayRecord())?.todayPick || null,
         secondsUntilNext: getSecondsUntilNext(),
         oddsLastFetched: cache.fetchedAt
       });
