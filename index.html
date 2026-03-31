@@ -122,7 +122,7 @@
       <div class="total-meta" id="slate-meta">Waiting for O/U lines...</div>
     </div>
     <div style="display:flex;align-items:center;justify-content:center;padding:0 8px;">
-      <img src="logo.png" alt="The Grand Salami Tracker" style="height:70px;width:auto;">
+      <img src="logo.png" alt="The Grand Salami Tracker" style="height:82px;width:auto;">
     </div>
     <div>
       <div class="total-lbl">Grand Salami</div>
@@ -429,6 +429,9 @@ function renderStats(gs, id, usePregame){
 }
 
 function renderGames(gs, id, live){
+  // Sort: live first, then upcoming, then final
+  const order = {live:0, scheduled:1, final:2};
+  gs = [...gs].sort((a,b) => (order[a.status]??2) - (order[b.status]??2));
   document.getElementById(id).innerHTML=gs.map(g=>{
     const odds = live ? getOdds(g) : {ou:g.ou,book:g.book,ft:null};
     const pregame = live ? getPregameLine(g) : null;
