@@ -99,6 +99,16 @@
     <button class="btn btn-primary" onclick="saveGrandSalami()">SAVE GRAND SALAMI</button>
   </div>
 
+  <!-- Today's Pick -->
+  <div class="card">
+    <div class="card-title">Today's Pick</div>
+    <div class="row2">
+      <button id="pick-over-btn" class="btn" style="background:rgba(0,196,106,0.15);color:#00C46A;border:1px solid #00C46A;" onclick="savePick('OVER')">⬆ OVER</button>
+      <button id="pick-under-btn" class="btn" style="background:rgba(43,127,255,0.15);color:#2B7FFF;border:1px solid #2B7FFF;" onclick="savePick('UNDER')">⬇ UNDER</button>
+    </div>
+    <div id="pick-status" style="text-align:center;font-size:12px;color:var(--muted);margin-top:8px;">No pick set</div>
+  </div>
+
   <!-- End of Day Result -->
   <div class="card">
     <div class="card-title">Save End of Day Result</div>
@@ -126,7 +136,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const PIN = '0705'; // Change this to your preferred PIN
+const PIN = '1234'; // Change this to your preferred PIN
 
 function checkPin() {
   const input = document.getElementById('pin-input').value;
@@ -176,6 +186,10 @@ async function loadHistory() {
         document.getElementById('gs-under').value = todayRecord.gsUnderPrice || '';
         document.getElementById('gs-book').value = todayRecord.gsBook || 'DraftKings';
       }
+      if (todayRecord.todayPick) {
+        document.getElementById('pick-status').textContent = `Pick set: ${todayRecord.todayPick}`;
+        document.getElementById('pick-status').style.color = todayRecord.todayPick === 'OVER' ? '#00C46A' : '#2B7FFF';
+      }
       if (todayRecord.actualRuns) {
         document.getElementById('actual-runs').value = todayRecord.actualRuns;
         document.getElementById('result').value = todayRecord.result || '';
@@ -200,6 +214,23 @@ async function loadHistory() {
     document.getElementById('today-status').textContent = 'Error loading data';
     console.error(e);
   }
+}
+
+async function savePick(pick) {
+  try {
+    const res = await fetch('/api/odds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: getTodayPDT(), todayPick: pick })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      document.getElementById('pick-status').textContent = `Pick set: ${pick}`;
+      document.getElementById('pick-status').style.color = pick === 'OVER' ? '#00C46A' : '#2B7FFF';
+      showToast(`Pick: ${pick} saved ✓`, 'ok');
+      loadHistory();
+    }
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
 }
 
 async function saveGrandSalami() {
