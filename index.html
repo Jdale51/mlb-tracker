@@ -143,7 +143,7 @@
 </div>
 
 <div id="view-yesterday" style="display:none;">
-  <div class="slate-bar" id="yest-stats"></div>
+  <div class="slate-bar" id="yest-stats"><div class="sstat"><div class="snum">—</div><div class="slbl">Slate Runs</div></div><div class="sstat"><div class="snum">—</div><div class="slbl">Avg / Game</div></div><div class="sstat"><div class="snum">—</div><div class="slbl">Innings Remaining</div></div><div class="sstat"><div class="snum" style="color:var(--muted)">—</div><div class="slbl">Pick</div></div><div class="sstat"><div class="snum">—</div><div class="slbl">O / U</div></div></div>
   <div class="games" id="yest-games"></div>
 </div>
 
@@ -177,6 +177,7 @@ let oddsMap = {};           // live/pregame odds from Odds API — used for impl
 let pregameLines = {};      // opening lines from blob — used for O/U counter
 let grandSalami = null;
 let todayPick = null;
+let yestPick = null;
 let yestGames = [];
 let sCD = SCORES_MS/1000;
 let oCD = getOddsInterval()/1000;
@@ -380,8 +381,9 @@ function renderGrandSalami(){
 
 function renderStats(gs, id, usePregame){
   const done=gs.filter(g=>g.awayR!==null&&g.homeR!==null&&g.status!=='scheduled');
+  const final=gs.filter(g=>g.status==='final');
   const tot=done.reduce((s,g)=>s+(g.awayR||0)+(g.homeR||0),0);
-  const avg=done.length?(tot/done.length).toFixed(1):'—';
+  const avg=final.length?(tot/final.length).toFixed(1):'—';
 
   // O/U counter uses pregame lines if available, else falls back to stored ou
   const wou = done.filter(g => {
@@ -614,6 +616,7 @@ async function loadYesterday(){
     const yestDate=getPDTDate(-1);
     const yestRecord=hist.find(r=>r.date===yestDate);
     const yestPregame=yestRecord?.pregameLines||{};
+    yestPick = yestRecord?.todayPick || null;
 
     // Attach pregame lines to each game for display
     yestGames=scores.map(g=>({
