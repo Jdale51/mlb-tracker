@@ -383,7 +383,8 @@ function renderStats(gs, id, usePregame){
   const done=gs.filter(g=>g.awayR!==null&&g.homeR!==null&&g.status!=='scheduled');
   const final=gs.filter(g=>g.status==='final');
   const tot=done.reduce((s,g)=>s+(g.awayR||0)+(g.homeR||0),0);
-  const avg=final.length?(tot/final.length).toFixed(1):'—';
+  const finalTot=final.reduce((s,g)=>s+(g.awayR||0)+(g.homeR||0),0);
+  const avg=final.length?(finalTot/final.length).toFixed(1):'—';
 
   // O/U counter uses pregame lines if available, else falls back to stored ou
   const wou = done.filter(g => {
