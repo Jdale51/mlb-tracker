@@ -280,21 +280,20 @@ async function fetchHistory() {
 
 async function saveActualRuns(totalRuns) {
   const today = getPDTDate();
-  // Use in-memory GS line if available, otherwise fetch from blob
-  let gsLine = grandSalami ? grandSalami.line : null;
-  if (!gsLine) {
-    try {
-      const hist = await fetch('/api/history').then(r => r.json());
-      const todayRecord = hist.find(r => r.date === today);
-      gsLine = todayRecord ? todayRecord.grandSalamLine : null;
-    } catch(e) { console.error('Could not fetch GS line:', e); }
-  }
-  const result = gsLine !== null ? (totalRuns > gsLine ? 'over' : totalRuns < gsLine ? 'under' : 'push') : null;
-  await fetch('/api/odds', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ date: today, actualRuns: totalRuns, result })
-  });
+  try {
+    // Don't overwrite if already saved
+    const hist = await fetch('/api/history').then(r => r.json());
+    const todayRecord = hist.find(r => r.date === today);
+    if (todayRecord && todayRecord.actualRuns !== undefined && todayRecord.actualRuns !== null) return;
+    let gsLine = grandSalami ? grandSalami.line : null;
+    if (!gsLine) gsLine = todayRecord ? todayRecord.grandSalamLine : null;
+    const result = gsLine !== null ? (totalRuns > gsLine ? 'over' : totalRuns < gsLine ? 'under' : 'push') : null;
+    await fetch('/api/odds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: today, actualRuns: totalRuns, result })
+    });
+  } catch(e) { console.error('saveActualRuns error:', e); }
 }
 
 // ── ODDS MAP (for implied total only) ────────────────────────────────────────
@@ -431,7 +430,7 @@ function renderStats(gs, id, usePregame){
   // Auto-save when all today's games are final
   if(id==='today-stats'){
     const allFinal=gs.length>0&&gs.every(g=>g.status==='final');
-    if(allFinal&&done.length>0) saveActualRuns(tot);
+    if(allFinal&&final.length>0) saveActualRuns(finalTot);
   }
 }
 
