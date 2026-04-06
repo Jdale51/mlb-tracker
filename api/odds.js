@@ -147,7 +147,7 @@ module.exports = async function handler(req, res) {
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       const { date, actualRuns, result, grandSalamLine, naiveTotal, gamesOnSlate,
-              gsOverPrice, gsUnderPrice, gsBook, todayPick } = body || {};
+              gsOverPrice, gsUnderPrice, gsBook, todayPick, units } = body || {};
       if (date) {
         let history = await readHistory();
         const existing = history.find(r => r.date === date) || {};
@@ -163,6 +163,7 @@ module.exports = async function handler(req, res) {
           ...(gsUnderPrice !== undefined && { gsUnderPrice }),
           ...(gsBook !== undefined && { gsBook }),
           ...(todayPick !== undefined && { todayPick }),
+          ...(units !== undefined && { units }),
         });
         return res.status(200).json({ ok: true });
       }
