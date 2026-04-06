@@ -1,7 +1,16 @@
 const { put, list } = require('@vercel/blob');
 
-const ODDS_API_KEY = 'aef1c06336685a4a20c89a57d3f56262';
-const ODDS_URL = `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${ODDS_API_KEY}&regions=us&markets=totals&oddsFormat=american`;
+const ODDS_KEYS = [
+  'aef1c06336685a4a20c89a57d3f56262', // key 1
+  'YOUR_NEW_KEY_HERE',                  // key 2 — replace with new key
+];
+let keyIndex = 0; // persists within same server instance, alternates each fetch
+
+function getOddsUrl() {
+  const key = ODDS_KEYS[keyIndex % ODDS_KEYS.length];
+  keyIndex++;
+  return `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${key}&regions=us&markets=totals&oddsFormat=american`;
+}
 
 let cache = { data: null, grandSalami: null, fetchedAt: 0 };
 // In-memory history cache — avoids repeated blob reads
@@ -185,13 +194,14 @@ module.exports = async function handler(req, res) {
       games: filterToday(cache.data),
       grandSalami: gs,
       todayPick: (await getTodayRecord())?.todayPick || null,
+      todayUnits: (await getTodayRecord())?.units || null,
       secondsUntilNext: getSecondsUntilNext(),
       oddsLastFetched: cache.fetchedAt
     });
   }
 
   try {
-    const upstream = await fetch(ODDS_URL);
+    const upstream = await fetch(getOddsUrl());
     if (!upstream.ok) throw new Error(`Odds API ${upstream.status}`);
     const data = await upstream.json();
     cache = { data, grandSalami: null, fetchedAt: Date.now() };
@@ -245,6 +255,7 @@ module.exports = async function handler(req, res) {
         games: filterToday(cache.data),
         grandSalami: gs,
         todayPick: (await getTodayRecord())?.todayPick || null,
+        todayUnits: (await getTodayRecord())?.units || null,
         secondsUntilNext: getSecondsUntilNext(),
         oddsLastFetched: cache.fetchedAt
       });
