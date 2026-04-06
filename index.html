@@ -81,6 +81,21 @@
   @keyframes spin{to{transform:rotate(360deg)}}
   .ltxt{font-size:13px;color:var(--muted);}
   .hist-wrap{padding:12px;}
+
+  /* Bullpen tab */
+  .bp-wrap{padding:10px 12px;}
+  .bp-header{font-family:'Barlow Condensed',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);padding:8px 4px 6px;display:grid;grid-template-columns:1fr 48px 48px 48px 80px;gap:4px;border-bottom:1px solid var(--border);}
+  .bp-row{display:grid;grid-template-columns:1fr 48px 48px 48px 80px;gap:4px;padding:7px 4px;border-bottom:1px solid var(--border);align-items:center;}
+  .bp-row:last-child{border-bottom:none;}
+  .bp-team{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;color:var(--text);}
+  .bp-inn{font-family:'Barlow Condensed',sans-serif;font-size:14px;text-align:center;}
+  .bp-badge{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;padding:3px 6px;border-radius:4px;text-align:center;letter-spacing:0.5px;}
+  .bp-fresh{background:rgba(0,196,106,0.15);color:var(--green);}
+  .bp-taxed{background:rgba(245,197,24,0.15);color:var(--accent);}
+  .bp-gassed{background:rgba(255,59,59,0.15);color:var(--red);}
+  .bp-loading{padding:36px;text-align:center;color:var(--muted);font-size:13px;}
+  .bp-date-note{font-size:10px;color:var(--muted);padding:6px 4px 2px;font-style:italic;}
+
   .hist-table{width:100%;border-collapse:collapse;font-size:13px;}
   .hist-table th{font-family:'Barlow Condensed',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);}
   .hist-table td{padding:10px 10px;border-bottom:1px solid var(--border);color:var(--text);}
@@ -112,6 +127,7 @@
   <button class="tab active" onclick="showTab('today')">Today</button>
   <button class="tab" onclick="showTab('yesterday')">Yesterday</button>
   <button class="tab" onclick="showTab('history')">History</button>
+  <button class="tab" onclick="showTab('bullpen')">Bullpen</button>
 </div>
 
 <div id="view-today">
@@ -150,6 +166,12 @@
 <div id="view-history" style="display:none;">
   <div class="hist-wrap">
     <div id="hist-content"><div class="loading"><div class="spinner"></div><div class="ltxt">Loading history...</div></div></div>
+  </div>
+</div>
+
+<div id="view-bullpen" style="display:none;">
+  <div class="bp-wrap">
+    <div id="bp-content"><div class="bp-loading">Loading bullpen data...</div></div>
   </div>
 </div>
 
@@ -597,12 +619,14 @@ function startTimer(){
 
 function showTab(t){
   document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',
-    (t==='today'&&i===0)||(t==='yesterday'&&i===1)||(t==='history'&&i===2)));
+    (t==='today'&&i===0)||(t==='yesterday'&&i===1)||(t==='history'&&i===2)||(t==='bullpen'&&i===3)));
   document.getElementById('view-today').style.display=t==='today'?'block':'none';
   document.getElementById('view-yesterday').style.display=t==='yesterday'?'block':'none';
   document.getElementById('view-history').style.display=t==='history'?'block':'none';
+  document.getElementById('view-bullpen').style.display=t==='bullpen'?'block':'none';
   if(t==='history') fetchHistory().then(renderHistory).catch(()=>renderHistory([]));
   if(t==='yesterday'&&!yestGames.length) loadYesterday();
+  if(t==='bullpen') loadBullpen();
 }
 
 async function loadYesterday(){
@@ -651,6 +675,108 @@ async function init(){
 }
 
 init();
+
+// ── BULLPEN TAB ──────────────────────────────────────────────────────────────
+let bullpenLoaded = false;
+
+function ipToOuts(ip) {
+  const s = String(ip || '0');
+  const [inn, outs] = s.split('.').map(Number);
+  return (inn || 0) * 3 + (outs || 0);
+}
+
+function outsToIp(outs) {
+  return `${Math.floor(outs/3)}.${outs%3}`;
+}
+
+async function fetchBullpenForDate(dateStr) {
+  try {
+    const res = await fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${dateStr}&hydrate=linescore`);
+    const data = await res.json();
+    const games = data.dates?.[0]?.games || [];
+    const teamData = {};
+
+    for (const game of games) {
+      if (game.status.detailedState !== 'Final') continue;
+      const gamePk = game.gamePk;
+      try {
+        const boxRes = await fetch(`https://statsapi.mlb.com/api/v1/game/${gamePk}/boxscore`);
+        const box = await boxRes.json();
+        for (const side of ['home', 'away']) {
+          const team = box.teams[side];
+          const abbr = team.team.abbreviation;
+          const pitchers = (team.pitchers || []).map(id => team.players[`ID${id}`]);
+          const bullpen = pitchers.slice(1);
+          const bullpenOuts = bullpen.reduce((s, p) => {
+            return s + ipToOuts(p?.stats?.pitching?.inningsPitched || 0);
+          }, 0);
+          if (!teamData[abbr]) teamData[abbr] = { abbr, name: team.team.name, outs: 0 };
+          teamData[abbr].outs += bullpenOuts;
+        }
+      } catch(e) { /* skip game */ }
+    }
+    return teamData;
+  } catch(e) { return {}; }
+}
+
+async function loadBullpen() {
+  if (bullpenLoaded) return;
+  document.getElementById('bp-content').innerHTML = '<div class="bp-loading">Fetching bullpen data for last 3 days...</div>';
+
+  const dates = [getPDTDate(-1), getPDTDate(-2), getPDTDate(-3)];
+  const labels = ['Yesterday', '2 Days Ago', '3 Days Ago'];
+  const weights = [0.70, 0.18, 0.12];
+
+  const [d1, d2, d3] = await Promise.all(dates.map(fetchBullpenForDate));
+  const dayData = [d1, d2, d3];
+
+  // Combine all teams
+  const allTeams = new Set([...Object.keys(d1), ...Object.keys(d2), ...Object.keys(d3)]);
+  const results = [];
+
+  for (const abbr of allTeams) {
+    const dayOuts = dayData.map(d => d[abbr]?.outs || 0);
+    const dayIp = dayOuts.map(outsToIp);
+    const weighted = dayOuts.reduce((s, o, i) => s + o * weights[i], 0);
+    const weightedIp = parseFloat((Math.floor(weighted/3) + (weighted%3)/10).toFixed(1));
+    const name = dayData.find(d => d[abbr])?.[ abbr]?.name || abbr;
+
+    let tier, cls;
+    if (weighted >= 12) { tier = 'GASSED'; cls = 'bp-gassed'; }
+    else if (weighted >= 9) { tier = 'TAXED'; cls = 'bp-taxed'; }
+    else { tier = 'FRESH'; cls = 'bp-fresh'; }
+
+    results.push({ abbr, name, dayIp, weightedIp, tier, cls, weighted });
+  }
+
+  // Sort by most fatigued first
+  results.sort((a, b) => b.weighted - a.weighted);
+
+  const today = getPDTDate();
+  document.getElementById('bp-content').innerHTML = `
+    <div class="bp-date-note">Weighted: 70% yesterday · 18% 2 days ago · 12% 3 days ago. As of ${today}.</div>
+    <div class="bp-header">
+      <span>Team</span>
+      <span style="text-align:center">-1</span>
+      <span style="text-align:center">-2</span>
+      <span style="text-align:center">-3</span>
+      <span style="text-align:center">Usage</span>
+    </div>
+    ${results.map(r => `
+      <div class="bp-row">
+        <div>
+          <div class="bp-team">${r.abbr}</div>
+          <div style="font-size:10px;color:var(--muted);">${r.name}</div>
+        </div>
+        <div class="bp-inn" style="color:${r.dayIp[0]==='0.0'?'var(--muted)':'var(--text)'}">${r.dayIp[0]}</div>
+        <div class="bp-inn" style="color:${r.dayIp[1]==='0.0'?'var(--muted)':'var(--text)'}">${r.dayIp[1]}</div>
+        <div class="bp-inn" style="color:${r.dayIp[2]==='0.0'?'var(--muted)':'var(--text)'}">${r.dayIp[2]}</div>
+        <div><span class="bp-badge ${r.cls}">${r.weightedIp} IP · ${r.tier}</span></div>
+      </div>`).join('')}
+  `;
+  bullpenLoaded = true;
+}
+
 </script>
 </body>
 </html>
