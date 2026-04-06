@@ -517,18 +517,28 @@ function renderHistory(records){
     el.innerHTML=`<div class="hist-empty">No history yet — data will appear here after games complete.</div>`;
     return;
   }
+  // Tally for footer
+  let totalUnits=0, wonUnits=0, totalPicks=0, correctPicks=0;
   const rows=records.map(r=>{
     const resCls=r.result==='over'?'res-over':r.result==='under'?'res-under':r.result==='push'?'res-push':'res-pending';
     const resLbl=r.result?r.result.toUpperCase():'Pending';
     const gap=r.actualRuns!=null&&r.grandSalamLine?((r.actualRuns-r.grandSalamLine).toFixed(1)):'-';
     const gapColor=parseFloat(gap)>0?'color:var(--green)':parseFloat(gap)<0?'color:var(--blue)':'';
-    // Count per-game overs/unders from pregame lines
-    let gameOvers=0,gameUnders=0;
-    if(r.pregameLines){
-      Object.keys(r.pregameLines).forEach(k=>{
-        // We don't store per-game final scores in history yet, so skip for now
-      });
-    }
+    // Pick column
+    const pick=r.todayPick||'-';
+    const pickCls=r.todayPick==='OVER'?'res-over':r.todayPick==='UNDER'?'res-under':'res-pending';
+    // Units P/L
+    const units=r.units!=null?r.units:null;
+    let plHtml='-', plColor='';
+    if(units!=null && r.result && r.todayPick){
+      totalUnits+=units;
+      if(r.todayPick&&r.result!=='pending'){
+        totalPicks++;
+        const won = r.result.toLowerCase()===r.todayPick.toLowerCase();
+        if(won){ correctPicks++; wonUnits+=units; plHtml=`+${units}u`; plColor='color:var(--green)'; }
+        else { wonUnits-=units; plHtml=`-${units}u`; plColor='color:var(--red)'; }
+      }
+    } else if(units!=null){ plHtml=`${units}u`; }
     return `<tr>
       <td>${r.date}</td>
       <td>${r.gamesOnSlate||'-'}</td>
@@ -537,13 +547,22 @@ function renderHistory(records){
       <td>${r.actualRuns!=null?r.actualRuns:'-'}</td>
       <td style="${gapColor}">${gap}</td>
       <td class="${resCls}">${resLbl}</td>
+      <td class="${pickCls}">${pick}</td>
+      <td style="${plColor};font-family:'Barlow Condensed',sans-serif;font-weight:700;">${plHtml}</td>
     </tr>`;
   }).join('');
+  const netUnits=wonUnits;
+  const netColor=netUnits>0?'color:var(--green)':netUnits<0?'color:var(--red)':'';
   el.innerHTML=`<table class="hist-table">
     <thead><tr>
-      <th>Date</th><th>Games</th><th>Grand Salami</th><th>Naive Total</th><th>Actual Runs</th><th>Gap</th><th>Result</th>
+      <th>Date</th><th>Games</th><th>Grand Salami</th><th>Naive Total</th><th>Actual Runs</th><th>Gap</th><th>Result</th><th>Pick</th><th>P/L</th>
     </tr></thead>
     <tbody>${rows}</tbody>
+    <tfoot><tr style="border-top:2px solid var(--border);">
+      <td colspan="7" style="font-size:11px;color:var(--muted);padding-top:8px;">${correctPicks}/${totalPicks} picks correct</td>
+      <td></td>
+      <td style="${netColor};font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:16px;padding-top:8px;">${netUnits>0?'+':''}${netUnits.toFixed(1)}u</td>
+    </tr></tfoot>
   </table>`;
 }
 
@@ -746,7 +765,7 @@ async function loadBullpen() {
     else if (weighted >= 9) { tier = 'TAXED'; cls = 'bp-taxed'; }
     else { tier = 'FRESH'; cls = 'bp-fresh'; }
 
-    results.push({ abbr, name, dayIp, weightedIp, tier, cls, weighted });
+    results.push({ abbr, name, dayIp, dayOuts, weightedIp, tier, cls, weighted });
   }
 
   // Sort by most fatigued first
@@ -755,12 +774,13 @@ async function loadBullpen() {
   const today = getPDTDate();
   document.getElementById('bp-content').innerHTML = `
     <div class="bp-date-note">Weighted: 70% yesterday · 18% 2 days ago · 12% 3 days ago. As of ${today}.</div>
-    <div class="bp-header">
+    <div class="bp-header" style="grid-template-columns:1fr 48px 48px 48px 24px 90px;">
       <span>Team</span>
-      <span style="text-align:center">-1</span>
-      <span style="text-align:center">-2</span>
-      <span style="text-align:center">-3</span>
-      <span style="text-align:center">Usage</span>
+      <span style="text-align:center">${dates[0].slice(5).split('-').map(n=>parseInt(n)).join('/')}</span>
+      <span style="text-align:center">${dates[1].slice(5).split('-').map(n=>parseInt(n)).join('/')}</span>
+      <span style="text-align:center">${dates[2].slice(5).split('-').map(n=>parseInt(n)).join('/')}</span>
+      <span></span>
+      <span style="text-align:center">Weighted Usage</span>
     </div>
     ${results.map(r => `
       <div class="bp-row">
