@@ -199,6 +199,7 @@ let oddsMap = {};           // live/pregame odds from Odds API — used for impl
 let pregameLines = {};      // opening lines from blob — used for O/U counter
 let grandSalami = null;
 let todayPick = null;
+let todayUnits = null;
 let yestPick = null;
 let yestGames = [];
 let sCD = SCORES_MS/1000;
@@ -441,7 +442,13 @@ function renderStats(gs, id, usePregame){
     <div class="gs-bar-wrap"><div class="gs-bar-fill" style="width:${innPct}%;background:var(--accent)"></div></div>
     <div class="slbl">Innings Remaining</div>
   </div>` : `<div class="sstat"><div class="snum">—</div><div class="slbl">Innings Remaining</div></div>`;
-  const pickHtml = id==='today-stats' ? `<div class="sstat"><div id="pick-display" class="snum" style="color:${todayPick==='OVER'?'var(--green)':todayPick==='UNDER'?'var(--blue)':'var(--muted)'}">${todayPick||'—'}</div><div class="slbl">Pick</div></div>` : '';
+  let pickHtml = '';
+  if (id === 'today-stats') {
+    const pickLabel = todayPick ? (todayUnits ? `${todayPick} (${todayUnits}u)` : todayPick) : '—';
+    pickHtml = `<div class="sstat"><div id="pick-display" class="snum" style="font-size:${todayUnits?'18px':'26px'};color:${todayPick==='OVER'?'var(--green)':todayPick==='UNDER'?'var(--blue)':'var(--muted)'}">${pickLabel}</div><div class="slbl">Pick</div></div>`;
+  } else if (id === 'yest-stats') {
+    pickHtml = `<div class="sstat"><div class="snum" style="color:${yestPick==='OVER'?'var(--green)':yestPick==='UNDER'?'var(--blue)':'var(--muted)'}">${yestPick||'—'}</div><div class="slbl">Pick</div></div>`;
+  }
   document.getElementById(id).innerHTML=`
     <div class="sstat"><div class="snum">${done.length?tot:'—'}</div><div class="slbl">Slate Runs</div></div>
     <div class="sstat"><div class="snum">${avg}</div><div class="slbl">Avg / Game</div></div>
@@ -555,7 +562,7 @@ function renderHistory(records){
   const netColor=netUnits>0?'color:var(--green)':netUnits<0?'color:var(--red)':'';
   el.innerHTML=`<table class="hist-table">
     <thead><tr>
-      <th>Date</th><th>Games</th><th>Grand Salami</th><th>Naive Total</th><th>Actual Runs</th><th>Gap</th><th>Result</th><th>Pick</th><th>P/L</th>
+      <th>Date</th><th>Games</th><th>Grand Salami</th><th>Naive Total</th><th>Actual Runs</th><th>Gap</th><th>Result</th><th>Pick</th><th>Units</th>
     </tr></thead>
     <tbody>${rows}</tbody>
     <tfoot><tr style="border-top:2px solid var(--border);">
@@ -599,6 +606,7 @@ async function refreshOdds(){
     oddsMap=buildOddsMap(resp.games||[]);
     if(resp.grandSalami) grandSalami=resp.grandSalami;
     if(resp.todayPick) todayPick=resp.todayPick;
+    if(resp.todayUnits != null) todayUnits=resp.todayUnits;
     document.getElementById('opill').textContent=`O/U: ${Object.keys(oddsMap).length} lines`;
     document.getElementById('opill').className='pill pill-y';
     const ts = resp.oddsLastFetched ? new Date(resp.oddsLastFetched) : new Date();
