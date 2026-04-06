@@ -96,6 +96,10 @@
       <label>Book</label>
       <input type="text" id="gs-book" placeholder="DraftKings" value="DraftKings">
     </div>
+    <div class="field" style="margin-top:10px;">
+      <label>Units Played</label>
+      <input type="number" id="gs-units" placeholder="e.g. 1" step="0.5" min="0" max="10">
+    </div>
     <button class="btn btn-primary" onclick="saveGrandSalami()">SAVE GRAND SALAMI</button>
   </div>
 
@@ -136,7 +140,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const PIN = '0705'; // Change this to your preferred PIN
+const PIN = '1234'; // Change this to your preferred PIN
 
 function checkPin() {
   const input = document.getElementById('pin-input').value;
@@ -185,6 +189,9 @@ async function loadHistory() {
         document.getElementById('gs-over').value = todayRecord.gsOverPrice || '';
         document.getElementById('gs-under').value = todayRecord.gsUnderPrice || '';
         document.getElementById('gs-book').value = todayRecord.gsBook || 'DraftKings';
+      }
+      if (todayRecord.units != null) {
+        document.getElementById('gs-units').value = todayRecord.units;
       }
       if (todayRecord.todayPick) {
         document.getElementById('pick-status').textContent = `Pick set: ${todayRecord.todayPick}`;
@@ -254,7 +261,8 @@ async function saveGrandSalami() {
         grandSalamLine: line,
         gsOverPrice: over || -110,
         gsUnderPrice: under || -110,
-        gsBook: book
+        gsBook: book,
+        units: parseFloat(document.getElementById('gs-units').value) || null
       })
     });
     const data = await res.json();
