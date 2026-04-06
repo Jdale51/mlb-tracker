@@ -96,9 +96,9 @@
   .bp-loading{padding:36px;text-align:center;color:var(--muted);font-size:13px;}
   .bp-date-note{font-size:10px;color:var(--muted);padding:6px 4px 2px;font-style:italic;}
 
-  .hist-table{width:100%;border-collapse:collapse;font-size:11px;min-width:600px;}
-  .hist-table th{font-family:'Barlow Condensed',sans-serif;font-size:10px;text-transform:uppercase;letter-spacing:0.3px;color:var(--muted);padding:6px 5px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
-  .hist-table td{padding:7px 5px;border-bottom:1px solid var(--border);color:var(--text);white-space:nowrap;font-family:'Barlow Condensed',sans-serif;font-size:13px;}
+  .hist-table{width:100%;border-collapse:collapse;font-size:11px;min-width:560px;}
+  .hist-table th{font-family:'Barlow Condensed',sans-serif;font-size:10px;text-transform:uppercase;letter-spacing:0.3px;color:var(--muted);padding:6px 4px;text-align:left;border-bottom:1px solid var(--border);white-space:normal;line-height:1.2;max-width:50px;}
+  .hist-table td{padding:7px 4px;border-bottom:1px solid var(--border);color:var(--text);white-space:nowrap;font-family:'Barlow Condensed',sans-serif;font-size:13px;}
   .hist-table tr:last-child td{border-bottom:none;}
   .res-over{color:var(--green);font-weight:700;font-family:'Barlow Condensed',sans-serif;}
   .res-under{color:var(--blue);font-weight:700;font-family:'Barlow Condensed',sans-serif;}
@@ -570,9 +570,8 @@ function renderHistory(records){
     </tr></thead>
     <tbody>${rows}</tbody>
     <tfoot><tr style="border-top:2px solid var(--border);">
-      <td colspan="6"></td>
-      <td style="font-size:10px;color:var(--muted);padding-top:8px;font-family:'Barlow Condensed',sans-serif;">Result</td>
-      <td style="font-size:10px;color:var(--muted);padding-top:8px;font-family:'Barlow Condensed',sans-serif;">${correctPicks}/${totalPicks} ✓</td>
+      <td colspan="7"></td>
+      <td style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:15px;padding-top:8px;"><span style="color:var(--green)">${correctPicks}</span><span style="color:var(--muted)"> / </span><span style="color:var(--blue)">${totalPicks}</span></td>
       <td style="${netColor};font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:15px;padding-top:8px;">${netUnits>0?'+':''}${netUnits.toFixed(1)}u</td>
     </tr></tfoot>
   </table>`;
@@ -693,6 +692,9 @@ async function init(){
   try {
     const linesResp = await fetchPregameLines();
     pregameLines = linesResp.pregameLines || {};
+    // Load pick and units early from lines response so they show on first load
+    if (linesResp.todayPick) todayPick = linesResp.todayPick;
+    if (linesResp.todayUnits != null) todayUnits = linesResp.todayUnits;
     console.log('Pregame lines loaded:', Object.keys(pregameLines).length, 'games');
   } catch(e) {
     console.error('fetchPregameLines error:', e);
@@ -789,9 +791,9 @@ async function loadBullpen() {
     <div class="bp-date-note">Weighted: 70% yesterday · 18% 2 days ago · 12% 3 days ago. As of ${today}.</div>
     <div class="bp-header" style="grid-template-columns:1fr 48px 48px 48px 24px 90px;">
       <span>Team</span>
-      <span style="text-align:center">${dates[0].slice(5).split('-').map(n=>parseInt(n)).join('/')}</span>
-      <span style="text-align:center">${dates[1].slice(5).split('-').map(n=>parseInt(n)).join('/')}</span>
-      <span style="text-align:center">${dates[2].slice(5).split('-').map(n=>parseInt(n)).join('/')}</span>
+      <span style="text-align:center;display:block;">${dates[0].slice(5).split('-').map(n=>parseInt(n)).join('/')}</span>
+      <span style="text-align:center;display:block;">${dates[1].slice(5).split('-').map(n=>parseInt(n)).join('/')}</span>
+      <span style="text-align:center;display:block;">${dates[2].slice(5).split('-').map(n=>parseInt(n)).join('/')}</span>
       <span></span>
       <span style="text-align:center">Weighted Usage</span>
     </div>
