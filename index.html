@@ -104,6 +104,7 @@
   .res-under{color:var(--blue);font-weight:700;font-family:'Barlow Condensed',sans-serif;}
   .res-push{color:var(--muted);font-weight:700;font-family:'Barlow Condensed',sans-serif;}
   .res-pending{color:var(--muted);font-style:italic;}
+  .res-void{color:var(--muted);font-weight:700;font-family:'Barlow Condensed',sans-serif;}
   .hist-empty{padding:40px;text-align:center;color:var(--muted);font-size:13px;}
 </style>
 </head>
@@ -527,7 +528,7 @@ function renderHistory(records){
   // Tally for footer
   let totalUnits=0, wonUnits=0, totalPicks=0, correctPicks=0;
   const rows=records.map(r=>{
-    const resCls=r.result==='over'?'res-over':r.result==='under'?'res-under':r.result==='push'?'res-push':'res-pending';
+    const resCls=r.result==='over'?'res-over':r.result==='under'?'res-under':r.result==='push'?'res-push':r.result==='void'?'res-void':'res-pending';
     const resLbl=r.result?r.result.toUpperCase():'Pending';
     const gap=r.actualRuns!=null&&r.grandSalamLine?((r.actualRuns-r.grandSalamLine).toFixed(1)):'-';
     const gapColor=parseFloat(gap)>0?'color:var(--green)':parseFloat(gap)<0?'color:var(--blue)':'';
@@ -538,12 +539,15 @@ function renderHistory(records){
     const units=r.units!=null?r.units:null;
     let plHtml='-', plColor='';
     if(units!=null && r.result && r.todayPick){
-      totalUnits+=units;
-      if(r.todayPick&&r.result!=='pending'){
-        totalPicks++;
-        const won = r.result.toLowerCase()===r.todayPick.toLowerCase();
-        if(won){ correctPicks++; wonUnits+=units; plHtml=`+${units}u`; plColor='color:var(--green)'; }
-        else { wonUnits-=units; plHtml=`-${units}u`; plColor='color:var(--red)'; }
+      if(r.result==='void'){ plHtml=`${units}u`; plColor='color:var(--muted)'; }
+      else {
+        totalUnits+=units;
+        if(r.result!=='pending'){
+          totalPicks++;
+          const won = r.result.toLowerCase()===r.todayPick.toLowerCase();
+          if(won){ correctPicks++; wonUnits+=units; plHtml=`+${units}u`; plColor='color:var(--green)'; }
+          else { wonUnits-=units; plHtml=`-${units}u`; plColor='color:var(--red)'; }
+        }
       }
     } else if(units!=null){ plHtml=`${units}u`; }
     return `<tr>
