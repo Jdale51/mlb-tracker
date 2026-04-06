@@ -2,7 +2,7 @@ const { put, list } = require('@vercel/blob');
 
 const ODDS_KEYS = [
   'aef1c06336685a4a20c89a57d3f56262', // key 1
-  'bfe46983fa21466f8f89042dcc9b77d9', // key 2
+  'YOUR_NEW_KEY_HERE',                  // key 2 — replace with new key
 ];
 let keyIndex = 0; // persists within same server instance, alternates each fetch
 
@@ -87,7 +87,7 @@ async function writeHistory(history) {
 
 async function saveRecord(record) {
   try {
-    let history = await readHistory();
+    let history = await readHistory(true); // always fresh on write
     history = history.filter(r => r.date !== record.date);
     history.push(record);
     await writeHistory(history);
@@ -158,7 +158,7 @@ module.exports = async function handler(req, res) {
       const { date, actualRuns, result, grandSalamLine, naiveTotal, gamesOnSlate,
               gsOverPrice, gsUnderPrice, gsBook, todayPick, units } = body || {};
       if (date) {
-        let history = await readHistory();
+        let history = await readHistory(true); // force refresh on POST
         const existing = history.find(r => r.date === date) || {};
         await saveRecord({
           ...existing,
