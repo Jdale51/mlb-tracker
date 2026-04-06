@@ -2,7 +2,7 @@ const { put, list } = require('@vercel/blob');
 
 const ODDS_KEYS = [
   'aef1c06336685a4a20c89a57d3f56262', // key 1
-  'YOUR_NEW_KEY_HERE',                  // key 2 — replace with new key
+  'bfe46983fa21466f8f89042dcc9b77d9', // key 2
 ];
 let keyIndex = 0; // persists within same server instance, alternates each fetch
 
