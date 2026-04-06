@@ -12,7 +12,21 @@ module.exports = async function handler(req, res) {
   // Serve from memory if fresh
   const age = Date.now() - linesCache.loadedAt;
   if (linesCache.data && age < CACHE_MS) {
-    return res.status(200).json(linesCache.data);
+    // Re-fetch pick/units fresh even on cache hit since they change during the day
+    try {
+      const response = await fetch(blobUrl || linesCache.data.blobUrl);
+      const history = await response.json();
+      const pst = new Date(Date.now() + -7 * 60 * 60000);
+      const today = pst.toISOString().split('T')[0];
+      const todayRecord = history.find(r => r.date === today);
+      return res.status(200).json({
+        ...linesCache.data,
+        todayPick: todayRecord?.todayPick || null,
+        todayUnits: todayRecord?.units || null,
+      });
+    } catch(e) {
+      return res.status(200).json(linesCache.data);
+    }
   }
 
   try {
@@ -31,8 +45,14 @@ module.exports = async function handler(req, res) {
     const today = pst.toISOString().split('T')[0];
 
     const todayRecord = history.find(r => r.date === today);
-    const result = { date: today, pregameLines: todayRecord?.pregameLines || {} };
-    linesCache = { data: result, loadedAt: Date.now() };
+    const result = {
+      date: today,
+      pregameLines: todayRecord?.pregameLines || {},
+      todayPick: todayRecord?.todayPick || null,
+      todayUnits: todayRecord?.units || null,
+    };
+    // Only cache pregameLines portion — pick/units can change during day
+    linesCache = { data: { date: today, pregameLines: result.pregameLines }, loadedAt: Date.now() };
     return res.status(200).json(result);
   } catch(e) {
     console.error('Lines error:', e.message);
