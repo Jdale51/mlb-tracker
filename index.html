@@ -389,8 +389,8 @@ async function fetchPitcherStats(id) {
     const l5H     = startSplits.reduce((sum, sp) => sum + (sp.stat?.hits || 0), 0);
     const l5BB    = startSplits.reduce((sum, sp) => sum + (sp.stat?.baseOnBalls || 0), 0);
     const l5AB    = startSplits.reduce((sum, sp) => sum + (sp.stat?.atBats || 0), 0);
-    const l5W     = startSplits.reduce((sum, sp) => sum + (sp.stat?.wins || 0), 0);
-    const l5L     = startSplits.reduce((sum, sp) => sum + (sp.stat?.losses || 0), 0);
+    const l5W = startSplits.filter(sp => (sp.stat?.wins || 0) > 0).length;
+    const l5L = startSplits.filter(sp => (sp.stat?.losses || 0) > 0).length;
 
     const l5Era  = l5Outs > 0 ? ((l5ER * 27) / l5Outs).toFixed(2) : '—';
     const l5Whip = l5Outs > 0 ? ((l5H + l5BB) / (l5Outs / 3)).toFixed(2) : '—';
