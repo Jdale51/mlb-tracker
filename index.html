@@ -122,7 +122,10 @@
   .sp-name{font-size:14px;font-weight:700;color:var(--text);}
   .sp-team{font-size:10px;color:var(--muted);margin-top:1px;}
   .sp-loading{padding:36px;text-align:center;color:var(--muted);font-size:13px;}
-  .tpitcher{font-size:10px;color:var(--muted);margin-top:2px;font-style:normal;}
+  .tpitcher{font-size:10px;color:var(--muted);margin-top:2px;font-style:normal;letter-spacing:0.1px;}
+  .sp-table td.sp-era-good{color:var(--green);}
+  .sp-table td.sp-era-mid{color:var(--accent);}
+  .sp-table td.sp-era-bad{color:var(--red);}
   .sp-era-good{color:var(--green);}
   .sp-era-mid{color:var(--accent);}
   .sp-era-bad{color:var(--red);}
@@ -369,16 +372,16 @@ async function fetchPitcherStats(id) {
   try {
     const [seasonRes, last5Res] = await Promise.all([
       fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=season&group=pitching&season=2026&gameType=R`),
-      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=lastXGames&group=pitching&limit=10&season=2026&gameType=R`)
+      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=lastXGames&group=pitching&limit=5&season=2026&gameType=R`)
     ]);
     const seasonData = await seasonRes.json();
     const last5Data = await last5Res.json();
 
     const s = seasonData.stats?.[0]?.splits?.[0]?.stat || {};
 
-    // Filter to starts only, take last 5
-    const allSplits = last5Data.stats?.[0]?.splits || [];
-    const startSplits = allSplits.filter(sp => (sp.stat?.gamesStarted || 0) > 0).slice(0, 5);
+    // Find the pitching stat group explicitly, take up to 5 splits
+    const pitchingGroup = last5Data.stats?.find(sg => sg.group?.displayName === 'pitching');
+    const startSplits = (pitchingGroup?.splits || []).slice(0, 5);
 
     const l5Outs  = startSplits.reduce((sum, sp) => sum + ipToOuts(sp.stat?.inningsPitched || 0), 0);
     const l5K     = startSplits.reduce((sum, sp) => sum + (sp.stat?.strikeOuts || 0), 0);
@@ -609,7 +612,7 @@ function renderGames(gs, id, live){
       if (cached) {
         const era = cached.era !== '—' ? cached.era : '—';
         const wl = `${cached.wins}-${cached.losses}`;
-        statStr = `&nbsp;<span style="color:var(--muted);">(${era}, ${wl})</span>`;
+        statStr = `<span style="color:var(--muted);padding-left:4px;">(${era}, ${wl})</span>`;
       }
       return `<div class="tpitcher" style="text-align:${align};">${pitcher.name}${statStr}</div>`;
     }
@@ -863,7 +866,7 @@ let startersSortCol = 'seasonEra';
 let startersSortDir = 'asc';
 
 function eraColor(era) {
-  if (era === '—' || era == null) return '';
+  if (!era || era === '—' || era === '-.--' || era === '-' || era === 'null') return '';
   const e = parseFloat(era);
   if (isNaN(e)) return '';
   if (e <= 3.50) return 'sp-era-good';
@@ -958,15 +961,22 @@ function sortStarters(col) {
 }
 
 async function loadStarters() {
+  if (startersLoaded) { renderStartersTable(); return; }
   document.getElementById('sp-content').innerHTML = '<div class="sp-loading"><div class="spinner" style="width:22px;height:22px;border-width:2px;margin:0 auto 8px;"></div>Loading starters & stats...</div>';
 
   // Use already-fetched games (which include probables from fetchScores)
+  const seen = new Set();
   const allPitchers = [];
   for (const g of games) {
-    if (g.awayPitcher) allPitchers.push({ pitcher: g.awayPitcher, teamAbbr: g.away, teamFull: g.awayFull, oppAbbr: g.home });
-    else allPitchers.push({ pitcher: null, teamAbbr: g.away, teamFull: g.awayFull, oppAbbr: g.home });
-    if (g.homePitcher) allPitchers.push({ pitcher: g.homePitcher, teamAbbr: g.home, teamFull: g.homeFull, oppAbbr: g.away });
-    else allPitchers.push({ pitcher: null, teamAbbr: g.home, teamFull: g.homeFull, oppAbbr: g.away });
+    for (const [pitcher, teamAbbr, teamFull, oppAbbr] of [
+      [g.awayPitcher, g.away, g.awayFull, g.home],
+      [g.homePitcher, g.home, g.homeFull, g.away],
+    ]) {
+      const key = pitcher ? `${pitcher.id}` : `tbd-${teamAbbr}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      allPitchers.push({ pitcher: pitcher || null, teamAbbr, teamFull, oppAbbr });
+    }
   }
 
   // Fetch stats for all pitchers in parallel
@@ -1000,10 +1010,9 @@ async function loadStarters() {
     };
   });
 
+  startersLoaded = true;
   renderStartersTable();
 }
-
-// ── BULLPEN TAB ───────────────────────────────────────────────────────────────
 let bullpenLoaded = false;
 
 function ipToOuts(ip) {
