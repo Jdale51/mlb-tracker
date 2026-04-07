@@ -267,11 +267,38 @@ function getPregameLine(g) {
 
 // ── FETCH FUNCTIONS ──────────────────────────────────────────────────────────
 
+async function fetchProbables(date) {
+  try {
+    const res = await fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${date}&hydrate=probablePitcher(note)`);
+    if (!res.ok) return {};
+    const data = await res.json();
+    const map = {};
+    for (const g of (data.dates?.[0]?.games || [])) {
+      const pk = g.gamePk;
+      const ap = g.teams?.away?.probablePitcher;
+      const hp = g.teams?.home?.probablePitcher;
+      map[pk] = {
+        away: ap ? { id: ap.id, name: ap.fullName } : null,
+        home: hp ? { id: hp.id, name: hp.fullName } : null,
+      };
+    }
+    const total = Object.values(map).filter(v => v.away || v.home).length;
+    console.log(`[Probables] ${total} games with pitchers posted for ${date}`);
+    return map;
+  } catch(e) {
+    console.error('[Probables] fetch error:', e);
+    return {};
+  }
+}
+
 async function fetchScores() {
   const today = getPDTDate();
-  const res = await fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}&hydrate=linescore,probables`);
-  if (!res.ok) throw new Error(`MLB API ${res.status}`);
-  const data = await res.json();
+  const [scoresRes, probablesMap] = await Promise.all([
+    fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}&hydrate=linescore`),
+    fetchProbables(today),
+  ]);
+  if (!scoresRes.ok) throw new Error(`MLB API ${scoresRes.status}`);
+  const data = await scoresRes.json();
   const raw = (data.dates && data.dates[0]) ? data.dates[0].games : [];
   return raw.map(g => {
     const state = g.status.abstractGameState;
@@ -279,8 +306,7 @@ async function fetchScores() {
     const awayR = g.teams.away.score != null ? g.teams.away.score : null;
     const homeR = g.teams.home.score != null ? g.teams.home.score : null;
     const timeLbl = new Date(g.gameDate).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
-    const awayPitcher = g.teams.away.probablePitcher || null;
-    const homePitcher = g.teams.home.probablePitcher || null;
+    const pitchers = probablesMap[g.gamePk] || {};
     return {
       away: ta(g.teams.away.team.name),
       home: ta(g.teams.home.team.name),
@@ -290,8 +316,9 @@ async function fetchScores() {
       time: state==='Final'?'Final':timeLbl,
       awayR, homeR,
       inning: (state==='Live'&&ls.currentInning)?`${ls.inningHalf==='Top'?'T':'B'}${ls.currentInning}`:null,
-      awayPitcher: awayPitcher ? { id: awayPitcher.id, name: awayPitcher.fullName } : null,
-      homePitcher: homePitcher ? { id: homePitcher.id, name: homePitcher.fullName } : null,
+      awayPitcher: pitchers.away || null,
+      homePitcher: pitchers.home || null,
+      gamePk: g.gamePk,
     };
   });
 }
