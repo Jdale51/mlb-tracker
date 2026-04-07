@@ -789,24 +789,23 @@ async function loadBullpen() {
   const today = getPDTDate();
   document.getElementById('bp-content').innerHTML = `
     <div class="bp-date-note">Weighted: 70% yesterday · 18% 2 days ago · 12% 3 days ago. As of ${today}.</div>
-    <div class="bp-header" style="grid-template-columns:1fr 48px 48px 48px 24px 90px;">
+    <div class="bp-header" style="grid-template-columns:1fr 56px 56px 56px 100px;">
       <span>Team</span>
       <span style="text-align:center;display:block;">${dates[0].slice(5).split('-').map(n=>parseInt(n)).join('/')}</span>
       <span style="text-align:center;display:block;">${dates[1].slice(5).split('-').map(n=>parseInt(n)).join('/')}</span>
       <span style="text-align:center;display:block;">${dates[2].slice(5).split('-').map(n=>parseInt(n)).join('/')}</span>
-      <span></span>
-      <span style="text-align:center">Weighted Usage</span>
+      <span style="text-align:center;display:block;">Weighted Usage</span>
     </div>
     ${results.map(r => `
-      <div class="bp-row">
+      <div class="bp-row" style="grid-template-columns:1fr 56px 56px 56px 100px;">
         <div>
           <div class="bp-team">${r.abbr}</div>
           <div style="font-size:10px;color:var(--muted);">${r.name}</div>
         </div>
-        <div class="bp-inn" style="color:${r.dayIp[0]==='0.0'?'var(--muted)':'var(--text)'}">${r.dayIp[0]}</div>
-        <div class="bp-inn" style="color:${r.dayIp[1]==='0.0'?'var(--muted)':'var(--text)'}">${r.dayIp[1]}</div>
-        <div class="bp-inn" style="color:${r.dayIp[2]==='0.0'?'var(--muted)':'var(--text)'}">${r.dayIp[2]}</div>
-        <div><span class="bp-badge ${r.cls}">${r.weightedIp} IP · ${r.tier}</span></div>
+        <div class="bp-inn" style="text-align:center;color:${r.dayIp[0]==='0.0'?'var(--muted)':'var(--text)'}">${r.dayIp[0]}</div>
+        <div class="bp-inn" style="text-align:center;color:${r.dayIp[1]==='0.0'?'var(--muted)':'var(--text)'}">${r.dayIp[1]}</div>
+        <div class="bp-inn" style="text-align:center;color:${r.dayIp[2]==='0.0'?'var(--muted)':'var(--text)'}">${r.dayIp[2]}</div>
+        <div style="text-align:center;"><span class="bp-badge ${r.cls}">${r.weightedIp} IP · ${r.tier}</span></div>
       </div>`).join('')}
   `;
   bullpenLoaded = true;
