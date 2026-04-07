@@ -108,27 +108,25 @@
   .hist-empty{padding:40px;text-align:center;color:var(--muted);font-size:13px;}
 
   /* Starters tab */
-  .sp-wrap{padding:10px 12px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
-  .sp-table{width:100%;border-collapse:collapse;min-width:700px;}
-  .sp-table th{font-family:'Barlow Condensed',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);padding:7px 6px;text-align:center;border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;}
-  .sp-table th:first-child{text-align:left;}
+  .sp-wrap{padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch;position:relative;}
+  .sp-table{width:100%;border-collapse:separate;border-spacing:0;min-width:680px;}
+  .sp-table th{font-family:'Barlow Condensed',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);padding:7px 8px;text-align:center;border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;background:var(--surface);}
+  .sp-table th:first-child{text-align:left;position:sticky;left:0;z-index:3;background:var(--surface);}
   .sp-table th.sort-asc::after{content:' ↑';}
   .sp-table th.sort-desc::after{content:' ↓';}
-  .sp-table td{padding:7px 6px;border-bottom:1px solid var(--border);font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text);text-align:center;white-space:nowrap;}
-  .sp-table td:first-child{text-align:left;}
+  .sp-table td{padding:7px 8px;border-bottom:1px solid var(--border);font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--text);text-align:center;white-space:nowrap;background:var(--surface);}
+  .sp-table td:first-child{text-align:left;position:sticky;left:0;z-index:2;background:var(--surface);}
+  .sp-table tbody tr:hover td{background:var(--surface2);}
+  .sp-table tbody tr:hover td:first-child{background:var(--surface2);}
   .sp-table tr:last-child td{border-bottom:none;}
-  .sp-table tbody tr:hover{background:rgba(255,255,255,0.02);}
   .sp-name{font-size:14px;font-weight:700;color:var(--text);}
   .sp-team{font-size:10px;color:var(--muted);margin-top:1px;}
-  .sp-matchup{font-size:10px;color:var(--muted);}
-  .sp-tbd{color:var(--muted);font-style:italic;}
+  .sp-loading{padding:36px;text-align:center;color:var(--muted);font-size:13px;}
+  .tpitcher{font-size:10px;color:var(--muted);margin-top:2px;font-style:normal;}
   .sp-era-good{color:var(--green);}
   .sp-era-mid{color:var(--accent);}
   .sp-era-bad{color:var(--red);}
-  .sp-section-header{background:var(--surface2);font-family:'Barlow Condensed',sans-serif;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);padding:4px 6px;text-align:center;border-bottom:1px solid var(--border);}
-  .sp-loading{padding:36px;text-align:center;color:var(--muted);font-size:13px;}
-  .sp-divider td{background:rgba(255,255,255,0.03);padding:2px 6px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);}
-  .tpitcher{font-size:10px;color:var(--muted);margin-top:2px;font-style:normal;}
+  .sp-divider-col{border-left:2px solid rgba(255,255,255,0.15) !important;}
 </style>
 </head>
 <body>
@@ -371,41 +369,44 @@ async function fetchPitcherStats(id) {
   try {
     const [seasonRes, last5Res] = await Promise.all([
       fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=season&group=pitching&season=2026&gameType=R`),
-      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=lastXGames&group=pitching&limit=5&season=2026&gameType=R`)
+      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=lastXGames&group=pitching&limit=10&season=2026&gameType=R`)
     ]);
     const seasonData = await seasonRes.json();
     const last5Data = await last5Res.json();
 
     const s = seasonData.stats?.[0]?.splits?.[0]?.stat || {};
-    // lastXGames returns one split per game — sum them up
-    const last5Splits = last5Data.stats?.[0]?.splits || [];
-    const l5Outs = last5Splits.reduce((sum, sp) => sum + ipToOuts(sp.stat?.inningsPitched || 0), 0);
-    const l5K = last5Splits.reduce((sum, sp) => sum + (sp.stat?.strikeOuts || 0), 0);
-    const l5ER = last5Splits.reduce((sum, sp) => sum + (sp.stat?.earnedRuns || 0), 0);
-    const l5IpStr = outsToIp(l5Outs);
-    const l5Era = l5Outs > 0 ? ((l5ER * 27) / l5Outs).toFixed(2) : '—';
 
-    // BAA: hits / atBatsFaced (use atBats if available)
+    // Filter to starts only, take last 5
+    const allSplits = last5Data.stats?.[0]?.splits || [];
+    const startSplits = allSplits.filter(sp => (sp.stat?.gamesStarted || 0) > 0).slice(0, 5);
+
+    const l5Outs  = startSplits.reduce((sum, sp) => sum + ipToOuts(sp.stat?.inningsPitched || 0), 0);
+    const l5K     = startSplits.reduce((sum, sp) => sum + (sp.stat?.strikeOuts || 0), 0);
+    const l5ER    = startSplits.reduce((sum, sp) => sum + (sp.stat?.earnedRuns || 0), 0);
+    const l5H     = startSplits.reduce((sum, sp) => sum + (sp.stat?.hits || 0), 0);
+    const l5BB    = startSplits.reduce((sum, sp) => sum + (sp.stat?.baseOnBalls || 0), 0);
+    const l5AB    = startSplits.reduce((sum, sp) => sum + (sp.stat?.atBats || 0), 0);
+    const l5W     = startSplits.reduce((sum, sp) => sum + (sp.stat?.wins || 0), 0);
+    const l5L     = startSplits.reduce((sum, sp) => sum + (sp.stat?.losses || 0), 0);
+
+    const l5Era  = l5Outs > 0 ? ((l5ER * 27) / l5Outs).toFixed(2) : '—';
+    const l5Whip = l5Outs > 0 ? ((l5H + l5BB) / (l5Outs / 3)).toFixed(2) : '—';
+    const l5K9   = l5Outs > 0 ? ((l5K * 27) / l5Outs).toFixed(1) : '—';
+    const l5Baa  = l5AB > 0 ? (l5H / l5AB).toFixed(3) : '—';
+    const l5Wl   = startSplits.length > 0 ? `${l5W}-${l5L}` : '—';
+
+    // Season BAA
     const baa = s.atBats > 0 ? (s.hits / s.atBats).toFixed(3) : '—';
 
     const result = {
-      era: s.era ?? '—',
-      whip: s.whip ?? '—',
-      k9: s.strikeoutsPer9Inn ?? '—',
+      era:   s.era ?? '—',
+      whip:  s.whip ?? '—',
+      k9:    s.strikeoutsPer9Inn ?? '—',
       baa,
-      wins: s.wins ?? 0,
+      wins:   s.wins ?? 0,
       losses: s.losses ?? 0,
-      gamesStarted: s.gamesStarted ?? 0,
-      qualityStarts: s.qualityStarts ?? 0,
-      ip: s.inningsPitched ?? '—',
-      l5Era,
-      l5Ip: l5IpStr,
-      l5K: l5K || '—',
-      l5Whip: '—',
+      l5Era, l5Whip, l5K9, l5Baa, l5Wl,
     };
-    result.qsPct = result.gamesStarted > 0
-      ? Math.round((result.qualityStarts / result.gamesStarted) * 100) + '%'
-      : '—';
 
     pitcherStatsCache[id] = result;
     return result;
@@ -894,49 +895,51 @@ function renderStartersTable() {
     return startersSortDir === 'asc' ? cmp : -cmp;
   });
 
-  function th(label, col, title) {
-    const cls = startersSortCol === col ? (startersSortDir === 'asc' ? 'sort-asc' : 'sort-desc') : '';
-    return `<th class="${cls}" onclick="sortStarters('${col}')" title="${title||''}">${label}</th>`;
+  function th(label, col, extraCls) {
+    const sortCls = startersSortCol === col ? (startersSortDir === 'asc' ? 'sort-asc' : 'sort-desc') : '';
+    const cls = [sortCls, extraCls].filter(Boolean).join(' ');
+    return `<th class="${cls}" onclick="sortStarters('${col}')">${label}</th>`;
   }
 
   const rows = sorted.map(r => {
-    const eraCls = eraColor(r.seasonEra);
+    const sEraCls  = eraColor(r.seasonEra);
     const l5EraCls = eraColor(r.l5Era);
     return `<tr>
       <td>
         <div class="sp-name">${r.name}</div>
         <div class="sp-team">${r.teamAbbr} vs ${r.oppAbbr}</div>
       </td>
+      <td>${r.l5Wl}</td>
       <td class="${l5EraCls}">${r.l5Era}</td>
-      <td>${r.l5Ip}</td>
-      <td>${r.l5K}</td>
-      <td class="${eraCls}">${r.seasonEra}</td>
+      <td>${r.l5Whip}</td>
+      <td>${r.l5Baa}</td>
+      <td>${r.l5K9}</td>
+      <td class="sp-divider-col">${r.seasonWl}</td>
+      <td class="${sEraCls}">${r.seasonEra}</td>
       <td>${r.whip}</td>
-      <td>${r.k9}</td>
       <td>${r.baa}</td>
-      <td>${r.wl}</td>
-      <td>${r.qsPct}</td>
+      <td>${r.k9}</td>
     </tr>`;
   }).join('');
 
   el.innerHTML = `<table class="sp-table">
     <thead>
       <tr>
-        <th>Pitcher</th>
-        <th colspan="3" style="text-align:center;border-bottom:1px solid var(--border);color:var(--accent);">Last 5 Starts</th>
-        <th colspan="6" style="text-align:center;border-bottom:1px solid var(--border);color:var(--muted);">2026 Season</th>
+        <th rowspan="2" style="vertical-align:bottom;">Pitcher</th>
+        <th colspan="5" style="text-align:center;color:var(--accent);border-bottom:1px solid var(--border);">Last 5 Starts</th>
+        <th colspan="5" class="sp-divider-col" style="text-align:center;color:var(--muted);border-bottom:1px solid var(--border);">2026 Season</th>
       </tr>
       <tr>
-        ${th('Pitcher','name','Sort by name')}
-        ${th('ERA','l5Era','Last 5 ERA')}
-        ${th('IP','l5Ip','Last 5 IP')}
-        ${th('K','l5K','Last 5 Strikeouts')}
-        ${th('ERA','seasonEra','Season ERA')}
-        ${th('WHIP','whip','Season WHIP')}
-        ${th('K/9','k9','Season K/9')}
-        ${th('BAA','baa','Batting Avg Against')}
-        ${th('W-L','wl','Win-Loss')}
-        ${th('QS%','qsPct','Quality Start %')}
+        ${th('W-L','l5Wl')}
+        ${th('ERA','l5Era')}
+        ${th('WHIP','l5Whip')}
+        ${th('BAA','l5Baa')}
+        ${th('K/9','l5K9')}
+        ${th('W-L','seasonWl','sp-divider-col')}
+        ${th('ERA','seasonEra')}
+        ${th('WHIP','whip')}
+        ${th('BAA','baa')}
+        ${th('K/9','k9')}
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -975,23 +978,24 @@ async function loadStarters() {
     if (!p.pitcher) {
       return {
         name: 'TBD', teamAbbr: p.teamAbbr, oppAbbr: p.oppAbbr,
-        l5Era: '—', l5Ip: '—', l5K: '—',
-        seasonEra: '—', whip: '—', k9: '—', baa: '—', wl: '—', qsPct: '—',
+        l5Wl: '—', l5Era: '—', l5Whip: '—', l5Baa: '—', l5K9: '—',
+        seasonWl: '—', seasonEra: '—', whip: '—', baa: '—', k9: '—',
       };
     }
     return {
       name: p.pitcher.name,
       teamAbbr: p.teamAbbr,
       oppAbbr: p.oppAbbr,
-      l5Era: s?.l5Era ?? '—',
-      l5Ip: s?.l5Ip ?? '—',
-      l5K: s?.l5K ?? '—',
-      seasonEra: s?.era ?? '—',
-      whip: s?.whip ?? '—',
-      k9: s?.k9 ?? '—',
-      baa: s?.baa ?? '—',
-      wl: s ? `${s.wins}-${s.losses}` : '—',
-      qsPct: s?.qsPct ?? '—',
+      l5Wl:   s?.l5Wl   ?? '—',
+      l5Era:  s?.l5Era  ?? '—',
+      l5Whip: s?.l5Whip ?? '—',
+      l5Baa:  s?.l5Baa  ?? '—',
+      l5K9:   s?.l5K9   ?? '—',
+      seasonWl:  s ? `${s.wins}-${s.losses}` : '—',
+      seasonEra: s?.era  ?? '—',
+      whip:      s?.whip ?? '—',
+      baa:       s?.baa  ?? '—',
+      k9:        s?.k9   ?? '—',
     };
   });
 
