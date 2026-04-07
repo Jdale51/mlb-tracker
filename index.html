@@ -343,33 +343,39 @@ async function fetchPitcherStats(id) {
   if (pitcherStatsCache[id]) return pitcherStatsCache[id];
   try {
     const [seasonRes, last5Res] = await Promise.all([
-      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=season&group=pitching&season=2026`),
-      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=lastXGames&group=pitching&limit=5&season=2026`)
+      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=season&group=pitching&season=2026&gameType=R`),
+      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=lastXGames&group=pitching&limit=5&season=2026&gameType=R`)
     ]);
     const seasonData = await seasonRes.json();
     const last5Data = await last5Res.json();
 
     const s = seasonData.stats?.[0]?.splits?.[0]?.stat || {};
-    const l = last5Data.stats?.[0]?.splits?.[0]?.stat || {};
+    // lastXGames returns one split per game — sum them up
+    const last5Splits = last5Data.stats?.[0]?.splits || [];
+    const l5Outs = last5Splits.reduce((sum, sp) => sum + ipToOuts(sp.stat?.inningsPitched || 0), 0);
+    const l5K = last5Splits.reduce((sum, sp) => sum + (sp.stat?.strikeOuts || 0), 0);
+    const l5ER = last5Splits.reduce((sum, sp) => sum + (sp.stat?.earnedRuns || 0), 0);
+    const l5IpStr = outsToIp(l5Outs);
+    const l5Era = l5Outs > 0 ? ((l5ER * 27) / l5Outs).toFixed(2) : '—';
+
+    // BAA: hits / atBatsFaced (use atBats if available)
+    const baa = s.atBats > 0 ? (s.hits / s.atBats).toFixed(3) : '—';
 
     const result = {
-      // Season stats
       era: s.era ?? '—',
       whip: s.whip ?? '—',
       k9: s.strikeoutsPer9Inn ?? '—',
-      baa: s.battersFaced ? (s.hits && s.atBats ? (s.hits / s.atBats).toFixed(3) : '—') : '—',
+      baa,
       wins: s.wins ?? 0,
       losses: s.losses ?? 0,
       gamesStarted: s.gamesStarted ?? 0,
       qualityStarts: s.qualityStarts ?? 0,
       ip: s.inningsPitched ?? '—',
-      // Last 5 stats
-      l5Era: l.era ?? '—',
-      l5Ip: l.inningsPitched ?? '—',
-      l5K: l.strikeOuts ?? '—',
-      l5Whip: l.whip ?? '—',
+      l5Era,
+      l5Ip: l5IpStr,
+      l5K: l5K || '—',
+      l5Whip: '—',
     };
-    // Calculate QS%
     result.qsPct = result.gamesStarted > 0
       ? Math.round((result.qualityStarts / result.gamesStarted) * 100) + '%'
       : '—';
@@ -562,9 +568,9 @@ function renderGames(gs, id, live){
     const sl=g.status==='final'?'Final':g.status==='live'?'● Live':'Upcoming';
     const inn=g.status==='live'&&g.inning?`<span class="inn">${g.inning}</span>`:'';
 
-    // Open O/U in header
+    // Open O/U — left-anchored after status badge, never overlaps inning
     const openLineHtml = gradeLine
-      ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--muted);margin-left:6px;">O/U ${gradeLine}</span>`
+      ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--muted);margin-left:6px;">Open: O/U ${gradeLine}</span>`
       : '';
 
     // Pitcher display with stats from cache
@@ -581,7 +587,13 @@ function renderGames(gs, id, live){
     }
 
     return `<div class="game">
-      <div class="gtop"><span class="gstatus ${sc}">${sl}</span>${openLineHtml}${inn}<span class="gtime">${g.time||''}</span></div>
+      <div class="gtop" style="position:relative;">
+        <div style="display:flex;align-items:center;gap:0;flex:1;min-width:0;">
+          <span class="gstatus ${sc}">${sl}</span>${openLineHtml}
+        </div>
+        ${inn}
+        <span class="gtime">${g.time||''}</span>
+      </div>
       <div class="gbody">
         <div class="team">
           <div class="tabbr ${aw?'w':''}">${g.away}</div>
