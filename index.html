@@ -609,7 +609,7 @@ function renderGames(gs, id, live){
       if (cached) {
         const era = cached.era !== '—' ? cached.era : '—';
         const wl = `${cached.wins}-${cached.losses}`;
-        statStr = ` <span style="color:var(--muted);">(${era}, ${wl})</span>`;
+        statStr = `&nbsp;<span style="color:var(--muted);">(${era}, ${wl})</span>`;
       }
       return `<div class="tpitcher" style="text-align:${align};">${pitcher.name}${statStr}</div>`;
     }
@@ -925,11 +925,12 @@ function renderStartersTable() {
   el.innerHTML = `<table class="sp-table">
     <thead>
       <tr>
-        <th rowspan="2" style="vertical-align:bottom;">Pitcher</th>
-        <th colspan="5" style="text-align:center;color:var(--accent);border-bottom:1px solid var(--border);">Last 5 Starts</th>
-        <th colspan="5" class="sp-divider-col" style="text-align:center;color:var(--muted);border-bottom:1px solid var(--border);">2026 Season</th>
+        <th style="border-bottom:none;"></th>
+        <th colspan="5" style="text-align:center;color:var(--accent);border-bottom:2px solid rgba(245,197,24,0.4);">Last 5 Starts</th>
+        <th colspan="5" class="sp-divider-col" style="text-align:center;color:var(--muted);border-bottom:2px solid rgba(255,255,255,0.1);">2026 Season</th>
       </tr>
       <tr>
+        <th style="text-align:left;">Pitcher</th>
         ${th('W-L','l5Wl')}
         ${th('ERA','l5Era')}
         ${th('WHIP','l5Whip')}
