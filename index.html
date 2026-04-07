@@ -213,9 +213,14 @@ const SCORES_MS = 60000;
 
 function getOddsInterval() {
   const pstHour = ((new Date().getUTCHours() - 7) + 24) % 24;
-  if (pstHour >= 23 || pstHour < 7) return Infinity;
-  if (pstHour >= 7 && pstHour < 16) return 60 * 60 * 1000;
-  return 15 * 60 * 1000;
+  const pstMin  = new Date().getUTCMinutes();
+  const pstTime = pstHour + pstMin / 60;
+
+  if (pstTime >= 22.5 || pstTime < 5.5)  return 3 * 60 * 60 * 1000;   // 10:30pm–5:30am → 3hr
+  if (pstTime >= 5.5  && pstTime < 10)   return 60 * 60 * 1000;        // 5:30am–10am    → 1hr
+  if (pstTime >= 10   && pstTime < 16)   return 30 * 60 * 1000;        // 10am–4pm       → 30min
+  return 15 * 60 * 1000;                                                // 4pm–10:30pm    → 15min
+}
 }
 
 // Always use PDT (UTC-7) regardless of device timezone
@@ -294,9 +299,10 @@ async function fetchProbables(date) {
 
 async function fetchScores() {
   const today = getPDTDate();
+  // Run scores and probables in parallel but never let probables block scores
   const [scoresRes, probablesMap] = await Promise.all([
     fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}&hydrate=linescore`),
-    fetchProbables(today),
+    fetchProbables(today).catch(() => ({})),
   ]);
   if (!scoresRes.ok) throw new Error(`MLB API ${scoresRes.status}`);
   const data = await scoresRes.json();
@@ -733,14 +739,15 @@ async function refreshScores(){
     document.getElementById('spill').textContent=`${live} Live · ${fin} Final`;
     document.getElementById('spill').className='pill pill-g';
     sCD=SCORES_MS/1000;
-    // Pre-fetch pitcher stats for all probable pitchers in background
-    const pitcherIds = [];
-    for (const g of games) {
-      if (g.awayPitcher?.id) pitcherIds.push(g.awayPitcher.id);
-      if (g.homePitcher?.id) pitcherIds.push(g.homePitcher.id);
-    }
+    // Pre-fetch pitcher stats in background — never block scores render
+    const pitcherIds = [...new Set([
+      ...games.filter(g => g.awayPitcher?.id).map(g => g.awayPitcher.id),
+      ...games.filter(g => g.homePitcher?.id).map(g => g.homePitcher.id),
+    ])];
     if (pitcherIds.length) {
-      Promise.all(pitcherIds.map(id => fetchPitcherStats(id))).then(() => redraw());
+      Promise.all(pitcherIds.map(id => fetchPitcherStats(id).catch(() => null)))
+        .then(() => redraw())
+        .catch(() => {});
     }
     redraw();
   }catch(e){
@@ -763,9 +770,7 @@ async function refreshOdds(){
     const ts = resp.oddsLastFetched ? new Date(resp.oddsLastFetched) : new Date();
     const timeStr = ts.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
     document.getElementById('lines-updated').textContent=`Updated: ${timeStr}`;
-    if(resp.secondsUntilNext===Infinity||resp.secondsUntilNext>86400){
-      oCD=Infinity;
-    } else if(resp.secondsUntilNext!==undefined){
+    if(resp.secondsUntilNext!==undefined){
       oCD=resp.secondsUntilNext;
     } else {
       oCD=getOddsInterval()/1000;
@@ -780,7 +785,6 @@ async function refreshOdds(){
 }
 
 function fmt(s){
-  if(s===Infinity||s>86400) return 'paused';
   return s>=60?`${Math.ceil(s/60)}m`:`${s}s`;
 }
 
@@ -788,10 +792,9 @@ function startTimer(){
   if(timer) clearInterval(timer);
   timer=setInterval(()=>{
     sCD--;
-    if(oCD!==Infinity) oCD--;
+    oCD--;
     if(sCD<=0){sCD=SCORES_MS/1000;refreshScores();}
-    if(oCD<=0){const iv=getOddsInterval();if(iv===Infinity){oCD=Infinity;}else{oCD=iv/1000;refreshOdds();}}
-    // countdown removed from header
+    if(oCD<=0){oCD=getOddsInterval()/1000;refreshOdds();}
   },1000);
 }
 
