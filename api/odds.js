@@ -1,8 +1,8 @@
 const { put, list } = require('@vercel/blob');
 
 const ODDS_KEYS = [
-  'aef1c06336685a4a20c89a57d3f56262', // key 1 
-  'bfe46983fa21466f8f89042dcc9b77d9', // key 2
+  'aef1c06336685a4a20c89a57d3f56262', // key 1
+  'YOUR_NEW_KEY_HERE',                  // key 2 — replace with new key
 ];
 let keyIndex = 0; // persists within same server instance, alternates each fetch
 
@@ -19,14 +19,17 @@ const HISTORY_CACHE_MS = 24 * 60 * 60 * 1000; // cache all day — only changes 
 
 function getCacheTTL() {
   const pstHour = ((new Date().getUTCHours() - 7) + 24) % 24;
-  if (pstHour >= 23 || pstHour < 7) return Infinity;
-  if (pstHour >= 7 && pstHour < 16) return 60 * 60 * 1000;
-  return 15 * 60 * 1000;
+  const pstMin  = new Date().getUTCMinutes();
+  const pstTime = pstHour + pstMin / 60; // e.g. 5:30 = 5.5
+
+  if (pstTime >= 22.5 || pstTime < 5.5)  return 3 * 60 * 60 * 1000;   // 10:30pm–5:30am  → 3hr
+  if (pstTime >= 5.5  && pstTime < 10)   return 60 * 60 * 1000;        // 5:30am–10am     → 1hr
+  if (pstTime >= 10   && pstTime < 16)   return 30 * 60 * 1000;        // 10am–4pm        → 30min
+  return 15 * 60 * 1000;                                                // 4pm–10:30pm     → 15min
 }
 
 function getSecondsUntilNext() {
   const ttl = getCacheTTL();
-  if (ttl === Infinity) return Infinity;
   const age = Date.now() - cache.fetchedAt;
   return Math.max(0, Math.ceil((ttl - age) / 1000));
 }
