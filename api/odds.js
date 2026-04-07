@@ -193,13 +193,14 @@ module.exports = async function handler(req, res) {
   if (cacheValid) {
     res.setHeader('X-Cache', `HIT - ${Math.round(age / 60000)}m old`);
     const gs = cache.grandSalami || await getTodayGrandSalami();
+    const todayRec = await getTodayRecord();
     return res.status(200).json({
       games: filterToday(cache.data),
       grandSalami: gs,
-      todayPick: (await getTodayRecord())?.todayPick || null,
-      todayUnits: (await getTodayRecord())?.units || null,
+      todayPick: todayRec?.todayPick || null,
+      todayUnits: todayRec?.units || null,
       secondsUntilNext: getSecondsUntilNext(),
-      oddsLastFetched: cache.fetchedAt
+      oddsLastFetched: cache.fetchedAt || todayRec?.oddsLastFetched || null,
     });
   }
 
@@ -239,6 +240,7 @@ module.exports = async function handler(req, res) {
         pregameLines,
         actualRuns: existing.actualRuns ?? null,
         result: existing.result ?? null,
+        oddsLastFetched: cache.fetchedAt,
       });
     }
 
@@ -253,14 +255,15 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     if (cache.data) {
       const gs = cache.grandSalami || await getTodayGrandSalami();
+      const todayRec = await getTodayRecord();
       res.setHeader('X-Cache', 'STALE');
       return res.status(200).json({
         games: filterToday(cache.data),
         grandSalami: gs,
-        todayPick: (await getTodayRecord())?.todayPick || null,
-        todayUnits: (await getTodayRecord())?.units || null,
+        todayPick: todayRec?.todayPick || null,
+        todayUnits: todayRec?.units || null,
         secondsUntilNext: getSecondsUntilNext(),
-        oddsLastFetched: cache.fetchedAt
+        oddsLastFetched: cache.fetchedAt || todayRec?.oddsLastFetched || null,
       });
     }
     return res.status(500).json({ error: err.message });
