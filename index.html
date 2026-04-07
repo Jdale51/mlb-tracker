@@ -221,7 +221,6 @@ function getOddsInterval() {
   if (pstTime >= 10   && pstTime < 16)   return 30 * 60 * 1000;        // 10am–4pm       → 30min
   return 15 * 60 * 1000;                                                // 4pm–10:30pm    → 15min
 }
-}
 
 // Always use PDT (UTC-7) regardless of device timezone
 function getPDTDate(offsetDays) {
