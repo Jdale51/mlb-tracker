@@ -14,7 +14,7 @@ module.exports = async function handler(req, res) {
   if (linesCache.data && age < CACHE_MS) {
     // Re-fetch pick/units fresh even on cache hit since they change during the day
     try {
-      const response = await fetch(blobUrl || linesCache.data.blobUrl);
+      const response = await fetch(`${blobUrl || linesCache.data.blobUrl}?t=${Date.now()}`);
       const history = await response.json();
       const pst = new Date(Date.now() + -7 * 60 * 60000);
       const today = pst.toISOString().split('T')[0];
