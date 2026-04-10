@@ -2,7 +2,8 @@ const { put, list } = require('@vercel/blob');
 
 const ODDS_KEYS = [
   'aef1c06336685a4a20c89a57d3f56262', // key 1
-  'YOUR_NEW_KEY_HERE',                  // key 2 — replace with new key
+  'bfe46983fa21466f8f89042dcc9b77d9', // key 2
+  'e7dce86e70cf94b32d45eb9c1f2847fb', // key 3
 ];
 let keyIndex = 0; // persists within same server instance, alternates each fetch
 
@@ -66,7 +67,8 @@ async function readHistory(forceRefresh = false) {
   try {
     const url = await getBlobUrl();
     if (!url) return [];
-    const res = await fetch(url);
+    // Cache-bust to bypass CDN and always get fresh data from blob storage
+    const res = await fetch(`${url}?t=${Date.now()}`);
     const data = await res.json();
     historyCache = { data, loadedAt: Date.now() };
     return data;
