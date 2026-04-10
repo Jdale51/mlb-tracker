@@ -116,6 +116,11 @@
   <!-- End of Day Result -->
   <div class="card">
     <div class="card-title">Save End of Day Result</div>
+    <div class="row2" style="margin-bottom:10px;">
+      <button id="date-today-btn" class="btn" style="background:rgba(176,106,255,0.2);color:#B06AFF;border:1px solid #B06AFF;" onclick="setResultDate('today')">Today</button>
+      <button id="date-yest-btn" class="btn" style="background:transparent;color:var(--muted);border:1px solid var(--border);" onclick="setResultDate('yesterday')">Yesterday</button>
+    </div>
+    <div id="result-date-display" style="font-size:11px;color:var(--muted);margin-bottom:10px;text-align:center;"></div>
     <div class="row2">
       <div class="field">
         <label>Actual Runs</label>
@@ -140,7 +145,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const PIN = '0705'; // Change this to your preferred PIN
+const PIN = '1234'; // Change this to your preferred PIN
 
 function checkPin() {
   const input = document.getElementById('pin-input').value;
@@ -159,6 +164,27 @@ document.getElementById('pin-input').addEventListener('input', checkPin);
 function getTodayPDT() {
   const pst = new Date(Date.now() + -7 * 60 * 60000);
   return pst.toISOString().split('T')[0];
+}
+
+function getYesterdayPDT() {
+  const pst = new Date(Date.now() + -7 * 60 * 60000 - 86400000);
+  return pst.toISOString().split('T')[0];
+}
+
+let resultDate = getTodayPDT();
+
+function setResultDate(which) {
+  resultDate = which === 'yesterday' ? getYesterdayPDT() : getTodayPDT();
+  document.getElementById('result-date-display').textContent = `Saving for: ${resultDate}`;
+  document.getElementById('date-today-btn').style.background = which === 'today' ? 'rgba(176,106,255,0.2)' : 'transparent';
+  document.getElementById('date-today-btn').style.color = which === 'today' ? '#B06AFF' : 'var(--muted)';
+  document.getElementById('date-today-btn').style.border = which === 'today' ? '1px solid #B06AFF' : '1px solid var(--border)';
+  document.getElementById('date-yest-btn').style.background = which === 'yesterday' ? 'rgba(176,106,255,0.2)' : 'transparent';
+  document.getElementById('date-yest-btn').style.color = which === 'yesterday' ? '#B06AFF' : 'var(--muted)';
+  document.getElementById('date-yest-btn').style.border = which === 'yesterday' ? '1px solid #B06AFF' : '1px solid var(--border)';
+  // Clear fields when switching dates
+  document.getElementById('actual-runs').value = '';
+  document.getElementById('result').value = '';
 }
 
 function showToast(msg, type='ok') {
@@ -286,13 +312,12 @@ async function saveResult() {
 
   if (!runs) { showToast('Enter actual runs', 'err'); return; }
   if (!['over','under','push'].includes(result)) {
-    // Auto-calculate if blank
+    // Auto-calculate from GS line
     const res = await fetch('/api/history');
     const history = await res.json();
-    const today = getTodayPDT();
-    const todayRecord = history.find(r => r.date === today);
-    if (todayRecord && todayRecord.grandSalamLine) {
-      result = runs > todayRecord.grandSalamLine ? 'over' : runs < todayRecord.grandSalamLine ? 'under' : 'push';
+    const record = history.find(r => r.date === resultDate);
+    if (record && record.grandSalamLine) {
+      result = runs > record.grandSalamLine ? 'over' : runs < record.grandSalamLine ? 'under' : 'push';
       document.getElementById('result').value = result;
     } else {
       showToast('Enter result: over/under/push', 'err');
@@ -308,11 +333,11 @@ async function saveResult() {
     const res = await fetch('/api/odds', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date: getTodayPDT(), actualRuns: runs, result })
+      body: JSON.stringify({ date: resultDate, actualRuns: runs, result })
     });
     const data = await res.json();
     if (data.ok) {
-      showToast(`${runs} runs · ${result.toUpperCase()} saved ✓`, 'ok');
+      showToast(`${runs} runs · ${result.toUpperCase()} saved for ${resultDate} ✓`, 'ok');
       loadHistory();
     } else {
       showToast('Save failed', 'err');
@@ -327,6 +352,7 @@ async function saveResult() {
 
 function init() {
   document.getElementById('today-date').textContent = getTodayPDT();
+  document.getElementById('result-date-display').textContent = `Saving for: ${resultDate}`;
   loadHistory();
 }
 </script>
