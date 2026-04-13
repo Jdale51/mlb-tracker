@@ -450,12 +450,6 @@ async function saveActualRuns(totalRuns) {
 
 // ── ODDS MAP (for implied total only) ────────────────────────────────────────
 
-function toImpl(p){ return p>0?100/(p+100):Math.abs(p)/(Math.abs(p)+100); }
-function fairTotal(overP,underP,point){
-  const pO=toImpl(overP),pU=toImpl(underP);
-  return point+(pO/(pO+pU)-0.5)/0.05;
-}
-
 function buildOddsMap(data){
   const seen={};
   for(const g of data){
@@ -473,8 +467,7 @@ function buildOddsMap(data){
     const ov=mkt.outcomes.find(o=>o.name==='Over');
     const un=mkt.outcomes.find(o=>o.name==='Under');
     if(!ov||!un) continue;
-    const ft=parseFloat(fairTotal(ov.price,un.price,ov.point).toFixed(2));
-    map[key]={ou:ov.point,ft,book:bk.title,op:ov.price,up:un.price};
+    map[key]={ou:ov.point,ft:ov.point,book:bk.title,op:ov.price,up:un.price};
   }
   return map;
 }
@@ -515,7 +508,7 @@ function renderSlateTotal(){
   }
   document.getElementById('slate-num').textContent=total.toFixed(2);
   document.getElementById('slate-meta').innerHTML=
-    `${breakdown.final} final · ${breakdown.live} live · ${breakdown.upcoming} upcoming<br>Juice-adjusted · DK`;
+    `${breakdown.final} final · ${breakdown.live} live · ${breakdown.upcoming} upcoming<br>Sum of lines · DK`;
 }
 
 function renderGrandSalami(){
