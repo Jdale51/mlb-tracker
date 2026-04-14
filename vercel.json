@@ -3,3 +3,11 @@
     { "source": "/admin", "destination": "/admin.html" }
   ]
 }
+{
+  "crons": [
+    {
+      "path": "/api/cron-gs-scraper",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}
