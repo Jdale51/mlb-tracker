@@ -156,12 +156,13 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST');
   res.setHeader('Content-Type', 'application/json');
 
-  // POST: save actual runs + result
+  // POST: save fields to today's record
   if (req.method === 'POST') {
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       const { date, actualRuns, result, grandSalamLine, naiveTotal, gamesOnSlate,
-              gsOverPrice, gsUnderPrice, gsBook, todayPick, units } = body || {};
+              gsOverPrice, gsUnderPrice, gsBook, todayPick, units,
+              gsNotifiedBooks } = body || {};
       if (date) {
         let history = await readHistory(true); // force refresh on POST
         const existing = history.find(r => r.date === date) || {};
@@ -178,6 +179,7 @@ module.exports = async function handler(req, res) {
           ...(gsBook !== undefined && { gsBook }),
           ...(todayPick !== undefined && { todayPick }),
           ...(units !== undefined && { units }),
+          ...(gsNotifiedBooks !== undefined && { gsNotifiedBooks }),
         });
         return res.status(200).json({ ok: true });
       }
