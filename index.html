@@ -507,7 +507,7 @@ function renderSlateTotal(){
       breakdown.upcoming++;
     }
   }
-  document.getElementById('slate-num').textContent=total.toFixed(2);
+  document.getElementById('slate-num').textContent=total.toFixed(1);
   document.getElementById('slate-meta').innerHTML=
     `${breakdown.final} final · ${breakdown.live} live · ${breakdown.upcoming} upcoming<br>Sum of lines · DK`;
 }
