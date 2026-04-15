@@ -52,7 +52,6 @@
   #pin-input{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-size:24px;text-align:center;width:160px;letter-spacing:8px;}
   #pin-input:focus{outline:none;border-color:var(--accent);}
   #pin-error{color:var(--red);font-size:13px;height:16px;}
-
   .btn-claude{background:var(--orange);color:#fff;}
   .btn-claude:hover{opacity:0.9;}
   .export-progress{display:flex;flex-direction:column;gap:4px;margin-top:10px;}
@@ -86,16 +85,15 @@
     <div style="font-size:11px;color:var(--muted);" id="today-status">Loading...</div>
   </div>
 
-
   <!-- Export for Claude -->
   <div class="card" style="border-color:rgba(255,140,0,0.3);">
-    <div class="card-title" style="color:var(--orange);">⚡ Export for Claude</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Fetches all slate data — odds, lines, starters, bullpen, history — and copies to clipboard ready to paste into Claude.</div>
-    <button class="btn btn-claude" id="export-btn" onclick="exportForClaude()">EXPORT ALL DATA → CLAUDE</button>
+    <div class="card-title" style="color:var(--orange);">&#9889; Export for Claude</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Fetches all slate data and copies to clipboard ready to paste into Claude.</div>
+    <button class="btn btn-claude" id="export-btn" onclick="exportForClaude()">EXPORT ALL DATA &#8594; CLAUDE</button>
     <div class="export-progress" id="export-progress"></div>
     <div class="export-status" id="export-status"></div>
     <textarea id="claude-output" rows="6" readonly></textarea>
-    <button class="btn" id="copy-btn" onclick="copyOutput()">📋 COPY TO CLIPBOARD</button>
+    <button class="btn" id="copy-btn" onclick="copyOutput()">&#128203; COPY TO CLIPBOARD</button>
   </div>
 
   <!-- Grand Salami -->
@@ -194,12 +192,6 @@ function getYesterdayPDT() {
   return pst.toISOString().split('T')[0];
 }
 
-
-function getPDTDate(offsetDays) {
-  const d = new Date(Date.now() + (-7 * 60 * 60000) + (offsetDays * 86400000));
-  return d.toISOString().split('T')[0];
-}
-
 let resultDate = getTodayPDT();
 
 function setResultDate(which) {
@@ -224,308 +216,272 @@ function showToast(msg, type='ok') {
 }
 
 
-// ── EXPORT FOR CLAUDE ─────────────────────────────────────────────────────────
+// ── ABBR MAP (same as index.html) ────────────────────────────────────────────
+const EXPORT_ABBR = {
+  'New York Yankees':'NYY','San Francisco Giants':'SF','Athletics':'ATH','Oakland Athletics':'ATH',
+  'Toronto Blue Jays':'TOR','Colorado Rockies':'COL','Miami Marlins':'MIA',
+  'Kansas City Royals':'KC','Atlanta Braves':'ATL','Los Angeles Angels':'LAA',
+  'Houston Astros':'HOU','Detroit Tigers':'DET','San Diego Padres':'SD',
+  'Cleveland Guardians':'CLE','Seattle Mariners':'SEA','Arizona Diamondbacks':'AZ',
+  'Los Angeles Dodgers':'LAD','New York Mets':'NYM','Chicago Cubs':'CHC',
+  'Milwaukee Brewers':'MIL','St. Louis Cardinals':'STL','Pittsburgh Pirates':'PIT',
+  'Chicago White Sox':'CWS','Washington Nationals':'WSH','Minnesota Twins':'MIN',
+  'Baltimore Orioles':'BAL','Boston Red Sox':'BOS','Cincinnati Reds':'CIN',
+  'Philadelphia Phillies':'PHI','Texas Rangers':'TEX','Tampa Bay Rays':'TB',
+};
+function exportAbbr(name) { return EXPORT_ABBR[name] || name.split(' ').pop().slice(0,3).toUpperCase(); }
+
+function getPDTDateExport(offsetDays) {
+  offsetDays = offsetDays || 0;
+  var d = new Date(Date.now() + (-7 * 60 * 60 * 1000) + (offsetDays * 86400000));
+  return d.toISOString().split('T')[0];
+}
 
 function setProgress(id, label, state) {
-  let el = document.getElementById('prog-' + id);
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'prog-' + id;
-    document.getElementById('export-progress').appendChild(el);
-  }
+  var el = document.getElementById('prog-' + id);
+  if (!el) { el = document.createElement('div'); el.id = 'prog-' + id; document.getElementById('export-progress').appendChild(el); }
   el.className = 'progress-item ' + state;
-  const icons = { loading: '⏳', done: '✓', fail: '✗' };
-  el.textContent = icons[state] + ' ' + label;
+  el.textContent = {loading:'... ',done:'OK  ',fail:'ERR '}[state] + label;
 }
 
-function ipToOuts(ip) {
-  const s = String(ip || '0');
-  const parts = s.split('.');
-  return (parseInt(parts[0]) || 0) * 3 + (parseInt(parts[1]) || 0);
+function ipToOutsExport(ip) {
+  var s = String(ip || '0'), parts = s.split('.');
+  return (parseInt(parts[0])||0)*3 + (parseInt(parts[1])||0);
 }
+function outsToIpExport(outs) { return Math.floor(outs/3)+'.'+outs%3; }
 
-function outsToIp(outs) {
-  return Math.floor(outs / 3) + '.' + (outs % 3);
-}
-
-async function fetchBullpenData(dates) {
-  const weights = [0.70, 0.18, 0.12];
-  const dayResults = await Promise.all(dates.map(async function(dateStr) {
+async function fetchBullpenExport(dates) {
+  var weights = [0.70,0.18,0.12];
+  var dayResults = await Promise.all(dates.map(async function(dateStr) {
     try {
-      const res = await fetch('https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=' + dateStr + '&hydrate=linescore');
-      const data = await res.json();
-      const games = (data.dates && data.dates[0]) ? data.dates[0].games : [];
-      const teamData = {};
-      for (const game of games) {
-        if (game.status.detailedState !== 'Final') continue;
+      var res = await fetch('https://statsapi.mlb.com/api/v1/schedule?sportId=1&date='+dateStr+'&hydrate=linescore');
+      var data = await res.json();
+      var games = (data.dates && data.dates[0]) ? data.dates[0].games : [];
+      var td = {};
+      for (var i=0;i<games.length;i++) {
+        if (games[i].status.detailedState !== 'Final') continue;
         try {
-          const boxRes = await fetch('https://statsapi.mlb.com/api/v1/game/' + game.gamePk + '/boxscore');
-          const box = await boxRes.json();
-          for (const side of ['home', 'away']) {
-            const team = box.teams[side];
-            const abbr = team.team.abbreviation;
-            const pitchers = (team.pitchers || []).map(function(id) { return team.players['ID' + id]; });
-            const bullpen = pitchers.slice(1);
-            const bullpenOuts = bullpen.reduce(function(s, p) {
-              return s + ipToOuts(p && p.stats && p.stats.pitching ? p.stats.pitching.inningsPitched : 0);
-            }, 0);
-            if (!teamData[abbr]) teamData[abbr] = { abbr: abbr, outs: 0 };
-            teamData[abbr].outs += bullpenOuts;
-          }
-        } catch(e) {}
+          var box = await (await fetch('https://statsapi.mlb.com/api/v1/game/'+games[i].gamePk+'/boxscore')).json();
+          ['home','away'].forEach(function(side) {
+            var team = box.teams[side], abbr = team.team.abbreviation;
+            var outs = (team.pitchers||[]).map(function(id){return team.players['ID'+id];}).slice(1)
+              .reduce(function(s,p){return s+ipToOutsExport(p&&p.stats&&p.stats.pitching?p.stats.pitching.inningsPitched:0);},0);
+            if (!td[abbr]) td[abbr]={abbr:abbr,outs:0};
+            td[abbr].outs+=outs;
+          });
+        } catch(e){}
       }
-      return teamData;
-    } catch(e) { return {}; }
+      return td;
+    } catch(e){return {};}
   }));
-
-  const allTeams = new Set(dayResults.reduce(function(acc, d) { return acc.concat(Object.keys(d)); }, []));
-  const results = [];
-  allTeams.forEach(function(abbr) {
-    const dayOuts = dayResults.map(function(d) { return d[abbr] ? d[abbr].outs : 0; });
-    const weighted = dayOuts.reduce(function(s, o, i) { return s + o * weights[i]; }, 0);
-    const weightedIp = parseFloat((Math.floor(weighted / 3) + (weighted % 3) / 10).toFixed(1));
-    let tier;
-    if (weighted >= 12) tier = 'GASSED';
-    else if (weighted >= 9) tier = 'TAXED';
-    else tier = 'FRESH';
-    results.push({ abbr: abbr, weightedIp: weightedIp, tier: tier, dayIp: dayOuts.map(outsToIp) });
+  var all={};
+  dayResults.forEach(function(d){Object.keys(d).forEach(function(k){all[k]=1;});});
+  var results=[];
+  Object.keys(all).forEach(function(abbr){
+    var dayOuts=dayResults.map(function(d){return d[abbr]?d[abbr].outs:0;});
+    var w=dayOuts.reduce(function(s,o,i){return s+o*weights[i];},0);
+    var wIp=parseFloat((Math.floor(w/3)+(w%3)/10).toFixed(1));
+    results.push({abbr:abbr,weightedIp:wIp,tier:w>=12?'GASSED':w>=9?'TAXED':'FRESH',dayIp:dayOuts.map(outsToIpExport)});
   });
-  results.sort(function(a, b) { return b.weightedIp - a.weightedIp; });
-  return results;
+  return results.sort(function(a,b){return b.weightedIp-a.weightedIp;});
 }
 
 async function exportForClaude() {
-  const btn = document.getElementById('export-btn');
-  btn.disabled = true;
-  btn.textContent = 'FETCHING...';
-  document.getElementById('export-progress').innerHTML = '';
-  document.getElementById('export-status').textContent = '';
-  document.getElementById('claude-output').style.display = 'none';
-  document.getElementById('copy-btn').style.display = 'none';
+  var btn = document.getElementById('export-btn');
+  btn.disabled=true; btn.textContent='FETCHING...';
+  document.getElementById('export-progress').innerHTML='';
+  document.getElementById('export-status').textContent='';
+  document.getElementById('claude-output').style.display='none';
+  document.getElementById('copy-btn').style.display='none';
 
-  const today = getTodayPDT();
-  const bpDates = [getPDTDate(-1), getPDTDate(-2), getPDTDate(-3)];
-  let oddsData = null, historyData = null, startersData = [], bullpenData = null, scheduleData = null;
+  var today = getPDTDateExport();
+  var bpDates = [getPDTDateExport(-1),getPDTDateExport(-2),getPDTDateExport(-3)];
+  var oddsData=null, historyData=null, startersData=[], bullpenData=null, gameList=[];
 
   // 1. Odds
-  setProgress('odds', 'Odds + GS line...', 'loading');
+  setProgress('odds','Odds + GS line...','loading');
   try {
-    const r = await fetch('/api/odds');
-    oddsData = await r.json();
-    setProgress('odds', 'Odds — ' + (oddsData.games || []).length + ' games', 'done');
-  } catch(e) { setProgress('odds', 'Odds — failed', 'fail'); }
+    oddsData = await (await fetch('/api/odds')).json();
+    setProgress('odds','Odds: '+(oddsData.games||[]).length+' games','done');
+  } catch(e){setProgress('odds','Odds failed','fail');}
 
   // 2. History
-  setProgress('history', 'History...', 'loading');
+  setProgress('history','History...','loading');
   try {
-    const r = await fetch('/api/history');
-    historyData = await r.json();
-    setProgress('history', 'History — ' + historyData.length + ' records', 'done');
-  } catch(e) { setProgress('history', 'History — failed', 'fail'); }
+    historyData = await (await fetch('/api/history')).json();
+    setProgress('history','History: '+historyData.length+' records','done');
+  } catch(e){setProgress('history','History failed','fail');}
 
-  // 3. Schedule (simple — just teams + probable pitcher IDs)
-  setProgress('starters', 'Schedule + starters...', 'loading');
+  // 3. Schedule — EXACT same pattern as fetchScores() in index.html
+  setProgress('starters','Schedule + starters...','loading');
   try {
-    const r = await fetch('https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=' + today + '&hydrate=probablePitcher');
-    scheduleData = await r.json();
-    const games = (scheduleData.dates && scheduleData.dates[0]) ? scheduleData.dates[0].games : [];
+    var res = await fetch('https://statsapi.mlb.com/api/v1/schedule?sportId=1&date='+today+'&hydrate=linescore');
+    if (!res.ok) throw new Error('MLB API '+res.status);
+    var data = await res.json();
+    var raw = (data.dates && data.dates[0]) ? data.dates[0].games : [];
+
+    // Build gameList exactly like fetchScores does
+    gameList = raw.map(function(g) {
+      return {
+        away: exportAbbr(g.teams.away.team.name),
+        home: exportAbbr(g.teams.home.team.name),
+        awayFull: g.teams.away.team.name,
+        homeFull: g.teams.home.team.name
+      };
+    });
+
+    // Now fetch probables separately — simple hydrate=probablePitcher
+    var res2 = await fetch('https://statsapi.mlb.com/api/v1/schedule?sportId=1&date='+today+'&hydrate=probablePitcher');
+    var data2 = await res2.json();
+    var raw2 = (data2.dates && data2.dates[0]) ? data2.dates[0].games : [];
 
     // Collect pitcher IDs
-    const pitcherIds = [];
-    const pitcherMeta = {};
-    for (const g of games) {
-      for (const side of ['away', 'home']) {
-        const p = g.teams[side].probablePitcher;
-        if (p && p.id) {
-          if (!pitcherMeta[p.id]) {
-            pitcherIds.push(p.id);
-            pitcherMeta[p.id] = {
-              name: p.fullName || ('ID ' + p.id),
-              team: g.teams[side].team.abbreviation,
-              opponent: g.teams[side === 'away' ? 'home' : 'away'].team.abbreviation,
-              side: side
-            };
-          }
-        }
-      }
-    }
-
-    // Fetch season stats for all pitchers in one call
-    const statsMap = {};
-    if (pitcherIds.length > 0) {
-      try {
-        const sr = await fetch('https://statsapi.mlb.com/api/v1/people?personIds=' + pitcherIds.join(',') + '&hydrate=stats(group=[pitching],type=[season],season=2026)');
-        const sd = await sr.json();
-        for (const person of (sd.people || [])) {
-          const splits = (person.stats || []).find(function(s) { return s.group && s.group.displayName === 'pitching'; });
-          const stat = (splits && splits.splits && splits.splits[0]) ? splits.splits[0].stat : {};
-          statsMap[person.id] = {
-            era: stat.era || '—',
-            whip: stat.whip || '—',
-            ip: stat.inningsPitched || '—',
-            k9: stat.strikeoutsPer9Inn || '—',
-            wins: stat.wins !== undefined ? stat.wins : 0,
-            losses: stat.losses !== undefined ? stat.losses : 0
+    var pitcherIds=[], pitcherMeta={};
+    raw2.forEach(function(g) {
+      ['away','home'].forEach(function(side) {
+        var p = g.teams[side].probablePitcher;
+        if (p && p.id && !pitcherMeta[p.id]) {
+          pitcherIds.push(p.id);
+          pitcherMeta[p.id] = {
+            name: p.fullName||('ID'+p.id),
+            team: exportAbbr(g.teams[side].team.name),
+            opponent: exportAbbr(g.teams[side==='away'?'home':'away'].team.name),
+            side: side
           };
         }
-      } catch(e) {}
-    }
+      });
+    });
 
-    // Build startersData
-    for (const id of pitcherIds) {
-      const meta = pitcherMeta[id];
-      const s = statsMap[id] || { era: '—', whip: '—', ip: '—', k9: '—', wins: 0, losses: 0 };
-      startersData.push(Object.assign({}, meta, s));
+    // Batch stats fetch
+    var statsMap={};
+    if (pitcherIds.length>0) {
+      try {
+        var psr = await fetch('https://statsapi.mlb.com/api/v1/people?personIds='+pitcherIds.join(',')+'&hydrate=stats(group=[pitching],type=[season],season=2026)');
+        var psd = await psr.json();
+        (psd.people||[]).forEach(function(person) {
+          var splits=(person.stats||[]).find(function(s){return s.group&&s.group.displayName==='pitching';});
+          var stat=(splits&&splits.splits&&splits.splits[0])?splits.splits[0].stat:{};
+          statsMap[person.id]={
+            era:stat.era||'--',whip:stat.whip||'--',ip:stat.inningsPitched||'--',
+            k9:stat.strikeoutsPer9Inn||'--',
+            wins:stat.wins!==undefined?stat.wins:0,losses:stat.losses!==undefined?stat.losses:0
+          };
+        });
+      } catch(e){}
     }
-    setProgress('starters', 'Starters — ' + startersData.length + ' pitchers', 'done');
-  } catch(e) { setProgress('starters', 'Starters — failed: ' + e.message, 'fail'); }
+    pitcherIds.forEach(function(id){
+      var meta=pitcherMeta[id], s=statsMap[id]||{era:'--',whip:'--',ip:'--',k9:'--',wins:0,losses:0};
+      startersData.push(Object.assign({},meta,s));
+    });
+    setProgress('starters','Starters: '+startersData.length+' pitchers, '+gameList.length+' games','done');
+  } catch(e){setProgress('starters','Starters failed: '+e.message,'fail');}
 
   // 4. Bullpen
-  setProgress('bullpen', 'Bullpen usage (3 days)...', 'loading');
+  setProgress('bullpen','Bullpen (3 days)...','loading');
   try {
-    bullpenData = await fetchBullpenData(bpDates);
-    setProgress('bullpen', 'Bullpen — ' + bullpenData.length + ' teams', 'done');
-  } catch(e) { setProgress('bullpen', 'Bullpen — failed', 'fail'); }
+    bullpenData = await fetchBullpenExport(bpDates);
+    setProgress('bullpen','Bullpen: '+bullpenData.length+' teams','done');
+  } catch(e){setProgress('bullpen','Bullpen failed','fail');}
 
-  // ── BUILD OUTPUT ────────────────────────────────────────────────────────────
-  const out = [];
-  const todayRec = (historyData || []).find(function(r) { return r.date === today; }) || {};
-  const pregameLines = todayRec.pregameLines || {};
-  const schedGames = (scheduleData && scheduleData.dates && scheduleData.dates[0]) ? scheduleData.dates[0].games : [];
+  // ── BUILD OUTPUT ──────────────────────────────────────────────────────────
+  var out=[];
+  var todayRec=(historyData||[]).find(function(r){return r.date===today;})||{};
+  var pregLines=todayRec.pregameLines||{};
 
-  out.push('=== GST MORNING EXPORT — ' + today + ' ===');
-  out.push('Generated: ' + new Date().toLocaleTimeString());
+  out.push('=== GST MORNING EXPORT -- '+today+' ===');
+  out.push('Generated: '+new Date().toLocaleTimeString());
   out.push('');
-
   out.push("--- TODAY'S RECORD ---");
-  out.push('Date: ' + today);
-  out.push('Games on Slate: ' + (todayRec.gamesOnSlate || schedGames.length || (oddsData && oddsData.games ? oddsData.games.length : '?')));
-  out.push('Naive Total (line sum): ' + (todayRec.naiveTotal || '?'));
-  out.push('Grand Salami Line: ' + (todayRec.grandSalamLine || 'NOT SET'));
+  out.push('Date: '+today);
+  out.push('Games on Slate: '+(todayRec.gamesOnSlate||gameList.length||'?'));
+  out.push('Naive Total (line sum): '+(todayRec.naiveTotal||'?'));
+  out.push('Grand Salami Line: '+(todayRec.grandSalamLine||'NOT SET'));
   if (todayRec.grandSalamLine) {
-    out.push('GS Over Price: ' + (todayRec.gsOverPrice || '?'));
-    out.push('GS Under Price: ' + (todayRec.gsUnderPrice || '?'));
-    out.push('GS Book: ' + (todayRec.gsBook || '?'));
+    out.push('GS Over Price: '+(todayRec.gsOverPrice||'?'));
+    out.push('GS Under Price: '+(todayRec.gsUnderPrice||'?'));
+    out.push('GS Book: '+(todayRec.gsBook||'?'));
   }
-  out.push("Today's Pick: " + (todayRec.todayPick || 'NONE'));
-  out.push('Units: ' + (todayRec.units != null ? todayRec.units : '?'));
+  out.push("Today's Pick: "+(todayRec.todayPick||'NONE'));
+  out.push('Units: '+(todayRec.units!=null?todayRec.units:'?'));
   out.push('');
 
-  // Build odds lookup keyed by "awayLastWord-homeLastWord" lowercase
-  const oddsLookup = {};
-  for (const g of ((oddsData && oddsData.games) ? oddsData.games : [])) {
-    const ak = g.away_team.split(' ').pop().toLowerCase();
-    const hk = g.home_team.split(' ').pop().toLowerCase();
-    const key = ak + '-' + hk;
-    const bk = (g.bookmakers || []).find(function(b) { return b.key === 'draftkings'; }) || (g.bookmakers || [])[0];
-    const mkt = bk && bk.markets ? bk.markets.find(function(m) { return m.key === 'totals'; }) : null;
-    const ov = mkt ? mkt.outcomes.find(function(o) { return o.name === 'Over'; }) : null;
-    const un = mkt ? mkt.outcomes.find(function(o) { return o.name === 'Under'; }) : null;
-    if (ov) oddsLookup[key] = { line: ov.point, op: ov.price, up: un ? un.price : null };
-  }
+  // Odds lookup by "awayLastWord-homeLastWord" lowercase
+  var oddsLookup={};
+  (oddsData&&oddsData.games?oddsData.games:[]).forEach(function(g){
+    var key=g.away_team.split(' ').pop().toLowerCase()+'-'+g.home_team.split(' ').pop().toLowerCase();
+    var bk=(g.bookmakers||[]).find(function(b){return b.key==='draftkings';})||(g.bookmakers||[])[0];
+    var mkt=bk&&bk.markets?bk.markets.find(function(m){return m.key==='totals';}):null;
+    var ov=mkt?mkt.outcomes.find(function(o){return o.name==='Over';}):null;
+    var un=mkt?mkt.outcomes.find(function(o){return o.name==='Under';}):null;
+    if (ov) oddsLookup[key]={line:ov.point,op:ov.price,up:un?un.price:null};
+  });
 
-  // Game lines — drive off schedGames for proper abbreviations
+  // Game lines
   out.push('--- GAME LINES (DraftKings) ---');
-  if (schedGames.length) {
-    for (const g of schedGames) {
-      const away = g.teams.away.team.abbreviation;
-      const home = g.teams.home.team.abbreviation;
-      const awayName = (g.teams.away.team.name || '').split(' ').pop().toLowerCase();
-      const homeName = (g.teams.home.team.name || '').split(' ').pop().toLowerCase();
-      const oddsKey = awayName + '-' + homeName;
-      const pl = pregameLines[oddsKey];
-      const od = oddsLookup[oddsKey];
-      let lineStr = 'no line';
-      if (od) {
-        const op = od.op > 0 ? '+' + od.op : od.op;
-        const up = od.up > 0 ? '+' + od.up : od.up;
-        lineStr = 'O/U ' + od.line + ' (O' + op + ' / U' + up + ')';
-      } else if (pl) {
-        lineStr = 'O/U ' + pl.line + ' (pregame only)';
-      }
-      const openStr = (pl && od && od.line !== pl.line) ? ' | Open: ' + pl.line : (pl && !od ? '' : (pl ? ' | Open: ' + pl.line : ''));
-      out.push(away + ' @ ' + home + ': ' + lineStr + openStr);
-    }
-  } else {
-    out.push('No schedule data available');
-  }
+  gameList.forEach(function(g){
+    var ak=(g.awayFull||g.away).split(' ').pop().toLowerCase();
+    var hk=(g.homeFull||g.home).split(' ').pop().toLowerCase();
+    var key=ak+'-'+hk;
+    var pl=pregLines[key], od=oddsLookup[key];
+    var lineStr='no line';
+    if (od) {
+      lineStr='O/U '+od.line+' (O'+(od.op>0?'+':'')+od.op+' / U'+(od.up>0?'+':'')+od.up+')';
+    } else if (pl) { lineStr='O/U '+pl.line+' (pregame only)'; }
+    var openStr=(pl&&od&&od.line!==pl.line)?' | Open: '+pl.line:(pl?' | Open: '+pl.line:'');
+    out.push(g.away+' @ '+g.home+': '+lineStr+openStr);
+  });
   out.push('');
 
   // Starters
   out.push('--- PROBABLE STARTERS (2026 Season Stats) ---');
-  if (schedGames.length) {
-    for (const g of schedGames) {
-      const away = g.teams.away.team.abbreviation;
-      const home = g.teams.home.team.abbreviation;
-      out.push(away + ' @ ' + home + ':');
-      const awayP = startersData.find(function(s) { return s.team === away && s.side === 'away'; });
-      const homeP = startersData.find(function(s) { return s.team === home && s.side === 'home'; });
-      if (awayP) out.push('  ' + away + ': ' + awayP.name + ' | ERA ' + awayP.era + ' | WHIP ' + awayP.whip + ' | IP ' + awayP.ip + ' | K/9 ' + awayP.k9 + ' | ' + awayP.wins + '-' + awayP.losses);
-      else out.push('  ' + away + ': TBD');
-      if (homeP) out.push('  ' + home + ': ' + homeP.name + ' | ERA ' + homeP.era + ' | WHIP ' + homeP.whip + ' | IP ' + homeP.ip + ' | K/9 ' + homeP.k9 + ' | ' + homeP.wins + '-' + homeP.losses);
-      else out.push('  ' + home + ': TBD');
-    }
-  } else {
-    out.push('Schedule unavailable');
-  }
+  gameList.forEach(function(g){
+    out.push(g.away+' @ '+g.home+':');
+    var awayP=startersData.find(function(s){return s.team===g.away&&s.side==='away';});
+    var homeP=startersData.find(function(s){return s.team===g.home&&s.side==='home';});
+    out.push('  '+g.away+': '+(awayP?awayP.name+' | ERA '+awayP.era+' | WHIP '+awayP.whip+' | IP '+awayP.ip+' | K/9 '+awayP.k9+' | '+awayP.wins+'-'+awayP.losses:'TBD'));
+    out.push('  '+g.home+': '+(homeP?homeP.name+' | ERA '+homeP.era+' | WHIP '+homeP.whip+' | IP '+homeP.ip+' | K/9 '+homeP.k9+' | '+homeP.wins+'-'+homeP.losses:'TBD'));
+  });
   out.push('');
 
   // Bullpen
   out.push('--- BULLPEN FATIGUE (Weighted 3-Day) ---');
-  out.push('Weights: 70% ' + bpDates[0] + ' / 18% ' + bpDates[1] + ' / 12% ' + bpDates[2]);
-  if (bullpenData && bullpenData.length) {
-    for (const b of bullpenData) {
-      out.push(b.abbr + ': ' + b.weightedIp + ' IP — ' + b.tier + ' | Days: ' + b.dayIp.join(' / '));
-    }
-  } else {
-    out.push('Bullpen data unavailable');
-  }
+  out.push('Weights: 70% '+bpDates[0]+' / 18% '+bpDates[1]+' / 12% '+bpDates[2]);
+  (bullpenData||[]).forEach(function(b){
+    out.push(b.abbr+': '+b.weightedIp+' IP -- '+b.tier+' | Days: '+b.dayIp.join(' / '));
+  });
   out.push('');
 
   // History
   out.push('--- RECENT HISTORY (Last 10) ---');
-  const recent = (historyData || []).slice(0, 10);
-  if (recent.length) {
-    for (const r of recent) {
-      const rawGap = (r.actualRuns != null && r.grandSalamLine) ? r.actualRuns - r.grandSalamLine : null;
-      const gap = rawGap !== null ? (rawGap >= 0 ? '+' : '') + rawGap.toFixed(1) : '?';
-      out.push(r.date + ': GS ' + (r.grandSalamLine || '?') + ' | Naive ' + (r.naiveTotal || '?') + ' | Actual ' + (r.actualRuns != null ? r.actualRuns : '?') + ' | Gap ' + gap + ' | ' + (r.result || 'pending').toUpperCase() + ' | Pick: ' + (r.todayPick || '-') + ' | Units: ' + (r.units != null ? r.units : '-'));
-    }
-  } else {
-    out.push('No history yet');
-  }
+  (historyData||[]).slice(0,10).forEach(function(r){
+    var rawGap=(r.actualRuns!=null&&r.grandSalamLine)?r.actualRuns-r.grandSalamLine:null;
+    var gap=rawGap!==null?(rawGap>=0?'+':'')+rawGap.toFixed(1):'?';
+    out.push(r.date+': GS '+(r.grandSalamLine||'?')+' | Naive '+(r.naiveTotal||'?')+' | Actual '+(r.actualRuns!=null?r.actualRuns:'?')+' | Gap '+gap+' | '+(r.result||'pending').toUpperCase()+' | Pick: '+(r.todayPick||'-')+' | Units: '+(r.units!=null?r.units:'-'));
+  });
   out.push('');
   out.push('=== END EXPORT ===');
 
-  const output = out.join('\n');
-  document.getElementById('claude-output').value = output;
-  document.getElementById('claude-output').style.display = 'block';
-  document.getElementById('copy-btn').style.display = 'block';
+  var output=out.join('\n');
+  document.getElementById('claude-output').value=output;
+  document.getElementById('claude-output').style.display='block';
+  document.getElementById('copy-btn').style.display='block';
 
   try {
     await navigator.clipboard.writeText(output);
-    document.getElementById('export-status').textContent = '✓ Copied to clipboard — paste into Claude';
-    document.getElementById('export-status').style.color = 'var(--green)';
-    showToast('Copied! Paste into Claude ✓', 'ok');
-  } catch(e) {
-    document.getElementById('export-status').textContent = 'Auto-copy failed — tap Copy button below';
-    document.getElementById('export-status').style.color = 'var(--muted)';
+    document.getElementById('export-status').textContent='Copied to clipboard -- paste into Claude';
+    document.getElementById('export-status').style.color='var(--green)';
+    showToast('Copied! Paste into Claude','ok');
+  } catch(e){
+    document.getElementById('export-status').textContent='Auto-copy failed -- tap Copy button below';
+    document.getElementById('export-status').style.color='var(--muted)';
   }
-
-  btn.disabled = false;
-  btn.textContent = 'EXPORT ALL DATA → CLAUDE';
+  btn.disabled=false; btn.textContent='EXPORT ALL DATA -- CLAUDE';
 }
 
 async function copyOutput() {
-  const text = document.getElementById('claude-output').value;
-  try {
-    await navigator.clipboard.writeText(text);
-    showToast('Copied ✓', 'ok');
-  } catch(e) {
-    document.getElementById('claude-output').select();
-    document.execCommand('copy');
-    showToast('Copied ✓', 'ok');
-  }
+  var text=document.getElementById('claude-output').value;
+  try { await navigator.clipboard.writeText(text); showToast('Copied','ok'); }
+  catch(e){ document.getElementById('claude-output').select(); document.execCommand('copy'); showToast('Copied','ok'); }
 }
 
 async function loadHistory() {
