@@ -13,9 +13,8 @@
     --purple:#B06AFF;--orange:#FF8C00;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;max-width:480px;margin:0 auto;padding:16px;}
-  .header{display:flex;align-items:center;gap:10px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border);}
-  .logo{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:20px;color:var(--accent);}
+  body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;max-width:520px;margin:0 auto;padding:16px;}
+  .header{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border);}
   .back{font-size:12px;color:var(--muted);text-decoration:none;margin-left:auto;border:1px solid var(--border);padding:4px 10px;border-radius:4px;}
   .back:hover{color:var(--text);}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;}
@@ -23,9 +22,11 @@
   .field{margin-bottom:12px;}
   .field:last-child{margin-bottom:0;}
   .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;}
-  .field input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-family:'Barlow',sans-serif;font-size:16px;}
-  .field input:focus{outline:none;border-color:var(--accent);}
+  .field input,.field select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-family:'Barlow',sans-serif;font-size:16px;}
+  .field select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%236B7280' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;}
+  .field input:focus,.field select:focus{outline:none;border-color:var(--accent);}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
   .btn{width:100%;padding:13px;border:none;border-radius:10px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;letter-spacing:1px;cursor:pointer;margin-top:4px;}
   .btn-primary{background:var(--purple);color:#fff;}
   .btn-primary:hover{opacity:0.9;}
@@ -33,8 +34,11 @@
   .btn-success:hover{opacity:0.9;}
   .btn-danger{background:var(--red);color:#fff;}
   .btn-danger:hover{opacity:0.9;}
+  .btn-model{background:linear-gradient(135deg,#1a3a6b,#2B7FFF);color:#fff;border:1px solid rgba(43,127,255,0.4);}
+  .btn-model:hover{opacity:0.9;}
+  .btn-sm{padding:8px 14px;font-size:13px;width:auto;margin-top:0;}
   .btn:disabled{opacity:0.5;cursor:not-allowed;}
-  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 20px;font-size:14px;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:0.5px;opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:nowrap;}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 20px;font-size:14px;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:0.5px;opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:nowrap;z-index:999;}
   .toast.show{opacity:1;}
   .toast.ok{border-color:var(--green);color:var(--green);}
   .toast.err{border-color:var(--red);color:var(--red);}
@@ -47,7 +51,7 @@
   .over{color:var(--green);}
   .under{color:var(--blue);}
   .pending{color:var(--muted);font-style:italic;}
-  #lock-screen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;}
+  #lock-screen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;z-index:100;}
   #lock-screen h2{font-family:'Barlow Condensed',sans-serif;font-size:24px;color:var(--accent);}
   #pin-input{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-size:24px;text-align:center;width:160px;letter-spacing:8px;}
   #pin-input:focus{outline:none;border-color:var(--accent);}
@@ -62,6 +66,86 @@
   .export-status{font-size:12px;color:var(--muted);margin-top:8px;text-align:center;min-height:16px;}
   #claude-output{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:monospace;font-size:10px;resize:none;margin-top:10px;display:none;}
   #copy-btn{display:none;background:var(--surface2);color:var(--text);border:1px solid var(--orange);margin-top:8px;}
+
+  /* ── ADMIN TABS ── */
+  .admin-tabs{display:flex;gap:2px;margin-bottom:16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;}
+  .admin-tab{flex:1;padding:9px 6px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:0.5px;border:none;background:transparent;color:var(--muted);border-radius:7px;cursor:pointer;transition:all 0.2s;}
+  .admin-tab.active{background:var(--surface2);color:var(--text);}
+  .admin-tab-panel{display:none;}
+  .admin-tab-panel.active{display:block;}
+
+  /* ── MODEL TAB ── */
+  .model-header{background:linear-gradient(135deg,rgba(43,127,255,0.12),rgba(176,106,255,0.08));border:1px solid rgba(43,127,255,0.2);border-radius:12px;padding:16px;margin-bottom:16px;}
+  .model-headline{font-family:'Barlow Condensed',sans-serif;font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--blue);margin-bottom:10px;}
+
+  /* Result card */
+  .model-result{background:var(--surface);border:2px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px;transition:border-color 0.3s;}
+  .model-result.bullish{border-color:rgba(0,196,106,0.5);}
+  .model-result.bearish{border-color:rgba(43,127,255,0.5);}
+  .model-result.neutral{border-color:rgba(245,197,24,0.3);}
+  .result-gst{font-family:'Barlow Condensed',sans-serif;font-size:48px;font-weight:900;line-height:1;letter-spacing:-1px;}
+  .result-gst.bull{color:var(--green);}
+  .result-gst.bear{color:var(--blue);}
+  .result-gst.neut{color:var(--accent);}
+  .result-label{font-family:'Barlow Condensed',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:4px;}
+  .result-signal{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:900;letter-spacing:1px;margin-top:4px;}
+  .result-signal.bull{color:var(--green);}
+  .result-signal.bear{color:var(--blue);}
+  .result-signal.neut{color:var(--muted);}
+  .result-edge{font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--muted);margin-top:2px;}
+
+  /* Breakdown table */
+  .breakdown-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px;}
+  .breakdown-table td{padding:5px 4px;border-bottom:1px solid var(--border);font-family:'Barlow Condensed',sans-serif;}
+  .breakdown-table tr:last-child td{border-bottom:none;}
+  .breakdown-table .lbl{color:var(--muted);font-size:12px;}
+  .breakdown-table .val{text-align:right;font-weight:700;font-size:14px;}
+  .val-pos{color:var(--green);}
+  .val-neg{color:var(--blue);}
+  .val-neu{color:var(--text);}
+  .val-total{color:var(--accent);font-size:16px;}
+
+  /* Game rows in model */
+  .game-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;}
+  .game-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  .game-matchup{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--text);}
+  .game-ou{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;color:var(--accent);}
+  .game-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .game-field label{font-size:10px;color:var(--muted);display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:0.5px;}
+  .game-field select,.game-field input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 8px;color:var(--text);font-size:13px;font-family:'Barlow Condensed',sans-serif;}
+  .game-field select:focus,.game-field input:focus{outline:none;border-color:rgba(43,127,255,0.5);}
+  .game-adj{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);}
+  .game-adj-label{font-size:11px;color:var(--muted);font-family:'Barlow Condensed',sans-serif;}
+  .game-adj-val{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;}
+  .adj-pos{color:var(--green);}
+  .adj-neg{color:var(--blue);}
+  .adj-neu{color:var(--muted);}
+
+  /* Outlier flags */
+  .outlier-section{margin-top:16px;}
+  .outlier-title{font-family:'Barlow Condensed',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px;}
+  .outlier-card{border-radius:8px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
+  .outlier-over{background:rgba(0,196,106,0.1);border:1px solid rgba(0,196,106,0.25);}
+  .outlier-under{background:rgba(43,127,255,0.1);border:1px solid rgba(43,127,255,0.25);}
+  .outlier-neutral{background:var(--surface2);border:1px solid var(--border);}
+  .outlier-matchup{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;}
+  .outlier-reasons{font-size:10px;color:var(--muted);margin-top:2px;}
+  .outlier-badge{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;padding:3px 8px;border-radius:4px;}
+  .badge-over{background:rgba(0,196,106,0.2);color:var(--green);}
+  .badge-under{background:rgba(43,127,255,0.2);color:var(--blue);}
+
+  /* Slate inputs at top */
+  .slate-input-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;}
+  .slate-input-grid label{font-size:10px;color:var(--muted);display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:0.5px;}
+  .slate-input-grid input,.slate-input-grid select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:14px;font-family:'Barlow Condensed',sans-serif;}
+  .slate-input-grid input:focus,.slate-input-grid select:focus{outline:none;border-color:var(--accent);}
+
+  /* Separator */
+  .section-sep{height:1px;background:var(--border);margin:14px 0;}
+
+  /* Spinner */
+  .mini-spin{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin 0.7s linear infinite;display:inline-block;vertical-align:middle;margin-right:6px;}
+  @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -78,115 +162,242 @@
     <a href="/" class="back">← Tracker</a>
   </div>
 
-  <!-- Today's Date -->
-  <div class="card">
-    <div class="card-title">Today's Slate</div>
-    <div class="date-display" id="today-date">—</div>
-    <div style="font-size:11px;color:var(--muted);" id="today-status">Loading...</div>
+  <!-- Admin Tabs -->
+  <div class="admin-tabs">
+    <button class="admin-tab active" onclick="switchAdminTab('manage')">Manage</button>
+    <button class="admin-tab" onclick="switchAdminTab('model')">⚡ GST Model</button>
+    <button class="admin-tab" onclick="switchAdminTab('export')">Export</button>
   </div>
 
-  <!-- Export for Claude -->
-  <div class="card" style="border-color:rgba(255,140,0,0.3);">
-    <div class="card-title" style="color:var(--orange);">&#9889; Export for Claude</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Fetches all slate data and copies to clipboard ready to paste into Claude.</div>
-    <button class="btn btn-claude" id="export-btn" onclick="exportForClaude()">EXPORT ALL DATA &#8594; CLAUDE</button>
-    <div class="export-progress" id="export-progress"></div>
-    <div class="export-status" id="export-status"></div>
-    <textarea id="claude-output" rows="6" readonly></textarea>
-    <button class="btn" id="copy-btn" onclick="copyOutput()">&#128203; COPY TO CLIPBOARD</button>
-  </div>
+  <!-- ════════════════════════════════════════════ MANAGE TAB -->
+  <div id="tab-manage" class="admin-tab-panel active">
 
-  <!-- Grand Salami -->
-  <div class="card">
-    <div class="card-title">Set Grand Salami Line</div>
-    <div class="field">
-      <label>Grand Salami Line</label>
-      <input type="number" id="gs-line" placeholder="e.g. 104" step="0.5">
+    <div class="card">
+      <div class="card-title">Today's Slate</div>
+      <div class="date-display" id="today-date">—</div>
+      <div style="font-size:11px;color:var(--muted);" id="today-status">Loading...</div>
     </div>
-    <div class="row2">
+
+    <!-- Grand Salami -->
+    <div class="card">
+      <div class="card-title">Set Grand Salami Line</div>
       <div class="field">
-        <label>Over Price</label>
-        <input type="number" id="gs-over" placeholder="-110">
+        <label>Grand Salami Line</label>
+        <input type="number" id="gs-line" placeholder="e.g. 104" step="0.5">
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Over Price</label>
+          <input type="number" id="gs-over" placeholder="-110">
+        </div>
+        <div class="field">
+          <label>Under Price</label>
+          <input type="number" id="gs-under" placeholder="-110">
+        </div>
       </div>
       <div class="field">
-        <label>Under Price</label>
-        <input type="number" id="gs-under" placeholder="-110">
+        <label>Book</label>
+        <input type="text" id="gs-book" placeholder="DraftKings" value="DraftKings">
+      </div>
+      <div class="field" style="margin-top:10px;">
+        <label>Units Played</label>
+        <input type="number" id="gs-units" placeholder="e.g. 1" step="0.5" min="0" max="10">
+      </div>
+      <button class="btn btn-primary" onclick="saveGrandSalami()">SAVE GRAND SALAMI</button>
+    </div>
+
+    <!-- Today's Pick -->
+    <div class="card">
+      <div class="card-title">Today's Pick</div>
+      <div class="row2">
+        <button id="pick-over-btn" class="btn" style="background:rgba(0,196,106,0.15);color:#00C46A;border:1px solid #00C46A;" onclick="savePick('OVER')">⬆ OVER</button>
+        <button id="pick-under-btn" class="btn" style="background:rgba(43,127,255,0.15);color:#2B7FFF;border:1px solid #2B7FFF;" onclick="savePick('UNDER')">⬇ UNDER</button>
+      </div>
+      <div id="pick-status" style="text-align:center;font-size:12px;color:var(--muted);margin-top:8px;">No pick set</div>
+    </div>
+
+    <!-- End of Day Result -->
+    <div class="card">
+      <div class="card-title">Save End of Day Result</div>
+      <div class="row2" style="margin-bottom:10px;">
+        <button id="date-today-btn" class="btn" style="background:rgba(176,106,255,0.2);color:#B06AFF;border:1px solid #B06AFF;" onclick="setResultDate('today')">Today</button>
+        <button id="date-yest-btn" class="btn" style="background:transparent;color:var(--muted);border:1px solid var(--border);" onclick="setResultDate('yesterday')">Yesterday</button>
+      </div>
+      <div id="result-date-display" style="font-size:11px;color:var(--muted);margin-bottom:10px;text-align:center;"></div>
+      <div class="row2">
+        <div class="field">
+          <label>Actual Runs</label>
+          <input type="number" id="actual-runs" placeholder="e.g. 128">
+        </div>
+        <div class="field">
+          <label>Result</label>
+          <input type="text" id="result" placeholder="over / under">
+        </div>
+      </div>
+      <button class="btn btn-success" onclick="saveResult()">SAVE RESULT</button>
+    </div>
+
+    <!-- History -->
+    <div class="card">
+      <div class="card-title">Recent History</div>
+      <div id="history-list"><div style="color:var(--muted);font-size:13px;">Loading...</div></div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════ MODEL TAB -->
+  <div id="tab-model" class="admin-tab-panel">
+
+    <div class="model-header">
+      <div class="model-headline">⚡ GST Formula Calculator</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6;">
+        Baseline · Park Factor · Weather · Starter WHIP · Bullpen · Asymmetry · Day-of-Week
       </div>
     </div>
-    <div class="field">
-      <label>Book</label>
-      <input type="text" id="gs-book" placeholder="DraftKings" value="DraftKings">
-    </div>
-    <div class="field" style="margin-top:10px;">
-      <label>Units Played</label>
-      <input type="number" id="gs-units" placeholder="e.g. 1" step="0.5" min="0" max="10">
-    </div>
-    <button class="btn btn-primary" onclick="saveGrandSalami()">SAVE GRAND SALAMI</button>
-  </div>
 
-  <!-- Today's Pick -->
-  <div class="card">
-    <div class="card-title">Today's Pick</div>
-    <div class="row2">
-      <button id="pick-over-btn" class="btn" style="background:rgba(0,196,106,0.15);color:#00C46A;border:1px solid #00C46A;" onclick="savePick('OVER')">⬆ OVER</button>
-      <button id="pick-under-btn" class="btn" style="background:rgba(43,127,255,0.15);color:#2B7FFF;border:1px solid #2B7FFF;" onclick="savePick('UNDER')">⬇ UNDER</button>
-    </div>
-    <div id="pick-status" style="text-align:center;font-size:12px;color:var(--muted);margin-top:8px;">No pick set</div>
-  </div>
-
-  <!-- End of Day Result -->
-  <div class="card">
-    <div class="card-title">Save End of Day Result</div>
-    <div class="row2" style="margin-bottom:10px;">
-      <button id="date-today-btn" class="btn" style="background:rgba(176,106,255,0.2);color:#B06AFF;border:1px solid #B06AFF;" onclick="setResultDate('today')">Today</button>
-      <button id="date-yest-btn" class="btn" style="background:transparent;color:var(--muted);border:1px solid var(--border);" onclick="setResultDate('yesterday')">Yesterday</button>
-    </div>
-    <div id="result-date-display" style="font-size:11px;color:var(--muted);margin-bottom:10px;text-align:center;"></div>
-    <div class="row2">
-      <div class="field">
-        <label>Actual Runs</label>
-        <input type="number" id="actual-runs" placeholder="e.g. 128">
+    <!-- Slate-level inputs -->
+    <div class="card">
+      <div class="card-title">Slate Setup</div>
+      <div class="slate-input-grid">
+        <div>
+          <label>Games on Slate</label>
+          <input type="number" id="m-games" value="12" min="1" max="20" oninput="modelRecalc()">
+        </div>
+        <div>
+          <label>Park Factor Net (BP)</label>
+          <input type="number" id="m-parkfactor" placeholder="e.g. -3.2" step="0.1" oninput="modelRecalc()">
+        </div>
+        <div>
+          <label>Day of Week</label>
+          <select id="m-dow" onchange="modelRecalc()">
+            <option value="0">Mon (−)</option>
+            <option value="0">Tue (−)</option>
+            <option value="0.5">Wed (0)</option>
+            <option value="0.5">Thu (0)</option>
+            <option value="1">Fri (+)</option>
+            <option value="1">Sat (+)</option>
+            <option value="1">Sun (+)</option>
+          </select>
+        </div>
       </div>
-      <div class="field">
-        <label>Result</label>
-        <input type="text" id="result" placeholder="over / under">
+      <div class="slate-input-grid" style="margin-bottom:0;">
+        <div>
+          <label>Weather Adj</label>
+          <select id="m-weather" onchange="modelRecalc()">
+            <option value="0">Neutral</option>
+            <option value="-0.3">Cold/Rain (−0.3)</option>
+            <option value="0.3">Warm/Ideal (+0.3)</option>
+          </select>
+        </div>
+        <div>
+          <label>GS Book Line</label>
+          <input type="number" id="m-gsline" placeholder="DK GS line" step="0.5" oninput="modelRecalc()">
+        </div>
+        <div>
+          <label>Naive Line Sum</label>
+          <input type="number" id="m-naive" placeholder="Sum of O/U" step="0.1" oninput="modelRecalc()">
+        </div>
       </div>
     </div>
-    <button class="btn btn-success" onclick="saveResult()">SAVE RESULT</button>
+
+    <!-- Per-Game Adjustments -->
+    <div class="card" id="model-games-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div class="card-title" style="margin-bottom:0;">Per-Game Inputs</div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-sm" style="background:rgba(43,127,255,0.15);color:var(--blue);border:1px solid rgba(43,127,255,0.3);" onclick="autoLoadGameData()">
+            ⬇ Auto-Load
+          </button>
+          <button class="btn btn-sm" style="background:var(--surface2);color:var(--muted);border:1px solid var(--border);" onclick="clearGameInputs()">Clear</button>
+        </div>
+      </div>
+      <div id="model-games-list">
+        <div style="color:var(--muted);font-size:12px;text-align:center;padding:12px;">
+          Tap <strong>Auto-Load</strong> to pull today's games & starters, or add games manually below.
+        </div>
+      </div>
+      <button class="btn" style="background:var(--surface2);color:var(--muted);border:1px solid var(--border);margin-top:8px;font-size:13px;padding:10px;" onclick="addManualGame()">+ Add Game Row</button>
+    </div>
+
+    <!-- Calculate button -->
+    <button class="btn btn-model" onclick="runModel()" style="margin-bottom:16px;font-size:16px;padding:15px;letter-spacing:2px;">
+      ⚡ RUN GST MODEL
+    </button>
+
+    <!-- Results -->
+    <div id="model-results" style="display:none;">
+
+      <!-- Summary card -->
+      <div class="model-result" id="model-result-card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <div class="result-label">GST Projection</div>
+            <div class="result-gst" id="r-gst">—</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="result-label">Signal</div>
+            <div class="result-signal" id="r-signal">—</div>
+            <div class="result-edge" id="r-edge">—</div>
+          </div>
+        </div>
+        <div class="section-sep"></div>
+        <table class="breakdown-table" id="r-breakdown"></table>
+      </div>
+
+      <!-- Outliers -->
+      <div class="outlier-section">
+        <div class="outlier-title">🎯 Game-Level Outliers</div>
+        <div id="r-outliers"></div>
+      </div>
+
+    </div>
+
+  </div><!-- /tab-model -->
+
+  <!-- ════════════════════════════════════════════ EXPORT TAB -->
+  <div id="tab-export" class="admin-tab-panel">
+    <div class="card" style="border-color:rgba(255,140,0,0.3);">
+      <div class="card-title" style="color:var(--orange);">&#9889; Export for Claude</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Fetches all slate data and copies to clipboard ready to paste into Claude.</div>
+      <button class="btn btn-claude" id="export-btn" onclick="exportForClaude()">EXPORT ALL DATA &#8594; CLAUDE</button>
+      <div class="export-progress" id="export-progress"></div>
+      <div class="export-status" id="export-status"></div>
+      <textarea id="claude-output" rows="6" readonly></textarea>
+      <button class="btn" id="copy-btn" onclick="copyOutput()">&#128203; COPY TO CLIPBOARD</button>
+    </div>
   </div>
 
-  <!-- History -->
-  <div class="card">
-    <div class="card-title">Recent History</div>
-    <div id="history-list"><div style="color:var(--muted);font-size:13px;">Loading...</div></div>
-  </div>
-
-</div>
+</div><!-- /main-content -->
 
 <div class="toast" id="toast"></div>
 
 <script>
-const PIN = '1234'; // Change this to your preferred PIN
+const PIN = '1234';
 
 function checkPin() {
   const input = document.getElementById('pin-input').value;
   if (input === PIN) {
     document.getElementById('lock-screen').style.display = 'none';
     document.getElementById('main-content').style.display = 'block';
-    init();
+    initAdmin();
   } else if (input.length === 4) {
     document.getElementById('pin-error').textContent = 'Incorrect PIN';
     document.getElementById('pin-input').value = '';
   }
 }
-
 document.getElementById('pin-input').addEventListener('input', checkPin);
+
+function switchAdminTab(tab) {
+  document.querySelectorAll('.admin-tab').forEach((el, i) => {
+    el.classList.toggle('active', ['manage','model','export'][i] === tab);
+  });
+  document.querySelectorAll('.admin-tab-panel').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+}
 
 function getTodayPDT() {
   const pst = new Date(Date.now() + -7 * 60 * 60000);
   return pst.toISOString().split('T')[0];
 }
-
 function getYesterdayPDT() {
   const pst = new Date(Date.now() + -7 * 60 * 60000 - 86400000);
   return pst.toISOString().split('T')[0];
@@ -197,13 +408,12 @@ let resultDate = getTodayPDT();
 function setResultDate(which) {
   resultDate = which === 'yesterday' ? getYesterdayPDT() : getTodayPDT();
   document.getElementById('result-date-display').textContent = `Saving for: ${resultDate}`;
-  document.getElementById('date-today-btn').style.background = which === 'today' ? 'rgba(176,106,255,0.2)' : 'transparent';
-  document.getElementById('date-today-btn').style.color = which === 'today' ? '#B06AFF' : 'var(--muted)';
-  document.getElementById('date-today-btn').style.border = which === 'today' ? '1px solid #B06AFF' : '1px solid var(--border)';
-  document.getElementById('date-yest-btn').style.background = which === 'yesterday' ? 'rgba(176,106,255,0.2)' : 'transparent';
-  document.getElementById('date-yest-btn').style.color = which === 'yesterday' ? '#B06AFF' : 'var(--muted)';
-  document.getElementById('date-yest-btn').style.border = which === 'yesterday' ? '1px solid #B06AFF' : '1px solid var(--border)';
-  // Clear fields when switching dates
+  ['date-today-btn','date-yest-btn'].forEach((id, i) => {
+    const active = (which === 'today' && i === 0) || (which === 'yesterday' && i === 1);
+    document.getElementById(id).style.background = active ? 'rgba(176,106,255,0.2)' : 'transparent';
+    document.getElementById(id).style.color = active ? '#B06AFF' : 'var(--muted)';
+    document.getElementById(id).style.border = active ? '1px solid #B06AFF' : '1px solid var(--border)';
+  });
   document.getElementById('actual-runs').value = '';
   document.getElementById('result').value = '';
 }
@@ -215,8 +425,548 @@ function showToast(msg, type='ok') {
   setTimeout(() => t.className = 'toast', 2500);
 }
 
+// ════════════════════════════════════════════════════════════════
+// GST MODEL
+// ════════════════════════════════════════════════════════════════
 
-// ── ABBR MAP (same as index.html) ────────────────────────────────────────────
+// WHIP → per-game adjustment
+function whipAdj(whip) {
+  if (!whip || whip === '—' || whip === '--') return 0;
+  const w = parseFloat(whip);
+  if (isNaN(w)) return 0;
+  if (w < 1.00) return -0.8;
+  if (w < 1.15) return -0.5;
+  if (w < 1.30) return -0.2;
+  if (w < 1.45) return 0;
+  if (w < 1.60) return 0.3;
+  return 0.6;
+}
+
+function whipTierLabel(whip) {
+  if (!whip || whip === '—' || whip === '--') return 'No data';
+  const w = parseFloat(whip);
+  if (isNaN(w)) return 'No data';
+  if (w < 1.00) return 'Elite (<1.00)';
+  if (w < 1.15) return 'Very Good (1.00–1.15)';
+  if (w < 1.30) return 'Above Avg (1.15–1.30)';
+  if (w < 1.45) return 'Avg (1.30–1.45)';
+  if (w < 1.60) return 'Soft (1.45–1.60)';
+  return 'Poor (1.60+)';
+}
+
+// Rotation spot adjustment
+function rotAdj(rot) {
+  // rot: 1=ace, 2=solid, 3=mid, 4=soft, 5=backend
+  const map = { '1': -0.2, '2': -0.1, '3': 0, '4': 0.1, '5': 0.2 };
+  return map[String(rot)] || 0;
+}
+
+// Bullpen fatigue — only meaningful with soft starter
+// Returns { adj, note }
+function bullpenCombined(bpTier, awayWhip, homeWhip) {
+  const avgWhip = ((parseFloat(awayWhip)||1.35) + (parseFloat(homeWhip)||1.35)) / 2;
+  const isSoft = avgWhip >= 1.45;
+  if (!isSoft) return { adj: 0, note: 'Bullpen neutral (starters avg)' };
+  if (bpTier === 'gassed') return { adj: 0.4, note: 'Fire hazard: gassed pen + soft starters' };
+  if (bpTier === 'taxed')  return { adj: 0.15, note: 'Slight over lean: taxed pen + soft starters' };
+  if (bpTier === 'fresh')  return { adj: -0.15, note: 'Fresh pen suppresses: early reliever use likely' };
+  return { adj: 0, note: '' };
+}
+
+// Day of week overlay
+function dowAdj(dowVal) {
+  const v = parseFloat(dowVal);
+  // 0 = Mon/Tue (under lean), 0.5 = Wed/Thu (neutral), 1 = Fri/Sat/Sun (over lean)
+  if (v === 0) return -0.3;
+  if (v === 1) return 0.3;
+  return 0;
+}
+
+function dowLabel(dowVal) {
+  const v = parseFloat(dowVal);
+  if (v === 0) return 'Mon/Tue lean under (−0.3)';
+  if (v === 1) return 'Fri/Sat/Sun lean over (+0.3)';
+  return 'Wed/Thu neutral (0)';
+}
+
+// Asymmetry constant
+const ASYMMETRY_PER_GAME = 0.46;
+
+// ── Model state ──
+let modelGames = []; // array of { away, home, ou, awayWhip, homeWhip, awayRot, homeRot, bpTier }
+
+function getModelGames() {
+  const rows = document.querySelectorAll('.model-game-row');
+  return Array.from(rows).map(row => ({
+    away:      row.querySelector('.mg-away')?.value?.trim() || '—',
+    home:      row.querySelector('.mg-home')?.value?.trim() || '—',
+    ou:        parseFloat(row.querySelector('.mg-ou')?.value) || null,
+    awayWhip:  row.querySelector('.mg-away-whip')?.value || '',
+    homeWhip:  row.querySelector('.mg-home-whip')?.value || '',
+    awayRot:   row.querySelector('.mg-away-rot')?.value || '3',
+    homeRot:   row.querySelector('.mg-home-rot')?.value || '3',
+    bpTier:    row.querySelector('.mg-bp')?.value || 'fresh',
+  }));
+}
+
+function addManualGame(data) {
+  const container = document.getElementById('model-games-list');
+  // Remove placeholder
+  const placeholder = container.querySelector('.placeholder-msg');
+  if (placeholder) placeholder.remove();
+
+  const d = data || {};
+  const idx = container.querySelectorAll('.model-game-row').length;
+
+  const div = document.createElement('div');
+  div.className = 'game-card model-game-row';
+  div.innerHTML = `
+    <div class="game-card-header">
+      <div style="display:flex;gap:6px;align-items:center;flex:1;">
+        <input class="mg-away" placeholder="AWAY" style="width:56px;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:5px 6px;color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;" value="${d.away||''}" oninput="gameRowUpdate(this)">
+        <span style="color:var(--muted);font-size:12px;">@</span>
+        <input class="mg-home" placeholder="HOME" style="width:56px;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:5px 6px;color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;" value="${d.home||''}" oninput="gameRowUpdate(this)">
+        <span style="color:var(--muted);font-size:11px;margin-left:4px;">O/U</span>
+        <input class="mg-ou" type="number" placeholder="8.5" step="0.5" style="width:52px;background:var(--bg);border:1px solid rgba(245,197,24,0.3);border-radius:5px;padding:5px 6px;color:var(--accent);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;" value="${d.ou||''}" oninput="gameRowUpdate(this)">
+      </div>
+      <button onclick="this.closest('.model-game-row').remove();modelRecalc();" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 4px;line-height:1;">×</button>
+    </div>
+    <div class="game-fields">
+      <div class="game-field">
+        <label>Away WHIP</label>
+        <input class="mg-away-whip" type="number" placeholder="1.30" step="0.01" value="${d.awayWhip||''}" oninput="gameRowUpdate(this)">
+      </div>
+      <div class="game-field">
+        <label>Home WHIP</label>
+        <input class="mg-home-whip" type="number" placeholder="1.30" step="0.01" value="${d.homeWhip||''}" oninput="gameRowUpdate(this)">
+      </div>
+      <div class="game-field">
+        <label>Away Rotation #</label>
+        <select class="mg-away-rot" onchange="gameRowUpdate(this)">
+          <option value="1" ${d.awayRot=='1'?'selected':''}>1 – Ace</option>
+          <option value="2" ${d.awayRot=='2'?'selected':''}>2 – Solid</option>
+          <option value="3" ${(!d.awayRot||d.awayRot=='3')?'selected':''}>3 – Mid</option>
+          <option value="4" ${d.awayRot=='4'?'selected':''}>4 – Soft</option>
+          <option value="5" ${d.awayRot=='5'?'selected':''}>5 – Backend</option>
+        </select>
+      </div>
+      <div class="game-field">
+        <label>Home Rotation #</label>
+        <select class="mg-home-rot" onchange="gameRowUpdate(this)">
+          <option value="1" ${d.homeRot=='1'?'selected':''}>1 – Ace</option>
+          <option value="2" ${d.homeRot=='2'?'selected':''}>2 – Solid</option>
+          <option value="3" ${(!d.homeRot||d.homeRot=='3')?'selected':''}>3 – Mid</option>
+          <option value="4" ${d.homeRot=='4'?'selected':''}>4 – Soft</option>
+          <option value="5" ${d.homeRot=='5'?'selected':''}>5 – Backend</option>
+        </select>
+      </div>
+    </div>
+    <div class="game-fields" style="margin-top:8px;">
+      <div class="game-field" style="grid-column:1/-1;">
+        <label>Bullpen Fatigue (combined both teams)</label>
+        <select class="mg-bp" onchange="gameRowUpdate(this)">
+          <option value="fresh" ${(!d.bpTier||d.bpTier==='fresh')?'selected':''}>🟢 Fresh (&lt;9 IP weighted)</option>
+          <option value="taxed" ${d.bpTier==='taxed'?'selected':''}>🟡 Taxed (9–12 IP weighted)</option>
+          <option value="gassed" ${d.bpTier==='gassed'?'selected':''}>🔴 Gassed (12+ IP weighted)</option>
+        </select>
+      </div>
+    </div>
+    <div class="game-adj" id="game-adj-${idx}">
+      <span class="game-adj-label">Game Adj</span>
+      <span class="game-adj-val adj-neu">—</span>
+    </div>
+  `;
+  container.appendChild(div);
+  updateGameAdj(div);
+}
+
+function gameRowUpdate(el) {
+  const row = el.closest('.model-game-row');
+  updateGameAdj(row);
+  modelRecalc();
+}
+
+function updateGameAdj(row) {
+  const awayWhip = parseFloat(row.querySelector('.mg-away-whip')?.value) || null;
+  const homeWhip = parseFloat(row.querySelector('.mg-home-whip')?.value) || null;
+  const awayRot  = row.querySelector('.mg-away-rot')?.value || '3';
+  const homeRot  = row.querySelector('.mg-home-rot')?.value || '3';
+  const bpTier   = row.querySelector('.mg-bp')?.value || 'fresh';
+  const adjEl    = row.querySelector('.game-adj-val');
+
+  // Sum both starters + rotation spot
+  const aWhipAdj = awayWhip ? whipAdj(awayWhip) : 0;
+  const hWhipAdj = homeWhip ? whipAdj(homeWhip) : 0;
+  const aRotAdj  = rotAdj(awayRot);
+  const hRotAdj  = rotAdj(homeRot);
+  const bpObj    = bullpenCombined(bpTier,
+    awayWhip ? String(awayWhip) : '1.35',
+    homeWhip ? String(homeWhip) : '1.35');
+
+  const total = aWhipAdj + hWhipAdj + aRotAdj + hRotAdj + bpObj.adj;
+  adjEl.textContent = (total >= 0 ? '+' : '') + total.toFixed(2);
+  adjEl.className = 'game-adj-val ' + (total > 0 ? 'adj-pos' : total < 0 ? 'adj-neg' : 'adj-neu');
+}
+
+function clearGameInputs() {
+  document.getElementById('model-games-list').innerHTML = `
+    <div class="placeholder-msg" style="color:var(--muted);font-size:12px;text-align:center;padding:12px;">
+      Tap <strong>Auto-Load</strong> to pull today's games & starters, or add games manually below.
+    </div>`;
+}
+
+async function autoLoadGameData() {
+  const btn = document.querySelector('[onclick="autoLoadGameData()"]');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="mini-spin"></span> Loading...';
+
+  try {
+    const today = getTodayPDT();
+
+    // Fetch schedule + odds in parallel
+    const [schedRes, oddsRes, bpRes] = await Promise.allSettled([
+      fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}&hydrate=probablePitcher`),
+      fetch('/api/odds'),
+      fetchBullpenForAutoLoad(),
+    ]);
+
+    const schedData = schedRes.status === 'fulfilled' && schedRes.value.ok
+      ? await schedRes.value.json() : null;
+    const oddsData  = oddsRes.status === 'fulfilled'  && oddsRes.value.ok
+      ? await oddsRes.value.json() : null;
+    const bpData    = bpRes.status === 'fulfilled' ? bpRes.value : {};
+
+    const games = schedData?.dates?.[0]?.games || [];
+    const oddsMap = buildOddsLookup(oddsData?.games || []);
+
+    // Set slate-level inputs
+    document.getElementById('m-games').value = games.length;
+
+    // Set day of week based on today
+    const dayOfWeek = new Date(Date.now() + -7*60*60*1000).getDay(); // 0=Sun,1=Mon...6=Sat
+    const dowEl = document.getElementById('m-dow');
+    // Mon=1, Tue=2 → val 0; Wed=3,Thu=4 → val 0.5; Fri=5,Sat=6,Sun=0 → val 1
+    const dowMap = {0:6,1:0,2:1,3:2,4:3,5:4,6:5};
+    dowEl.selectedIndex = dowMap[dayOfWeek] ?? 2;
+
+    // Clear existing rows
+    document.getElementById('model-games-list').innerHTML = '';
+
+    // Fetch pitcher stats for all probables
+    const pitcherIds = [];
+    for (const g of games) {
+      for (const side of ['away','home']) {
+        const p = g.teams[side].probablePitcher;
+        if (p?.id) pitcherIds.push(p.id);
+      }
+    }
+
+    let pitcherStats = {};
+    if (pitcherIds.length) {
+      try {
+        const statsRes = await fetch(`https://statsapi.mlb.com/api/v1/people?personIds=${pitcherIds.join(',')}&hydrate=stats(group=[pitching],type=[season],season=2026)`);
+        const statsData = await statsRes.json();
+        for (const p of (statsData.people || [])) {
+          const sg = p.stats?.find(s => s.group?.displayName === 'pitching');
+          const stat = sg?.splits?.[0]?.stat || {};
+          pitcherStats[p.id] = {
+            whip: stat.whip ? parseFloat(stat.whip).toFixed(2) : '',
+            era:  stat.era  || '',
+            ip:   stat.inningsPitched || '',
+          };
+        }
+      } catch(e) { console.error('Pitcher stats error:', e); }
+    }
+
+    for (const g of games) {
+      const awayAbbr = exportAbbr(g.teams.away.team.name);
+      const homeAbbr = exportAbbr(g.teams.home.team.name);
+      const ak = g.teams.away.team.name.split(' ').pop().toLowerCase();
+      const hk = g.teams.home.team.name.split(' ').pop().toLowerCase();
+      const key = `${ak}-${hk}`;
+      const odds = oddsMap[key];
+
+      const awayP  = g.teams.away.probablePitcher;
+      const homeP  = g.teams.home.probablePitcher;
+      const awayStats = awayP ? (pitcherStats[awayP.id] || {}) : {};
+      const homeStats = homeP ? (pitcherStats[homeP.id] || {}) : {};
+
+      // Bullpen: use combined worst tier for this game's teams
+      const awayBp = bpData[awayAbbr]?.tier || 'fresh';
+      const homeBp = bpData[homeAbbr]?.tier || 'fresh';
+      const bpTier = awayBp === 'gassed' || homeBp === 'gassed' ? 'gassed'
+                   : awayBp === 'taxed'  || homeBp === 'taxed'  ? 'taxed' : 'fresh';
+
+      addManualGame({
+        away:      awayAbbr,
+        home:      homeAbbr,
+        ou:        odds?.line || '',
+        awayWhip:  awayStats.whip || '',
+        homeWhip:  homeStats.whip || '',
+        awayRot:   '3',
+        homeRot:   '3',
+        bpTier,
+      });
+    }
+
+    // Set naive total from odds data
+    if (oddsData?.games?.length) {
+      const naive = (oddsData.games || []).reduce((sum, g) => {
+        const bk = (g.bookmakers||[]).find(b=>b.key==='draftkings')||(g.bookmakers||[])[0];
+        const mkt = bk?.markets?.find(m=>m.key==='totals');
+        const ov = mkt?.outcomes?.find(o=>o.name==='Over');
+        return sum + (ov?.point || 0);
+      }, 0);
+      document.getElementById('m-naive').value = naive.toFixed(1);
+    }
+
+    // Load GS line from history
+    try {
+      const hist = await fetch('/api/history').then(r=>r.json());
+      const todayRec = hist.find(r=>r.date===today);
+      if (todayRec?.grandSalamLine) {
+        document.getElementById('m-gsline').value = todayRec.grandSalamLine;
+      }
+    } catch(e) {}
+
+    modelRecalc();
+    showToast(`Loaded ${games.length} games`, 'ok');
+  } catch(e) {
+    console.error('Auto-load error:', e);
+    showToast('Load error: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '⬇ Auto-Load';
+  }
+}
+
+async function fetchBullpenForAutoLoad() {
+  // Reuse same logic as index.html bullpen tab — 3-day weighted
+  function ipToOuts(ip) {
+    const s = String(ip||'0'), [inn,outs] = s.split('.').map(Number);
+    return (inn||0)*3+(outs||0);
+  }
+  function getPDTDate(off) {
+    const d = new Date(Date.now()+(-7*60*60*1000)+(off*86400000));
+    return d.toISOString().split('T')[0];
+  }
+  const dates = [getPDTDate(-1), getPDTDate(-2), getPDTDate(-3)];
+  const weights = [0.70, 0.18, 0.12];
+
+  const dayData = await Promise.all(dates.map(async dateStr => {
+    try {
+      const res = await fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${dateStr}&hydrate=linescore`);
+      const data = await res.json();
+      const gs = data.dates?.[0]?.games || [];
+      const td = {};
+      for (const game of gs) {
+        if (game.status.detailedState !== 'Final') continue;
+        try {
+          const box = await (await fetch(`https://statsapi.mlb.com/api/v1/game/${game.gamePk}/boxscore`)).json();
+          for (const side of ['home','away']) {
+            const team = box.teams[side];
+            const abbr = team.team.abbreviation;
+            const outs = (team.pitchers||[]).map(id=>team.players[`ID${id}`]).slice(1)
+              .reduce((s,p)=>s+ipToOuts(p?.stats?.pitching?.inningsPitched||0),0);
+            if (!td[abbr]) td[abbr]={outs:0};
+            td[abbr].outs += outs;
+          }
+        } catch(e) {}
+      }
+      return td;
+    } catch(e) { return {}; }
+  }));
+
+  const result = {};
+  const allTeams = new Set([...Object.keys(dayData[0]),...Object.keys(dayData[1]),...Object.keys(dayData[2])]);
+  for (const abbr of allTeams) {
+    const w = dayData.reduce((s,d,i)=>s+(d[abbr]?.outs||0)*weights[i],0);
+    result[abbr] = { tier: w>=12?'gassed':w>=9?'taxed':'fresh', weighted: w };
+  }
+  return result;
+}
+
+function buildOddsLookup(games) {
+  const map = {};
+  for (const g of games) {
+    const ak = g.away_team.split(' ').pop().toLowerCase();
+    const hk = g.home_team.split(' ').pop().toLowerCase();
+    const key = `${ak}-${hk}`;
+    const bk = (g.bookmakers||[]).find(b=>b.key==='draftkings')||(g.bookmakers||[])[0];
+    const mkt = bk?.markets?.find(m=>m.key==='totals');
+    const ov = mkt?.outcomes?.find(o=>o.name==='Over');
+    const un = mkt?.outcomes?.find(o=>o.name==='Under');
+    if (ov) map[key] = { line: ov.point, op: ov.price, up: un?.price };
+  }
+  return map;
+}
+
+function modelRecalc() {
+  // Live recalc of game adj badges only — full model runs on button
+  document.querySelectorAll('.model-game-row').forEach(row => updateGameAdj(row));
+}
+
+function runModel() {
+  const numGames   = parseInt(document.getElementById('m-games').value) || 0;
+  const parkFactor = parseFloat(document.getElementById('m-parkfactor').value) || 0;
+  const weatherAdj = parseFloat(document.getElementById('m-weather').value) || 0;
+  const dowVal     = document.getElementById('m-dow').value;
+  const gsLine     = parseFloat(document.getElementById('m-gsline').value) || null;
+  const naive      = parseFloat(document.getElementById('m-naive').value) || null;
+
+  if (numGames === 0) { showToast('Enter number of games', 'err'); return; }
+
+  // 1. Baseline
+  const baseline = 8.5 * numGames;
+
+  // 2. Park factor (already summed, passed in)
+  const parkAdj = parkFactor;
+
+  // 3. Weather
+  const weatherTotal = weatherAdj * numGames;
+
+  // 4. Asymmetry
+  const asymmetry = ASYMMETRY_PER_GAME * numGames;
+
+  // 5. Day-of-week
+  const dowAdjVal = dowAdj(parseFloat(dowVal)) * numGames;
+
+  // 6. Per-game adjustments from game rows
+  const gameRows = getModelGames();
+  let starterAdj = 0;
+  let bullpenAdj = 0;
+  const gameDetails = [];
+
+  for (const g of gameRows) {
+    const awayWA  = whipAdj(g.awayWhip);
+    const homeWA  = whipAdj(g.homeWhip);
+    const awayRA  = rotAdj(g.awayRot);
+    const homeRA  = rotAdj(g.homeRot);
+    const bpObj   = bullpenCombined(g.bpTier,
+      g.awayWhip || '1.35', g.homeWhip || '1.35');
+
+    const gameStarterAdj  = awayWA + homeWA + awayRA + homeRA;
+    const gameBullpenAdj  = bpObj.adj;
+    starterAdj  += gameStarterAdj;
+    bullpenAdj  += gameBullpenAdj;
+
+    // Per-game total adj vs baseline of 8.5
+    const gameAdj = gameStarterAdj + gameBullpenAdj;
+    const gameProjRuns = 8.5 + gameAdj;
+
+    // Outlier score vs O/U line
+    const ou = g.ou;
+    const edge = ou ? (gameProjRuns - ou) : null;
+
+    gameDetails.push({
+      away: g.away,
+      home: g.home,
+      ou,
+      gameProjRuns,
+      edge,
+      awayWhip: g.awayWhip,
+      homeWhip: g.homeWhip,
+      awayRot: g.awayRot,
+      homeRot: g.homeRot,
+      bpTier: g.bpTier,
+      bpNote: bpObj.note,
+      gameAdj,
+    });
+  }
+
+  // 7. Total GST projection
+  const gst = baseline + parkAdj + weatherTotal + asymmetry + dowAdjVal + starterAdj + bullpenAdj;
+
+  // 8. Signal vs GS line
+  const edge = gsLine ? gst - gsLine : null;
+  const naiveEdge = naive ? gst - naive : null;
+
+  // ── Render results ──
+  document.getElementById('model-results').style.display = 'block';
+
+  const gstRounded = Math.round(gst * 10) / 10;
+  const gstEl = document.getElementById('r-gst');
+  gstEl.textContent = gstRounded;
+
+  let signalTxt = '—', signalCls = 'neut', cardCls = 'neutral';
+  if (edge !== null) {
+    if (edge >= 1.5) { signalTxt = '🔥 STRONG OVER'; signalCls = 'bull'; cardCls = 'bullish'; }
+    else if (edge >= 0.5) { signalTxt = '📈 LEAN OVER'; signalCls = 'bull'; cardCls = 'bullish'; }
+    else if (edge <= -1.5) { signalTxt = '❄️ STRONG UNDER'; signalCls = 'bear'; cardCls = 'bearish'; }
+    else if (edge <= -0.5) { signalTxt = '📉 LEAN UNDER'; signalCls = 'bear'; cardCls = 'bearish'; }
+    else { signalTxt = '⚖️ NO EDGE'; signalCls = 'neut'; cardCls = 'neutral'; }
+  }
+  gstEl.className = `result-gst ${signalCls}`;
+  document.getElementById('r-signal').textContent = signalTxt;
+  document.getElementById('r-signal').className = `result-signal ${signalCls}`;
+  document.getElementById('r-edge').textContent = edge !== null
+    ? `GST ${gstRounded} vs GS Line ${gsLine} → edge ${edge>=0?'+':''}${edge.toFixed(1)}`
+    : naive ? `GST ${gstRounded} vs Naive ${naive} → ${naiveEdge>=0?'+':''}${naiveEdge?.toFixed(1)}` : '';
+  document.getElementById('model-result-card').className = `model-result ${cardCls}`;
+
+  // Breakdown table
+  const rows = [
+    ['Baseline', `${numGames} games × 8.5`, baseline.toFixed(1), 'neu'],
+    ['Park Factor Net', `BP left col sum`, parkAdj >= 0 ? `+${parkAdj.toFixed(1)}` : parkAdj.toFixed(1), parkAdj>0?'pos':parkAdj<0?'neg':'neu'],
+    ['Weather', `${parseFloat(document.getElementById('m-weather').value)>=0?'+':''  }${parseFloat(document.getElementById('m-weather').value)||0} × ${numGames} games`, weatherTotal>=0?`+${weatherTotal.toFixed(1)}`:weatherTotal.toFixed(1), weatherTotal>0?'pos':weatherTotal<0?'neg':'neu'],
+    ['Starter WHIP + Rotation', `${gameRows.length} games analyzed`, starterAdj>=0?`+${starterAdj.toFixed(2)}`:starterAdj.toFixed(2), starterAdj>0?'pos':starterAdj<0?'neg':'neu'],
+    ['Bullpen Fatigue', `Paired w/ starter quality`, bullpenAdj>=0?`+${bullpenAdj.toFixed(2)}`:bullpenAdj.toFixed(2), bullpenAdj>0?'pos':bullpenAdj<0?'neg':'neu'],
+    ['Asymmetry', `+${ASYMMETRY_PER_GAME} × ${numGames} games`, `+${asymmetry.toFixed(2)}`, 'pos'],
+    ['Day-of-Week', dowLabel(dowVal), dowAdjVal>=0?`+${dowAdjVal.toFixed(1)}`:dowAdjVal.toFixed(1), dowAdjVal>0?'pos':dowAdjVal<0?'neg':'neu'],
+  ];
+
+  if (gsLine) rows.push(['GS Book Line', 'DraftKings', gsLine.toString(), 'neu']);
+  if (naive) rows.push(['Naive Sum', 'Line sum', naive.toString(), 'neu']);
+
+  document.getElementById('r-breakdown').innerHTML = rows.map(([label, note, val, cls]) => `
+    <tr>
+      <td class="lbl">${label}<br><span style="font-size:10px;color:var(--muted);font-weight:400;">${note}</span></td>
+      <td class="val val-${cls}">${val}</td>
+    </tr>
+  `).join('') + `
+    <tr style="border-top:2px solid rgba(255,255,255,0.12);">
+      <td class="lbl" style="font-size:14px;color:var(--text);font-weight:700;">GST Projection</td>
+      <td class="val val-total">${gstRounded}</td>
+    </tr>
+  `;
+
+  // ── Outliers ──
+  const sorted = [...gameDetails].filter(g => g.ou && g.edge !== null)
+    .sort((a,b) => Math.abs(b.edge) - Math.abs(a.edge));
+
+  const outlierHtml = sorted.length === 0
+    ? '<div style="color:var(--muted);font-size:12px;padding:8px 0;">Enter per-game O/U lines to see outliers.</div>'
+    : sorted.map(g => {
+        const edgeAbs = Math.abs(g.edge);
+        const dir = g.edge > 0 ? 'over' : 'under';
+        const strength = edgeAbs >= 1.0 ? '🔥 Strong' : edgeAbs >= 0.5 ? '📌 Lean' : '⚖️ Marginal';
+        const cls = edgeAbs < 0.3 ? 'outlier-neutral' : dir === 'over' ? 'outlier-over' : 'outlier-under';
+        const badgeCls = edgeAbs < 0.3 ? '' : dir === 'over' ? 'badge-over' : 'badge-under';
+        const reasons = [];
+        if (g.awayWhip) reasons.push(`Away WHIP ${g.awayWhip} (${whipTierLabel(g.awayWhip)})`);
+        if (g.homeWhip) reasons.push(`Home WHIP ${g.homeWhip} (${whipTierLabel(g.homeWhip)})`);
+        if (g.bpNote) reasons.push(g.bpNote);
+        return `<div class="outlier-card ${cls}">
+          <div>
+            <div class="outlier-matchup">${g.away} @ ${g.home} <span style="color:var(--muted);font-size:12px;">O/U ${g.ou}</span></div>
+            <div class="outlier-reasons">${reasons.join(' · ') || 'No specific factors'}</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="outlier-badge ${badgeCls}">${edgeAbs < 0.3 ? 'NEUTRAL' : (dir.toUpperCase() + ' ' + (g.edge>=0?'+':'')+g.edge.toFixed(2))}</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px;">${edgeAbs<0.3?'':strength}</div>
+          </div>
+        </div>`;
+      }).join('');
+
+  document.getElementById('r-outliers').innerHTML = outlierHtml;
+
+  // Scroll to results
+  document.getElementById('model-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ════════════════════════════════════════════════════════════════
+// ABBR MAP
+// ════════════════════════════════════════════════════════════════
 const EXPORT_ABBR = {
   'New York Yankees':'NYY','San Francisco Giants':'SF','Athletics':'ATH','Oakland Athletics':'ATH',
   'Toronto Blue Jays':'TOR','Colorado Rockies':'COL','Miami Marlins':'MIA',
@@ -236,6 +986,10 @@ function getPDTDateExport(offsetDays) {
   var d = new Date(Date.now() + (-7 * 60 * 60 * 1000) + (offsetDays * 86400000));
   return d.toISOString().split('T')[0];
 }
+
+// ════════════════════════════════════════════════════════════════
+// EXPORT
+// ════════════════════════════════════════════════════════════════
 
 function setProgress(id, label, state) {
   var el = document.getElementById('prog-' + id);
@@ -298,61 +1052,42 @@ async function exportForClaude() {
   var bpDates = [getPDTDateExport(-1),getPDTDateExport(-2),getPDTDateExport(-3)];
   var oddsData=null, historyData=null, startersData=[], bullpenData=null, gameList=[];
 
-  // 1. Odds
   setProgress('odds','Odds + GS line...','loading');
   try {
     oddsData = await (await fetch('/api/odds')).json();
     setProgress('odds','Odds: '+(oddsData.games||[]).length+' games','done');
   } catch(e){setProgress('odds','Odds failed','fail');}
 
-  // 2. History
   setProgress('history','History...','loading');
   try {
     historyData = await (await fetch('/api/history')).json();
     setProgress('history','History: '+historyData.length+' records','done');
   } catch(e){setProgress('history','History failed','fail');}
 
-  // 3. Schedule — EXACT same pattern as fetchScores() in index.html
   setProgress('starters','Schedule + starters...','loading');
   try {
     var res = await fetch('https://statsapi.mlb.com/api/v1/schedule?sportId=1&date='+today+'&hydrate=linescore');
     if (!res.ok) throw new Error('MLB API '+res.status);
     var data = await res.json();
     var raw = (data.dates && data.dates[0]) ? data.dates[0].games : [];
-
-    // Build gameList exactly like fetchScores does
     gameList = raw.map(function(g) {
-      return {
-        away: exportAbbr(g.teams.away.team.name),
-        home: exportAbbr(g.teams.home.team.name),
-        awayFull: g.teams.away.team.name,
-        homeFull: g.teams.home.team.name
-      };
+      return { away: exportAbbr(g.teams.away.team.name), home: exportAbbr(g.teams.home.team.name),
+               awayFull: g.teams.away.team.name, homeFull: g.teams.home.team.name };
     });
-
-    // Now fetch probables separately — simple hydrate=probablePitcher
     var res2 = await fetch('https://statsapi.mlb.com/api/v1/schedule?sportId=1&date='+today+'&hydrate=probablePitcher');
     var data2 = await res2.json();
     var raw2 = (data2.dates && data2.dates[0]) ? data2.dates[0].games : [];
-
-    // Collect pitcher IDs
     var pitcherIds=[], pitcherMeta={};
     raw2.forEach(function(g) {
       ['away','home'].forEach(function(side) {
         var p = g.teams[side].probablePitcher;
         if (p && p.id && !pitcherMeta[p.id]) {
           pitcherIds.push(p.id);
-          pitcherMeta[p.id] = {
-            name: p.fullName||('ID'+p.id),
-            team: exportAbbr(g.teams[side].team.name),
-            opponent: exportAbbr(g.teams[side==='away'?'home':'away'].team.name),
-            side: side
-          };
+          pitcherMeta[p.id] = { name: p.fullName||('ID'+p.id), team: exportAbbr(g.teams[side].team.name),
+            opponent: exportAbbr(g.teams[side==='away'?'home':'away'].team.name), side: side };
         }
       });
     });
-
-    // Batch stats fetch
     var statsMap={};
     if (pitcherIds.length>0) {
       try {
@@ -361,11 +1096,8 @@ async function exportForClaude() {
         (psd.people||[]).forEach(function(person) {
           var splits=(person.stats||[]).find(function(s){return s.group&&s.group.displayName==='pitching';});
           var stat=(splits&&splits.splits&&splits.splits[0])?splits.splits[0].stat:{};
-          statsMap[person.id]={
-            era:stat.era||'--',whip:stat.whip||'--',ip:stat.inningsPitched||'--',
-            k9:stat.strikeoutsPer9Inn||'--',
-            wins:stat.wins!==undefined?stat.wins:0,losses:stat.losses!==undefined?stat.losses:0
-          };
+          statsMap[person.id]={ era:stat.era||'--',whip:stat.whip||'--',ip:stat.inningsPitched||'--',
+            k9:stat.strikeoutsPer9Inn||'--', wins:stat.wins!==undefined?stat.wins:0,losses:stat.losses!==undefined?stat.losses:0 };
         });
       } catch(e){}
     }
@@ -376,14 +1108,12 @@ async function exportForClaude() {
     setProgress('starters','Starters: '+startersData.length+' pitchers, '+gameList.length+' games','done');
   } catch(e){setProgress('starters','Starters failed: '+e.message,'fail');}
 
-  // 4. Bullpen
   setProgress('bullpen','Bullpen (3 days)...','loading');
   try {
     bullpenData = await fetchBullpenExport(bpDates);
     setProgress('bullpen','Bullpen: '+bullpenData.length+' teams','done');
   } catch(e){setProgress('bullpen','Bullpen failed','fail');}
 
-  // ── BUILD OUTPUT ──────────────────────────────────────────────────────────
   var out=[];
   var todayRec=(historyData||[]).find(function(r){return r.date===today;})||{};
   var pregLines=todayRec.pregameLines||{};
@@ -405,7 +1135,6 @@ async function exportForClaude() {
   out.push('Units: '+(todayRec.units!=null?todayRec.units:'?'));
   out.push('');
 
-  // Odds lookup by "awayLastWord-homeLastWord" lowercase
   var oddsLookup={};
   (oddsData&&oddsData.games?oddsData.games:[]).forEach(function(g){
     var key=g.away_team.split(' ').pop().toLowerCase()+'-'+g.home_team.split(' ').pop().toLowerCase();
@@ -416,7 +1145,6 @@ async function exportForClaude() {
     if (ov) oddsLookup[key]={line:ov.point,op:ov.price,up:un?un.price:null};
   });
 
-  // Game lines
   out.push('--- GAME LINES (DraftKings) ---');
   gameList.forEach(function(g){
     var ak=(g.awayFull||g.away).split(' ').pop().toLowerCase();
@@ -424,15 +1152,13 @@ async function exportForClaude() {
     var key=ak+'-'+hk;
     var pl=pregLines[key], od=oddsLookup[key];
     var lineStr='no line';
-    if (od) {
-      lineStr='O/U '+od.line+' (O'+(od.op>0?'+':'')+od.op+' / U'+(od.up>0?'+':'')+od.up+')';
-    } else if (pl) { lineStr='O/U '+pl.line+' (pregame only)'; }
+    if (od) { lineStr='O/U '+od.line+' (O'+(od.op>0?'+':'')+od.op+' / U'+(od.up>0?'+':'')+od.up+')'; }
+    else if (pl) { lineStr='O/U '+pl.line+' (pregame only)'; }
     var openStr=(pl&&od&&od.line!==pl.line)?' | Open: '+pl.line:(pl?' | Open: '+pl.line:'');
     out.push(g.away+' @ '+g.home+': '+lineStr+openStr);
   });
   out.push('');
 
-  // Starters
   out.push('--- PROBABLE STARTERS (2026 Season Stats) ---');
   gameList.forEach(function(g){
     out.push(g.away+' @ '+g.home+':');
@@ -443,7 +1169,6 @@ async function exportForClaude() {
   });
   out.push('');
 
-  // Bullpen
   out.push('--- BULLPEN FATIGUE (Weighted 3-Day) ---');
   out.push('Weights: 70% '+bpDates[0]+' / 18% '+bpDates[1]+' / 12% '+bpDates[2]);
   (bullpenData||[]).forEach(function(b){
@@ -451,7 +1176,6 @@ async function exportForClaude() {
   });
   out.push('');
 
-  // History
   out.push('--- RECENT HISTORY (Last 10) ---');
   (historyData||[]).slice(0,10).forEach(function(r){
     var rawGap=(r.actualRuns!=null&&r.grandSalamLine)?r.actualRuns-r.grandSalamLine:null;
@@ -468,14 +1192,14 @@ async function exportForClaude() {
 
   try {
     await navigator.clipboard.writeText(output);
-    document.getElementById('export-status').textContent='Copied to clipboard -- paste into Claude';
+    document.getElementById('export-status').textContent='Copied to clipboard — paste into Claude';
     document.getElementById('export-status').style.color='var(--green)';
     showToast('Copied! Paste into Claude','ok');
   } catch(e){
-    document.getElementById('export-status').textContent='Auto-copy failed -- tap Copy button below';
+    document.getElementById('export-status').textContent='Auto-copy failed — tap Copy button below';
     document.getElementById('export-status').style.color='var(--muted)';
   }
-  btn.disabled=false; btn.textContent='EXPORT ALL DATA -- CLAUDE';
+  btn.disabled=false; btn.textContent='EXPORT ALL DATA → CLAUDE';
 }
 
 async function copyOutput() {
@@ -484,6 +1208,10 @@ async function copyOutput() {
   catch(e){ document.getElementById('claude-output').select(); document.execCommand('copy'); showToast('Copied','ok'); }
 }
 
+// ════════════════════════════════════════════════════════════════
+// MANAGE TAB LOGIC
+// ════════════════════════════════════════════════════════════════
+
 async function loadHistory() {
   try {
     const res = await fetch('/api/history');
@@ -491,7 +1219,6 @@ async function loadHistory() {
     const today = getTodayPDT();
     const todayRecord = history.find(r => r.date === today);
 
-    // Update today status
     if (todayRecord) {
       const status = [];
       if (todayRecord.grandSalamLine) status.push(`GS: ${todayRecord.grandSalamLine}`);
@@ -499,7 +1226,6 @@ async function loadHistory() {
       if (todayRecord.naiveTotal) status.push(`Naive: ${todayRecord.naiveTotal}`);
       document.getElementById('today-status').textContent = status.join(' · ') || 'No data yet';
 
-      // Pre-fill GS fields if already set
       if (todayRecord.grandSalamLine) {
         document.getElementById('gs-line').value = todayRecord.grandSalamLine;
         document.getElementById('gs-over').value = todayRecord.gsOverPrice || '';
@@ -521,7 +1247,6 @@ async function loadHistory() {
       document.getElementById('today-status').textContent = 'No record yet — odds fetch will create one';
     }
 
-    // Render recent history
     const recent = history.slice(0, 7);
     document.getElementById('history-list').innerHTML = recent.map(r => {
       const resCls = r.result === 'over' ? 'over' : r.result === 'under' ? 'under' : 'pending';
@@ -561,64 +1286,39 @@ async function saveGrandSalami() {
   const over = parseInt(document.getElementById('gs-over').value);
   const under = parseInt(document.getElementById('gs-under').value);
   const book = document.getElementById('gs-book').value || 'DraftKings';
-
   if (!line) { showToast('Enter a line first', 'err'); return; }
-
-  const btn = document.querySelector('.btn-primary');
-  btn.disabled = true;
-  btn.textContent = 'SAVING...';
-
+  const btn = document.querySelector('[onclick="saveGrandSalami()"]');
+  btn.disabled = true; btn.textContent = 'SAVING...';
   try {
     const res = await fetch('/api/odds', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        date: getTodayPDT(),
-        grandSalamLine: line,
-        gsOverPrice: over || -110,
-        gsUnderPrice: under || -110,
-        gsBook: book,
-        units: parseFloat(document.getElementById('gs-units').value) || null
-      })
+      body: JSON.stringify({ date: getTodayPDT(), grandSalamLine: line,
+        gsOverPrice: over || -110, gsUnderPrice: under || -110, gsBook: book,
+        units: parseFloat(document.getElementById('gs-units').value) || null })
     });
     const data = await res.json();
-    if (data.ok) {
-      showToast('Grand Salami saved ✓', 'ok');
-      loadHistory();
-    } else {
-      showToast('Save failed', 'err');
-    }
-  } catch(e) {
-    showToast('Error: ' + e.message, 'err');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'SAVE GRAND SALAMI';
-  }
+    if (data.ok) { showToast('Grand Salami saved ✓', 'ok'); loadHistory(); }
+    else showToast('Save failed', 'err');
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
+  finally { btn.disabled = false; btn.textContent = 'SAVE GRAND SALAMI'; }
 }
 
 async function saveResult() {
   const runs = parseInt(document.getElementById('actual-runs').value);
   let result = document.getElementById('result').value.toLowerCase().trim();
-
   if (!runs) { showToast('Enter actual runs', 'err'); return; }
   if (!['over','under','push'].includes(result)) {
-    // Auto-calculate from GS line
     const res = await fetch('/api/history');
     const history = await res.json();
     const record = history.find(r => r.date === resultDate);
     if (record && record.grandSalamLine) {
       result = runs > record.grandSalamLine ? 'over' : runs < record.grandSalamLine ? 'under' : 'push';
       document.getElementById('result').value = result;
-    } else {
-      showToast('Enter result: over/under/push', 'err');
-      return;
-    }
+    } else { showToast('Enter result: over/under/push', 'err'); return; }
   }
-
-  const btn = document.querySelector('.btn-success');
-  btn.disabled = true;
-  btn.textContent = 'SAVING...';
-
+  const btn = document.querySelector('[onclick="saveResult()"]');
+  btn.disabled = true; btn.textContent = 'SAVING...';
   try {
     const res = await fetch('/api/odds', {
       method: 'POST',
@@ -626,24 +1326,21 @@ async function saveResult() {
       body: JSON.stringify({ date: resultDate, actualRuns: runs, result })
     });
     const data = await res.json();
-    if (data.ok) {
-      showToast(`${runs} runs · ${result.toUpperCase()} saved for ${resultDate} ✓`, 'ok');
-      loadHistory();
-    } else {
-      showToast('Save failed', 'err');
-    }
-  } catch(e) {
-    showToast('Error: ' + e.message, 'err');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'SAVE RESULT';
-  }
+    if (data.ok) { showToast(`${runs} runs · ${result.toUpperCase()} saved for ${resultDate} ✓`, 'ok'); loadHistory(); }
+    else showToast('Save failed', 'err');
+  } catch(e) { showToast('Error: ' + e.message, 'err'); }
+  finally { btn.disabled = false; btn.textContent = 'SAVE RESULT'; }
 }
 
-function init() {
+function initAdmin() {
   document.getElementById('today-date').textContent = getTodayPDT();
   document.getElementById('result-date-display').textContent = `Saving for: ${resultDate}`;
   loadHistory();
+  // Set DOW default based on actual day
+  const dayOfWeek = new Date(Date.now() + -7*60*60*1000).getDay();
+  const dowEl = document.getElementById('m-dow');
+  const dowMap = {0:6,1:0,2:1,3:2,4:3,5:4,6:5};
+  if (dowEl) dowEl.selectedIndex = dowMap[dayOfWeek] ?? 2;
 }
 </script>
 </body>
