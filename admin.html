@@ -33,8 +33,6 @@
   .btn-success:hover{opacity:0.9;}
   .btn-danger{background:var(--red);color:#fff;}
   .btn-danger:hover{opacity:0.9;}
-  .btn-claude{background:var(--orange);color:#fff;}
-  .btn-claude:hover{opacity:0.9;}
   .btn:disabled{opacity:0.5;cursor:not-allowed;}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 20px;font-size:14px;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:0.5px;opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:nowrap;}
   .toast.show{opacity:1;}
@@ -54,6 +52,9 @@
   #pin-input{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-size:24px;text-align:center;width:160px;letter-spacing:8px;}
   #pin-input:focus{outline:none;border-color:var(--accent);}
   #pin-error{color:var(--red);font-size:13px;height:16px;}
+
+  .btn-claude{background:var(--orange);color:#fff;}
+  .btn-claude:hover{opacity:0.9;}
   .export-progress{display:flex;flex-direction:column;gap:4px;margin-top:10px;}
   .progress-item{font-size:11px;font-family:'Barlow Condensed',sans-serif;letter-spacing:0.5px;color:var(--muted);}
   .progress-item.done{color:var(--green);}
@@ -84,6 +85,7 @@
     <div class="date-display" id="today-date">—</div>
     <div style="font-size:11px;color:var(--muted);" id="today-status">Loading...</div>
   </div>
+
 
   <!-- Export for Claude -->
   <div class="card" style="border-color:rgba(255,140,0,0.3);">
@@ -192,6 +194,7 @@ function getYesterdayPDT() {
   return pst.toISOString().split('T')[0];
 }
 
+
 function getPDTDate(offsetDays) {
   const d = new Date(Date.now() + (-7 * 60 * 60000) + (offsetDays * 86400000));
   return d.toISOString().split('T')[0];
@@ -208,6 +211,7 @@ function setResultDate(which) {
   document.getElementById('date-yest-btn').style.background = which === 'yesterday' ? 'rgba(176,106,255,0.2)' : 'transparent';
   document.getElementById('date-yest-btn').style.color = which === 'yesterday' ? '#B06AFF' : 'var(--muted)';
   document.getElementById('date-yest-btn').style.border = which === 'yesterday' ? '1px solid #B06AFF' : '1px solid var(--border)';
+  // Clear fields when switching dates
   document.getElementById('actual-runs').value = '';
   document.getElementById('result').value = '';
 }
@@ -218,6 +222,7 @@ function showToast(msg, type='ok') {
   t.className = `toast show ${type}`;
   setTimeout(() => t.className = 'toast', 2500);
 }
+
 
 // ── EXPORT FOR CLAUDE ─────────────────────────────────────────────────────────
 
@@ -230,60 +235,62 @@ function setProgress(id, label, state) {
   }
   el.className = 'progress-item ' + state;
   const icons = { loading: '⏳', done: '✓', fail: '✗' };
-  el.textContent = `${icons[state] || ''} ${label}`;
+  el.textContent = icons[state] + ' ' + label;
 }
 
 function ipToOuts(ip) {
   const s = String(ip || '0');
-  const [inn, outs] = s.split('.').map(Number);
-  return (inn || 0) * 3 + (outs || 0);
+  const parts = s.split('.');
+  return (parseInt(parts[0]) || 0) * 3 + (parseInt(parts[1]) || 0);
 }
 
 function outsToIp(outs) {
-  return `${Math.floor(outs / 3)}.${outs % 3}`;
+  return Math.floor(outs / 3) + '.' + (outs % 3);
 }
 
 async function fetchBullpenData(dates) {
   const weights = [0.70, 0.18, 0.12];
-  const dayResults = await Promise.all(dates.map(async (dateStr) => {
+  const dayResults = await Promise.all(dates.map(async function(dateStr) {
     try {
-      const res = await fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${dateStr}&hydrate=linescore`);
+      const res = await fetch('https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=' + dateStr + '&hydrate=linescore');
       const data = await res.json();
-      const games = data.dates?.[0]?.games || [];
+      const games = (data.dates && data.dates[0]) ? data.dates[0].games : [];
       const teamData = {};
       for (const game of games) {
         if (game.status.detailedState !== 'Final') continue;
         try {
-          const boxRes = await fetch(`https://statsapi.mlb.com/api/v1/game/${game.gamePk}/boxscore`);
+          const boxRes = await fetch('https://statsapi.mlb.com/api/v1/game/' + game.gamePk + '/boxscore');
           const box = await boxRes.json();
           for (const side of ['home', 'away']) {
             const team = box.teams[side];
             const abbr = team.team.abbreviation;
-            const pitchers = (team.pitchers || []).map(id => team.players[`ID${id}`]);
+            const pitchers = (team.pitchers || []).map(function(id) { return team.players['ID' + id]; });
             const bullpen = pitchers.slice(1);
-            const bullpenOuts = bullpen.reduce((s, p) => s + ipToOuts(p?.stats?.pitching?.inningsPitched || 0), 0);
-            if (!teamData[abbr]) teamData[abbr] = { abbr, name: team.team.name, outs: 0 };
+            const bullpenOuts = bullpen.reduce(function(s, p) {
+              return s + ipToOuts(p && p.stats && p.stats.pitching ? p.stats.pitching.inningsPitched : 0);
+            }, 0);
+            if (!teamData[abbr]) teamData[abbr] = { abbr: abbr, outs: 0 };
             teamData[abbr].outs += bullpenOuts;
           }
-        } catch(e) { /* skip game */ }
+        } catch(e) {}
       }
       return teamData;
     } catch(e) { return {}; }
   }));
 
-  const allTeams = new Set(dayResults.flatMap(d => Object.keys(d)));
+  const allTeams = new Set(dayResults.reduce(function(acc, d) { return acc.concat(Object.keys(d)); }, []));
   const results = [];
-  for (const abbr of allTeams) {
-    const dayOuts = dayResults.map(d => d[abbr]?.outs || 0);
-    const weighted = dayOuts.reduce((s, o, i) => s + o * weights[i], 0);
+  allTeams.forEach(function(abbr) {
+    const dayOuts = dayResults.map(function(d) { return d[abbr] ? d[abbr].outs : 0; });
+    const weighted = dayOuts.reduce(function(s, o, i) { return s + o * weights[i]; }, 0);
     const weightedIp = parseFloat((Math.floor(weighted / 3) + (weighted % 3) / 10).toFixed(1));
     let tier;
     if (weighted >= 12) tier = 'GASSED';
     else if (weighted >= 9) tier = 'TAXED';
     else tier = 'FRESH';
-    results.push({ abbr, weightedIp, tier, dayIp: dayOuts.map(outsToIp) });
-  }
-  results.sort((a, b) => b.weightedIp - a.weightedIp);
+    results.push({ abbr: abbr, weightedIp: weightedIp, tier: tier, dayIp: dayOuts.map(outsToIp) });
+  });
+  results.sort(function(a, b) { return b.weightedIp - a.weightedIp; });
   return results;
 }
 
@@ -298,15 +305,14 @@ async function exportForClaude() {
 
   const today = getTodayPDT();
   const bpDates = [getPDTDate(-1), getPDTDate(-2), getPDTDate(-3)];
+  let oddsData = null, historyData = null, startersData = [], bullpenData = null, scheduleData = null;
 
-  let oddsData = null, historyData = null, startersData = null, bullpenData = null, scheduleData = null;
-
-  // 1. Odds + GS line
+  // 1. Odds
   setProgress('odds', 'Odds + GS line...', 'loading');
   try {
     const r = await fetch('/api/odds');
     oddsData = await r.json();
-    setProgress('odds', `Odds — ${(oddsData.games || []).length} games loaded`, 'done');
+    setProgress('odds', 'Odds — ' + (oddsData.games || []).length + ' games', 'done');
   } catch(e) { setProgress('odds', 'Odds — failed', 'fail'); }
 
   // 2. History
@@ -314,172 +320,188 @@ async function exportForClaude() {
   try {
     const r = await fetch('/api/history');
     historyData = await r.json();
-    setProgress('history', `History — ${historyData.length} records`, 'done');
+    setProgress('history', 'History — ' + historyData.length + ' records', 'done');
   } catch(e) { setProgress('history', 'History — failed', 'fail'); }
 
-  // 3. Probable starters + schedule from MLB Stats API
-  setProgress('starters', 'Probable starters (MLB API)...', 'loading');
+  // 3. Schedule (simple — just teams + probable pitcher IDs)
+  setProgress('starters', 'Schedule + starters...', 'loading');
   try {
-    const r = await fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}&hydrate=probablePitcher(note,stats(group=[pitching],type=[season])),linescore`);
+    const r = await fetch('https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=' + today + '&hydrate=probablePitcher');
     scheduleData = await r.json();
-    const games = scheduleData.dates?.[0]?.games || [];
-    const starters = [];
+    const games = (scheduleData.dates && scheduleData.dates[0]) ? scheduleData.dates[0].games : [];
+
+    // Collect pitcher IDs
+    const pitcherIds = [];
+    const pitcherMeta = {};
     for (const g of games) {
       for (const side of ['away', 'home']) {
         const p = g.teams[side].probablePitcher;
-        if (p) {
-          const s = p.stats?.find(st => st.type?.displayName === 'statsSingleSeason')?.stats || {};
-          starters.push({
-            name: p.fullName,
-            team: g.teams[side].team.abbreviation,
-            opponent: g.teams[side === 'away' ? 'home' : 'away'].team.abbreviation,
-            side,
-            era: s.era || '—',
-            whip: s.whip || '—',
-            ip: s.inningsPitched || '—',
-            k9: s.strikeoutsPer9Inn || '—',
-            wins: s.wins || 0,
-            losses: s.losses || 0,
-          });
+        if (p && p.id) {
+          if (!pitcherMeta[p.id]) {
+            pitcherIds.push(p.id);
+            pitcherMeta[p.id] = {
+              name: p.fullName || ('ID ' + p.id),
+              team: g.teams[side].team.abbreviation,
+              opponent: g.teams[side === 'away' ? 'home' : 'away'].team.abbreviation,
+              side: side
+            };
+          }
         }
       }
     }
-    startersData = starters;
-    setProgress('starters', `Starters — ${starters.length} pitchers`, 'done');
-  } catch(e) { setProgress('starters', 'Starters — failed', 'fail'); }
 
-  // 4. Bullpen (last 3 days)
+    // Fetch season stats for all pitchers in one call
+    const statsMap = {};
+    if (pitcherIds.length > 0) {
+      try {
+        const sr = await fetch('https://statsapi.mlb.com/api/v1/people?personIds=' + pitcherIds.join(',') + '&hydrate=stats(group=[pitching],type=[season],season=2026)');
+        const sd = await sr.json();
+        for (const person of (sd.people || [])) {
+          const splits = (person.stats || []).find(function(s) { return s.group && s.group.displayName === 'pitching'; });
+          const stat = (splits && splits.splits && splits.splits[0]) ? splits.splits[0].stat : {};
+          statsMap[person.id] = {
+            era: stat.era || '—',
+            whip: stat.whip || '—',
+            ip: stat.inningsPitched || '—',
+            k9: stat.strikeoutsPer9Inn || '—',
+            wins: stat.wins !== undefined ? stat.wins : 0,
+            losses: stat.losses !== undefined ? stat.losses : 0
+          };
+        }
+      } catch(e) {}
+    }
+
+    // Build startersData
+    for (const id of pitcherIds) {
+      const meta = pitcherMeta[id];
+      const s = statsMap[id] || { era: '—', whip: '—', ip: '—', k9: '—', wins: 0, losses: 0 };
+      startersData.push(Object.assign({}, meta, s));
+    }
+    setProgress('starters', 'Starters — ' + startersData.length + ' pitchers', 'done');
+  } catch(e) { setProgress('starters', 'Starters — failed: ' + e.message, 'fail'); }
+
+  // 4. Bullpen
   setProgress('bullpen', 'Bullpen usage (3 days)...', 'loading');
   try {
     bullpenData = await fetchBullpenData(bpDates);
-    setProgress('bullpen', `Bullpen — ${bullpenData.length} teams`, 'done');
+    setProgress('bullpen', 'Bullpen — ' + bullpenData.length + ' teams', 'done');
   } catch(e) { setProgress('bullpen', 'Bullpen — failed', 'fail'); }
 
-  // ── BUILD TEXT OUTPUT ───────────────────────────────────────────────────────
-  const lines = [];
-  const todayRec = historyData?.find(r => r.date === today) || {};
+  // ── BUILD OUTPUT ────────────────────────────────────────────────────────────
+  const out = [];
+  const todayRec = (historyData || []).find(function(r) { return r.date === today; }) || {};
   const pregameLines = todayRec.pregameLines || {};
-  const schedGames = scheduleData?.dates?.[0]?.games || [];
+  const schedGames = (scheduleData && scheduleData.dates && scheduleData.dates[0]) ? scheduleData.dates[0].games : [];
 
-  lines.push(`=== GST MORNING EXPORT — ${today} ===`);
-  lines.push(`Generated: ${new Date().toLocaleTimeString()}`);
-  lines.push('');
+  out.push('=== GST MORNING EXPORT — ' + today + ' ===');
+  out.push('Generated: ' + new Date().toLocaleTimeString());
+  out.push('');
 
-  // Today summary
-  lines.push('--- TODAY\'S RECORD ---');
-  lines.push(`Date: ${today}`);
-  lines.push(`Games on Slate: ${todayRec.gamesOnSlate || schedGames.length || (oddsData?.games?.length) || '?'}`);
-  lines.push(`Naive Total (line sum): ${todayRec.naiveTotal || '?'}`);
-  lines.push(`Grand Salami Line: ${todayRec.grandSalamLine || 'NOT SET'}`);
+  out.push("--- TODAY'S RECORD ---");
+  out.push('Date: ' + today);
+  out.push('Games on Slate: ' + (todayRec.gamesOnSlate || schedGames.length || (oddsData && oddsData.games ? oddsData.games.length : '?')));
+  out.push('Naive Total (line sum): ' + (todayRec.naiveTotal || '?'));
+  out.push('Grand Salami Line: ' + (todayRec.grandSalamLine || 'NOT SET'));
   if (todayRec.grandSalamLine) {
-    lines.push(`GS Over Price: ${todayRec.gsOverPrice || '?'}`);
-    lines.push(`GS Under Price: ${todayRec.gsUnderPrice || '?'}`);
-    lines.push(`GS Book: ${todayRec.gsBook || '?'}`);
+    out.push('GS Over Price: ' + (todayRec.gsOverPrice || '?'));
+    out.push('GS Under Price: ' + (todayRec.gsUnderPrice || '?'));
+    out.push('GS Book: ' + (todayRec.gsBook || '?'));
   }
-  lines.push(`Today's Pick: ${todayRec.todayPick || 'NONE'}`);
-  lines.push(`Units: ${todayRec.units != null ? todayRec.units : '?'}`);
-  lines.push('');
+  out.push("Today's Pick: " + (todayRec.todayPick || 'NONE'));
+  out.push('Units: ' + (todayRec.units != null ? todayRec.units : '?'));
+  out.push('');
 
-  // Build odds lookup keyed by last word of team name (lowercase) for matching
+  // Build odds lookup keyed by "awayLastWord-homeLastWord" lowercase
   const oddsLookup = {};
-  for (const g of (oddsData?.games || [])) {
-    const hk = g.home_team.split(' ').pop().toLowerCase();
+  for (const g of ((oddsData && oddsData.games) ? oddsData.games : [])) {
     const ak = g.away_team.split(' ').pop().toLowerCase();
-    const key = `${ak}-${hk}`;
-    const bk = (g.bookmakers || []).find(b => b.key === 'draftkings') || (g.bookmakers || [])[0];
-    const mkt = bk?.markets?.find(m => m.key === 'totals');
-    const ov = mkt?.outcomes?.find(o => o.name === 'Over');
-    const un = mkt?.outcomes?.find(o => o.name === 'Under');
-    if (ov) oddsLookup[key] = { line: ov.point, overPrice: ov.price, underPrice: un?.price, book: bk.title };
+    const hk = g.home_team.split(' ').pop().toLowerCase();
+    const key = ak + '-' + hk;
+    const bk = (g.bookmakers || []).find(function(b) { return b.key === 'draftkings'; }) || (g.bookmakers || [])[0];
+    const mkt = bk && bk.markets ? bk.markets.find(function(m) { return m.key === 'totals'; }) : null;
+    const ov = mkt ? mkt.outcomes.find(function(o) { return o.name === 'Over'; }) : null;
+    const un = mkt ? mkt.outcomes.find(function(o) { return o.name === 'Under'; }) : null;
+    if (ov) oddsLookup[key] = { line: ov.point, op: ov.price, up: un ? un.price : null };
   }
 
-  // Game lines — drive off schedGames for proper abbreviations, cross-ref oddsLookup
-  lines.push('--- GAME LINES (DraftKings) ---');
+  // Game lines — drive off schedGames for proper abbreviations
+  out.push('--- GAME LINES (DraftKings) ---');
   if (schedGames.length) {
     for (const g of schedGames) {
       const away = g.teams.away.team.abbreviation;
       const home = g.teams.home.team.abbreviation;
-      const awayName = g.teams.away.team.name || '';
-      const homeName = g.teams.home.team.name || '';
-      const ak = awayName.split(' ').pop().toLowerCase();
-      const hk = homeName.split(' ').pop().toLowerCase();
-      const oddsKey = `${ak}-${hk}`;
+      const awayName = (g.teams.away.team.name || '').split(' ').pop().toLowerCase();
+      const homeName = (g.teams.home.team.name || '').split(' ').pop().toLowerCase();
+      const oddsKey = awayName + '-' + homeName;
       const pl = pregameLines[oddsKey];
       const od = oddsLookup[oddsKey];
-      const lineStr = od
-        ? `O/U ${od.line} (O${od.overPrice > 0 ? '+' : ''}${od.overPrice} / U${od.underPrice > 0 ? '+' : ''}${od.underPrice})`
-        : (pl ? `O/U ${pl.line} (pregame)` : 'no line');
-      const openStr = pl && od && od.line !== pl.line ? ` | Open: ${pl.line}` : (pl && !od ? '' : (pl ? ` | Open: ${pl.line}` : ''));
-      lines.push(`${away} @ ${home}: ${lineStr}${openStr}`);
-    }
-  } else if (Object.keys(pregameLines).length) {
-    lines.push('(No schedule data — using pregame lines from blob)');
-    for (const [key, val] of Object.entries(pregameLines)) {
-      lines.push(`${key}: O/U ${val.line} (O${val.overPrice} / U${val.underPrice})`);
+      let lineStr = 'no line';
+      if (od) {
+        const op = od.op > 0 ? '+' + od.op : od.op;
+        const up = od.up > 0 ? '+' + od.up : od.up;
+        lineStr = 'O/U ' + od.line + ' (O' + op + ' / U' + up + ')';
+      } else if (pl) {
+        lineStr = 'O/U ' + pl.line + ' (pregame only)';
+      }
+      const openStr = (pl && od && od.line !== pl.line) ? ' | Open: ' + pl.line : (pl && !od ? '' : (pl ? ' | Open: ' + pl.line : ''));
+      out.push(away + ' @ ' + home + ': ' + lineStr + openStr);
     }
   } else {
-    lines.push('No lines available');
+    out.push('No schedule data available');
   }
-  lines.push('');
+  out.push('');
 
-  // Starters — drive off schedGames, match startersData by team abbreviation
-  lines.push('--- PROBABLE STARTERS (2026 Season Stats) ---');
+  // Starters
+  out.push('--- PROBABLE STARTERS (2026 Season Stats) ---');
   if (schedGames.length) {
     for (const g of schedGames) {
       const away = g.teams.away.team.abbreviation;
       const home = g.teams.home.team.abbreviation;
-      // Get probable pitcher directly from schedule response (most reliable)
-      const awayProb = g.teams.away.probablePitcher;
-      const homeProb = g.teams.home.probablePitcher;
-      // Also check startersData as fallback
-      const awayP = startersData?.find(s => s.team === away && s.side === 'away');
-      const homeP = startersData?.find(s => s.team === home && s.side === 'home');
-      lines.push(`${away} @ ${home}:`);
-      if (awayP) lines.push(`  ${away}: ${awayP.name} | ERA ${awayP.era} | WHIP ${awayP.whip} | IP ${awayP.ip} | K/9 ${awayP.k9} | ${awayP.wins}-${awayP.losses}`);
-      else if (awayProb) lines.push(`  ${away}: ${awayProb.fullName} | (no season stats yet)`);
-      else lines.push(`  ${away}: TBD`);
-      if (homeP) lines.push(`  ${home}: ${homeP.name} | ERA ${homeP.era} | WHIP ${homeP.whip} | IP ${homeP.ip} | K/9 ${homeP.k9} | ${homeP.wins}-${homeP.losses}`);
-      else if (homeProb) lines.push(`  ${home}: ${homeProb.fullName} | (no season stats yet)`);
-      else lines.push(`  ${home}: TBD`);
+      out.push(away + ' @ ' + home + ':');
+      const awayP = startersData.find(function(s) { return s.team === away && s.side === 'away'; });
+      const homeP = startersData.find(function(s) { return s.team === home && s.side === 'home'; });
+      if (awayP) out.push('  ' + away + ': ' + awayP.name + ' | ERA ' + awayP.era + ' | WHIP ' + awayP.whip + ' | IP ' + awayP.ip + ' | K/9 ' + awayP.k9 + ' | ' + awayP.wins + '-' + awayP.losses);
+      else out.push('  ' + away + ': TBD');
+      if (homeP) out.push('  ' + home + ': ' + homeP.name + ' | ERA ' + homeP.era + ' | WHIP ' + homeP.whip + ' | IP ' + homeP.ip + ' | K/9 ' + homeP.k9 + ' | ' + homeP.wins + '-' + homeP.losses);
+      else out.push('  ' + home + ': TBD');
     }
   } else {
-    lines.push('Starters unavailable');
+    out.push('Schedule unavailable');
   }
-  lines.push('');
+  out.push('');
 
   // Bullpen
-  lines.push('--- BULLPEN FATIGUE (Weighted 3-Day) ---');
-  lines.push(`Weights: 70% ${bpDates[0]} / 18% ${bpDates[1]} / 12% ${bpDates[2]}`);
-  if (bullpenData?.length) {
+  out.push('--- BULLPEN FATIGUE (Weighted 3-Day) ---');
+  out.push('Weights: 70% ' + bpDates[0] + ' / 18% ' + bpDates[1] + ' / 12% ' + bpDates[2]);
+  if (bullpenData && bullpenData.length) {
     for (const b of bullpenData) {
-      lines.push(`${b.abbr}: ${b.weightedIp} IP — ${b.tier} | Days: ${b.dayIp.join(' / ')}`);
+      out.push(b.abbr + ': ' + b.weightedIp + ' IP — ' + b.tier + ' | Days: ' + b.dayIp.join(' / '));
     }
   } else {
-    lines.push('Bullpen data unavailable');
+    out.push('Bullpen data unavailable');
   }
-  lines.push('');
+  out.push('');
 
-  // History (last 10)
-  lines.push('--- RECENT HISTORY (Last 10) ---');
+  // History
+  out.push('--- RECENT HISTORY (Last 10) ---');
   const recent = (historyData || []).slice(0, 10);
   if (recent.length) {
     for (const r of recent) {
-      const rawGap = r.actualRuns != null && r.grandSalamLine ? r.actualRuns - r.grandSalamLine : null;
-      const gap = rawGap !== null ? (rawGap > 0 ? '+' : '') + rawGap.toFixed(1) : '?';
-      lines.push(`${r.date}: GS ${r.grandSalamLine || '?'} | Naive ${r.naiveTotal || '?'} | Actual ${r.actualRuns ?? '?'} | Gap ${gap} | ${(r.result || 'pending').toUpperCase()} | Pick: ${r.todayPick || '-'} | Units: ${r.units != null ? r.units : '-'}`);
+      const rawGap = (r.actualRuns != null && r.grandSalamLine) ? r.actualRuns - r.grandSalamLine : null;
+      const gap = rawGap !== null ? (rawGap >= 0 ? '+' : '') + rawGap.toFixed(1) : '?';
+      out.push(r.date + ': GS ' + (r.grandSalamLine || '?') + ' | Naive ' + (r.naiveTotal || '?') + ' | Actual ' + (r.actualRuns != null ? r.actualRuns : '?') + ' | Gap ' + gap + ' | ' + (r.result || 'pending').toUpperCase() + ' | Pick: ' + (r.todayPick || '-') + ' | Units: ' + (r.units != null ? r.units : '-'));
     }
   } else {
-    lines.push('No history yet');
+    out.push('No history yet');
   }
-  lines.push('');
-  lines.push('=== END EXPORT ===');
+  out.push('');
+  out.push('=== END EXPORT ===');
 
-  const output = lines.join('\n');
+  const output = out.join('\n');
   document.getElementById('claude-output').value = output;
   document.getElementById('claude-output').style.display = 'block';
   document.getElementById('copy-btn').style.display = 'block';
 
-  // Auto-copy
   try {
     await navigator.clipboard.writeText(output);
     document.getElementById('export-status').textContent = '✓ Copied to clipboard — paste into Claude';
@@ -506,8 +528,6 @@ async function copyOutput() {
   }
 }
 
-// ── EXISTING FUNCTIONS ────────────────────────────────────────────────────────
-
 async function loadHistory() {
   try {
     const res = await fetch('/api/history');
@@ -515,6 +535,7 @@ async function loadHistory() {
     const today = getTodayPDT();
     const todayRecord = history.find(r => r.date === today);
 
+    // Update today status
     if (todayRecord) {
       const status = [];
       if (todayRecord.grandSalamLine) status.push(`GS: ${todayRecord.grandSalamLine}`);
@@ -522,6 +543,7 @@ async function loadHistory() {
       if (todayRecord.naiveTotal) status.push(`Naive: ${todayRecord.naiveTotal}`);
       document.getElementById('today-status').textContent = status.join(' · ') || 'No data yet';
 
+      // Pre-fill GS fields if already set
       if (todayRecord.grandSalamLine) {
         document.getElementById('gs-line').value = todayRecord.grandSalamLine;
         document.getElementById('gs-over').value = todayRecord.gsOverPrice || '';
@@ -543,6 +565,7 @@ async function loadHistory() {
       document.getElementById('today-status').textContent = 'No record yet — odds fetch will create one';
     }
 
+    // Render recent history
     const recent = history.slice(0, 7);
     document.getElementById('history-list').innerHTML = recent.map(r => {
       const resCls = r.result === 'over' ? 'over' : r.result === 'under' ? 'under' : 'pending';
@@ -623,6 +646,7 @@ async function saveResult() {
 
   if (!runs) { showToast('Enter actual runs', 'err'); return; }
   if (!['over','under','push'].includes(result)) {
+    // Auto-calculate from GS line
     const res = await fetch('/api/history');
     const history = await res.json();
     const record = history.find(r => r.date === resultDate);
