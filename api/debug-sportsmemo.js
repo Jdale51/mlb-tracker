@@ -1,5 +1,5 @@
 /**
- * Debug endpoint — inspects sportsmemo HTML structure
+ * Debug endpoint v2 — shows raw GS row HTML so we can see exact structure
  * Visit: /api/debug-sportsmemo
  * DELETE THIS FILE after debugging
  */
@@ -16,81 +16,50 @@ module.exports = async function handler(req, res) {
       }
     });
 
-    if (!response.ok) {
-      return res.status(200).json({ error: `Fetch failed: ${response.status}` });
-    }
-
     const html = await response.text();
 
-    // 1. Does GRAND SALAMI appear at all?
+    // Find GS section
     const gsIndex = html.search(/GRAND SALAMI/i);
-    const gsFound = gsIndex !== -1;
-
-    // 2. Does OVER RUNS appear?
-    const overRunsIndex = html.search(/OVER RUNS/i);
-    const overRunsFound = overRunsIndex !== -1;
-
-    // 3. Does UNDER RUNS appear?
-    const underRunsIndex = html.search(/UNDER RUNS/i);
-    const underRunsFound = underRunsIndex !== -1;
-
-    // 4. Grab 500 chars around the GS section so we can see the structure
-    const gsSnippet = gsFound
-      ? html.slice(gsIndex, gsIndex + 1000).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
-      : 'NOT FOUND';
-
-    // 5. Grab 500 chars around OVER RUNS row
-    const overSnippet = overRunsFound
-      ? html.slice(overRunsIndex - 200, overRunsIndex + 500).replace(/\s+/g, ' ')
-      : 'NOT FOUND';
-
-    // 6. Count total <tr> tags in the GS section
-    let trCount = 0;
-    if (gsFound) {
-      const gsHtml = html.slice(gsIndex, gsIndex + 3000);
-      const trMatches = gsHtml.match(/<tr/gi);
-      trCount = trMatches ? trMatches.length : 0;
+    if (gsIndex === -1) {
+      return res.status(200).json({ error: 'GRAND SALAMI not found' });
     }
 
-    // 7. Try to find the OVER RUNS row and count its cells
-    let cellCount = 0;
-    let cellValues = [];
-    if (overRunsFound) {
-      // Find the full <tr> containing OVER RUNS
-      const beforeOver = html.slice(0, overRunsIndex);
-      const trStart = beforeOver.lastIndexOf('<tr');
-      if (trStart !== -1) {
-        const trEnd = html.indexOf('</tr>', overRunsIndex);
-        if (trEnd !== -1) {
-          const rowHtml = html.slice(trStart, trEnd + 5);
-          const tdMatches = rowHtml.match(/<td[^>]*>([\s\S]*?)<\/td>/gi);
-          if (tdMatches) {
-            cellCount = tdMatches.length;
-            cellValues = tdMatches.map(td =>
-              td.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim()
-            );
-          }
-        }
+    const gsHtml = html.slice(gsIndex, gsIndex + 5000);
+
+    // Find the row with OVER RUNS
+    const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+    let gsRow = null;
+    let match;
+    while ((match = rowRegex.exec(gsHtml)) !== null) {
+      if (match[0].includes('OVER RUNS')) {
+        gsRow = match[0];
+        break;
       }
     }
 
-    // 8. Check if page requires JS (common issue with dynamic sites)
-    const requiresJs = html.includes('You need to enable JavaScript') ||
-                       html.includes('enable JavaScript') ||
-                       html.length < 5000;
+    if (!gsRow) {
+      // Return raw GS section so we can see what's there
+      return res.status(200).json({
+        error: 'OVER RUNS row not found in GS section',
+        rawGsSection: gsHtml.slice(0, 2000),
+      });
+    }
+
+    // Return the raw row HTML + all td/th content
+    const tdMatches = [...gsRow.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)];
+    const cells = tdMatches.map((m, i) => ({
+      index: i,
+      tag: m[0].slice(0, 50), // opening tag
+      rawHtml: m[1].slice(0, 200), // inner HTML
+      textContent: m[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+    }));
 
     return res.status(200).json({
-      htmlLength: html.length,
-      requiresJs,
-      gsFound,
-      gsIndex,
-      overRunsFound,
-      underRunsFound,
-      gsSnippet,
-      overSnippet: overRunsFound ? overSnippet : 'NOT FOUND',
-      trCountInGsSection: trCount,
-      overRunsCellCount: cellCount,
-      overRunsCellValues: cellValues,
+      rowFound: true,
+      rowLength: gsRow.length,
+      cellCount: cells.length,
+      rawRowStart: gsRow.slice(0, 500), // first 500 chars of row
+      cells,
     });
 
   } catch(e) {
