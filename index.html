@@ -395,14 +395,9 @@ async function fetchPitcherStats(id) {
     const l5H     = startSplits.reduce((sum, sp) => sum + (sp.stat?.hits || 0), 0);
     const l5BB    = startSplits.reduce((sum, sp) => sum + (sp.stat?.baseOnBalls || 0), 0);
     const l5AB    = startSplits.reduce((sum, sp) => sum + (sp.stat?.atBats || 0), 0);
-    // W-L: splits are cumulative totals so diff consecutive to find per-game decisions
-    let l5W = 0, l5L = 0;
-    for (let i = 0; i < startSplits.length; i++) {
-      const cur = startSplits[i].stat || {};
-      const prev = i > 0 ? (startSplits[i-1].stat || {}) : { wins: 0, losses: 0 };
-      if ((cur.wins || 0) > (prev.wins || 0)) l5W++;
-      if ((cur.losses || 0) > (prev.losses || 0)) l5L++;
-    }
+    // W-L: lastXGames splits are per-game (not cumulative) — sum directly
+    const l5W = startSplits.reduce((sum, sp) => sum + (sp.stat?.wins || 0), 0);
+    const l5L = startSplits.reduce((sum, sp) => sum + (sp.stat?.losses || 0), 0);
 
     const l5Era  = l5Outs > 0 ? ((l5ER * 27) / l5Outs).toFixed(2) : '—';
     const l5Whip = l5Outs > 0 ? ((l5H + l5BB) / (l5Outs / 3)).toFixed(2) : '—';
@@ -714,7 +709,7 @@ function renderHistory(records){
     <tbody>${rows}</tbody>
     <tfoot><tr style="border-top:2px solid var(--border);">
       <td colspan="7"></td>
-      <td style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:15px;padding-top:8px;"><span style="color:var(--green)">${correctPicks}</span><span style="color:var(--muted)"> - </span><span style="color:var(--blue)">${totalPicks - correctPicks}</span></td>
+      <td style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:15px;padding-top:8px;"><span style="color:var(--green)">${correctPicks}</span><span style="color:var(--muted)"> / </span><span style="color:var(--blue)">${totalPicks}</span></td>
       <td style="${netColor};font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:15px;padding-top:8px;">${netUnits>0?'+':''}${netUnits.toFixed(1)}u</td>
     </tr></tfoot>
   </table>`;
