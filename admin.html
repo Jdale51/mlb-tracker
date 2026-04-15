@@ -380,26 +380,40 @@ async function exportForClaude() {
   lines.push(`Units: ${todayRec.units != null ? todayRec.units : '?'}`);
   lines.push('');
 
-  // Game lines
+  // Build odds lookup keyed by last word of team name (lowercase) for matching
+  const oddsLookup = {};
+  for (const g of (oddsData?.games || [])) {
+    const hk = g.home_team.split(' ').pop().toLowerCase();
+    const ak = g.away_team.split(' ').pop().toLowerCase();
+    const key = `${ak}-${hk}`;
+    const bk = (g.bookmakers || []).find(b => b.key === 'draftkings') || (g.bookmakers || [])[0];
+    const mkt = bk?.markets?.find(m => m.key === 'totals');
+    const ov = mkt?.outcomes?.find(o => o.name === 'Over');
+    const un = mkt?.outcomes?.find(o => o.name === 'Under');
+    if (ov) oddsLookup[key] = { line: ov.point, overPrice: ov.price, underPrice: un?.price, book: bk.title };
+  }
+
+  // Game lines — drive off schedGames for proper abbreviations, cross-ref oddsLookup
   lines.push('--- GAME LINES (DraftKings) ---');
-  if (oddsData?.games?.length) {
-    for (const g of oddsData.games) {
-      const hk = g.home_team.split(' ').pop().toLowerCase();
-      const ak = g.away_team.split(' ').pop().toLowerCase();
-      const key = `${ak}-${hk}`;
-      const pl = pregameLines[key];
-      const bk = (g.bookmakers || []).find(b => b.key === 'draftkings') || (g.bookmakers || [])[0];
-      const mkt = bk?.markets?.find(m => m.key === 'totals');
-      const ov = mkt?.outcomes?.find(o => o.name === 'Over');
-      const un = mkt?.outcomes?.find(o => o.name === 'Under');
-      const awayAbbr = g.away_team.split(' ').pop().toUpperCase();
-      const homeAbbr = g.home_team.split(' ').pop().toUpperCase();
-      const lineStr = ov ? `O/U ${ov.point} (O${ov.price > 0 ? '+' : ''}${ov.price} / U${un?.price > 0 ? '+' : ''}${un?.price})` : 'no line';
-      const openStr = pl ? ` | Open: ${pl.line}` : '';
-      lines.push(`${awayAbbr} @ ${homeAbbr}: ${lineStr}${openStr}`);
+  if (schedGames.length) {
+    for (const g of schedGames) {
+      const away = g.teams.away.team.abbreviation;
+      const home = g.teams.home.team.abbreviation;
+      const awayName = g.teams.away.team.name || '';
+      const homeName = g.teams.home.team.name || '';
+      const ak = awayName.split(' ').pop().toLowerCase();
+      const hk = homeName.split(' ').pop().toLowerCase();
+      const oddsKey = `${ak}-${hk}`;
+      const pl = pregameLines[oddsKey];
+      const od = oddsLookup[oddsKey];
+      const lineStr = od
+        ? `O/U ${od.line} (O${od.overPrice > 0 ? '+' : ''}${od.overPrice} / U${od.underPrice > 0 ? '+' : ''}${od.underPrice})`
+        : (pl ? `O/U ${pl.line} (pregame)` : 'no line');
+      const openStr = pl && od && od.line !== pl.line ? ` | Open: ${pl.line}` : (pl && !od ? '' : (pl ? ` | Open: ${pl.line}` : ''));
+      lines.push(`${away} @ ${home}: ${lineStr}${openStr}`);
     }
   } else if (Object.keys(pregameLines).length) {
-    lines.push('(No live odds — using pregame lines)');
+    lines.push('(No schedule data — using pregame lines from blob)');
     for (const [key, val] of Object.entries(pregameLines)) {
       lines.push(`${key}: O/U ${val.line} (O${val.overPrice} / U${val.underPrice})`);
     }
@@ -408,22 +422,24 @@ async function exportForClaude() {
   }
   lines.push('');
 
-  // Starters
+  // Starters — drive off schedGames, match startersData by team abbreviation
   lines.push('--- PROBABLE STARTERS (2026 Season Stats) ---');
-  if (startersData?.length && schedGames.length) {
-    const printed = new Set();
+  if (schedGames.length) {
     for (const g of schedGames) {
       const away = g.teams.away.team.abbreviation;
       const home = g.teams.home.team.abbreviation;
-      const gkey = `${away}@${home}`;
-      if (printed.has(gkey)) continue;
-      printed.add(gkey);
-      const awayP = startersData.find(s => s.team === away && s.side === 'away');
-      const homeP = startersData.find(s => s.team === home && s.side === 'home');
+      // Get probable pitcher directly from schedule response (most reliable)
+      const awayProb = g.teams.away.probablePitcher;
+      const homeProb = g.teams.home.probablePitcher;
+      // Also check startersData as fallback
+      const awayP = startersData?.find(s => s.team === away && s.side === 'away');
+      const homeP = startersData?.find(s => s.team === home && s.side === 'home');
       lines.push(`${away} @ ${home}:`);
       if (awayP) lines.push(`  ${away}: ${awayP.name} | ERA ${awayP.era} | WHIP ${awayP.whip} | IP ${awayP.ip} | K/9 ${awayP.k9} | ${awayP.wins}-${awayP.losses}`);
+      else if (awayProb) lines.push(`  ${away}: ${awayProb.fullName} | (no season stats yet)`);
       else lines.push(`  ${away}: TBD`);
       if (homeP) lines.push(`  ${home}: ${homeP.name} | ERA ${homeP.era} | WHIP ${homeP.whip} | IP ${homeP.ip} | K/9 ${homeP.k9} | ${homeP.wins}-${homeP.losses}`);
+      else if (homeProb) lines.push(`  ${home}: ${homeProb.fullName} | (no season stats yet)`);
       else lines.push(`  ${home}: TBD`);
     }
   } else {
