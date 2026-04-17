@@ -2241,16 +2241,44 @@ async function loadOutlierHistory() {
           pick_result: pickResult,
         });
 
-        return `<div style="${rowStyle}border-radius:6px;padding:6px 8px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
-          <div>
-            <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;">${gs.away} @ ${gs.home}</span>
-            ${gs.ou ? `<span style="font-size:10px;color:var(--muted);margin-left:4px;">O/U ${gs.ou}</span>` : ''}
-            ${scoreStr}
+        // Component breakdown — only if beta scored this game
+        const hasBreakdown = betaScore != null;
+        const breakdownId = `gbrk-${idx}-${key.replace(/[^a-zA-Z0-9]/g,'')}`;
+        const cell = (label, val) => {
+          const color = val > 0 ? 'var(--green)' : val < 0 ? 'var(--blue)' : 'var(--text)';
+          const sign = val > 0 ? '+' : '';
+          return `<div style="text-align:center;">
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">${label}</div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:${color};">${sign}${val ?? 0}</div>
+          </div>`;
+        };
+        const breakdownHtml = hasBreakdown ? `
+          <div id="${breakdownId}" style="display:none;padding:8px 10px 4px 10px;border-top:1px solid var(--border);margin-top:6px;">
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;">
+              ${cell('Park/Wx', betaScore.s1)}
+              ${cell('Starters', betaScore.s2)}
+              ${cell('Bullpen', betaScore.s3)}
+              ${cell('Lineups', betaScore.s4)}
+              ${cell('Total', betaScore.total)}
+            </div>
+          </div>` : '';
+        const rowAttrs = hasBreakdown
+          ? ` onclick="toggleGameRow('${breakdownId}')" style="${rowStyle}border-radius:6px;padding:6px 8px;margin-bottom:4px;cursor:pointer;"`
+          : ` style="${rowStyle}border-radius:6px;padding:6px 8px;margin-bottom:4px;"`;
+
+        return `<div${rowAttrs}>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;">${gs.away} @ ${gs.home}</span>
+              ${gs.ou ? `<span style="font-size:10px;color:var(--muted);margin-left:4px;">O/U ${gs.ou}</span>` : ''}
+              ${scoreStr}
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              ${badge}
+              <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;">${resultEmoji} ${gs.total} runs</span>
+            </div>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;">
-            ${badge}
-            <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;">${resultEmoji} ${gs.total} runs</span>
-          </div>
+          ${breakdownHtml}
         </div>`;
       }).join('');
 
@@ -2331,6 +2359,13 @@ async function loadOutlierHistory() {
 
 function toggleOutlierRow(idx) {
   const el = document.getElementById(`outlier-row-${idx}`);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function toggleGameRow(id) {
+  // Stop the click from bubbling up and collapsing the parent slate panel
+  if (window.event) window.event.stopPropagation();
+  const el = document.getElementById(id);
   if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 
