@@ -658,6 +658,14 @@ function renderGames(gs, id, live){
     const sl=g.status==='final'?'Final':g.status==='live'?'● Live':'Upcoming';
     const inn=g.status==='live'&&g.inning?`<span class="inn">${g.inning}</span>`:'';
 
+    // Outlier emoji on opening line (uses BP park data if available) — must be before openLineHtml
+    const bpAdj = parkWeatherData[`${g.away}@${g.home}`] ?? null;
+    let outlierEmoji = '';
+    if (bpAdj != null) {
+      if (bpAdj >= 0.75) outlierEmoji = ' 🔥';
+      else if (bpAdj <= -0.75) outlierEmoji = ' ❄️';
+    }
+
     // Open O/U — left-anchored after status badge, never overlaps inning
     const openLineHtml = gradeLine
       ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--muted);margin-left:6px;">Open: O/U ${gradeLine}${outlierEmoji}</span>`
@@ -676,14 +684,6 @@ function renderGames(gs, id, live){
       const badge = tierBadge(pitcher.name);
       const trend = cached?.trending === 'up' ? ' 📈' : cached?.trending === 'down' ? ' 📉' : '';
       return `<div class="tpitcher" style="text-align:${align};">${badge}${pitcher.name}${trend}${statStr}</div>`;
-    }
-
-    // Outlier emoji on opening line (uses BP park data if available)
-    const bpAdj = (typeof parkWeatherData !== 'undefined') ? parkWeatherData[`${g.away}@${g.home}`] : null;
-    let outlierEmoji = '';
-    if (bpAdj != null) {
-      if (bpAdj >= 0.75) outlierEmoji = ' 🔥';
-      else if (bpAdj <= -0.75) outlierEmoji = ' ❄️';
     }
 
     return `<div class="game">
