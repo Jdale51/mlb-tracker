@@ -130,6 +130,10 @@
   .sp-era-mid{color:var(--accent);}
   .sp-era-bad{color:var(--red);}
   .sp-divider-col{border-left:2px solid rgba(255,255,255,0.15) !important;}
+  /* Tier badges */
+  .tier-badge{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:900;padding:1px 4px;border-radius:3px;margin-right:4px;letter-spacing:0.5px;vertical-align:middle;}
+  .tier-badge.t1{background:rgba(212,175,55,0.15);color:#D4AF37;border:1px solid rgba(212,175,55,0.4);}
+  .tier-badge.t2{background:rgba(192,192,192,0.15);color:#C0C0C0;border:1px solid rgba(192,192,192,0.4);}
 </style>
 <script defer src="/_vercel/insights/script.js"></script>
 </head>
@@ -242,6 +246,8 @@ let yestGames = [];
 let sCD = SCORES_MS/1000;
 let oCD = getOddsInterval()/1000;
 let timer = null;
+let aceTiers = {};      // { "Pitcher Name": "tier1" | "tier2" | "default" }
+let lineupProfiles = {}; // { "NYY": "power_boom_bust" | "balanced" | "contact" }
 
 const ABBR = {
   'New York Yankees':'NYY','San Francisco Giants':'SF','Athletics':'ATH','Oakland Athletics':'ATH',
@@ -257,6 +263,28 @@ const ABBR = {
 };
 
 function ta(name){ return ABBR[name] || name.split(' ').pop().slice(0,3).toUpperCase(); }
+
+// Tier badge helper — returns HTML for T1/T2 badge or empty string
+function tierBadge(pitcherName) {
+  if (!pitcherName) return '';
+  const tier = aceTiers[pitcherName];
+  if (tier === 'tier1') return '<span class="tier-badge t1">T1</span>';
+  if (tier === 'tier2') return '<span class="tier-badge t2">T2</span>';
+  return '';
+}
+
+async function fetchTiers() {
+  try {
+    const res = await fetch('/api/tiers');
+    if (!res.ok) return;
+    const data = await res.json();
+    aceTiers = data.aces?.pitchers || {};
+    lineupProfiles = data.lineups?.profiles || {};
+    console.log(`[Tiers] ${Object.keys(aceTiers).length} pitchers, ${Object.keys(lineupProfiles).length} lineups`);
+  } catch(e) {
+    console.error('fetchTiers error:', e);
+  }
+}
 
 // Get the pregame line key for a game (matches blob format)
 function gameKey(g) {
@@ -395,14 +423,20 @@ async function fetchPitcherStats(id) {
     const l5H     = startSplits.reduce((sum, sp) => sum + (sp.stat?.hits || 0), 0);
     const l5BB    = startSplits.reduce((sum, sp) => sum + (sp.stat?.baseOnBalls || 0), 0);
     const l5AB    = startSplits.reduce((sum, sp) => sum + (sp.stat?.atBats || 0), 0);
-    // W-L: lastXGames splits are cumulative — last split has the total
-    const lastSplit = startSplits[startSplits.length - 1]?.stat || {};
-    const l5W = lastSplit.wins || 0;
-    const l5L = lastSplit.losses || 0;
+    const l5HR    = startSplits.reduce((sum, sp) => sum + (sp.stat?.homeRuns || 0), 0);
+    // W-L: splits are cumulative totals so diff consecutive to find per-game decisions
+    let l5W = 0, l5L = 0;
+    for (let i = 0; i < startSplits.length; i++) {
+      const cur = startSplits[i].stat || {};
+      const prev = i > 0 ? (startSplits[i-1].stat || {}) : { wins: 0, losses: 0 };
+      if ((cur.wins || 0) > (prev.wins || 0)) l5W++;
+      if ((cur.losses || 0) > (prev.losses || 0)) l5L++;
+    }
 
     const l5Era  = l5Outs > 0 ? ((l5ER * 27) / l5Outs).toFixed(2) : '—';
     const l5Whip = l5Outs > 0 ? ((l5H + l5BB) / (l5Outs / 3)).toFixed(2) : '—';
     const l5K9   = l5Outs > 0 ? ((l5K * 27) / l5Outs).toFixed(1) : '—';
+    const l5Hr9  = l5Outs > 0 ? ((l5HR * 27) / l5Outs).toFixed(2) : '—';
     const l5Baa  = l5AB > 0 ? (l5H / l5AB).toFixed(3) : '—';
     const l5Wl   = startSplits.length > 0 ? `${l5W}-${l5L}` : '—';
 
@@ -413,10 +447,11 @@ async function fetchPitcherStats(id) {
       era:   s.era ?? '—',
       whip:  s.whip ?? '—',
       k9:    s.strikeoutsPer9Inn ?? '—',
+      hr9:   s.homeRunsPer9 ?? '—',
       baa,
       wins:   s.wins ?? 0,
       losses: s.losses ?? 0,
-      l5Era, l5Whip, l5K9, l5Baa, l5Wl,
+      l5Era, l5Whip, l5K9, l5Hr9, l5Baa, l5Wl,
     };
 
     pitcherStatsCache[id] = result;
@@ -615,7 +650,8 @@ function renderGames(gs, id, live){
         const wl = `${cached.wins}-${cached.losses}`;
         statStr = `<span style="color:var(--muted);padding-left:4px;">(${era}, ${wl})</span>`;
       }
-      return `<div class="tpitcher" style="text-align:${align};">${pitcher.name}${statStr}</div>`;
+      const badge = tierBadge(pitcher.name);
+      return `<div class="tpitcher" style="text-align:${align};">${badge}${pitcher.name}${statStr}</div>`;
     }
 
     return `<div class="game">
@@ -710,7 +746,7 @@ function renderHistory(records){
     <tbody>${rows}</tbody>
     <tfoot><tr style="border-top:2px solid var(--border);">
       <td colspan="7"></td>
-      <td style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:15px;padding-top:8px;"><span style="color:var(--green)">${correctPicks}</span><span style="color:var(--muted)"> - </span><span style="color:var(--blue)">${totalPicks - correctPicks}</span></td>
+      <td style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:15px;padding-top:8px;"><span style="color:var(--green)">${correctPicks}</span><span style="color:var(--muted)"> / </span><span style="color:var(--blue)">${totalPicks}</span></td>
       <td style="${netColor};font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:15px;padding-top:8px;">${netUnits>0?'+':''}${netUnits.toFixed(1)}u</td>
     </tr></tfoot>
   </table>`;
@@ -836,18 +872,21 @@ async function loadYesterday(){
 
 async function init(){
   renderGrandSalami();
-  // Step 1: Fetch pregame lines FIRST — must complete before any render
+  // Step 1: Fetch pregame lines and tiers FIRST — must complete before any render
   try {
-    const linesResp = await fetchPregameLines();
+    const [linesResp] = await Promise.all([
+      fetchPregameLines(),
+      fetchTiers(),
+    ]);
     pregameLines = linesResp.pregameLines || {};
     // Load pick and units early from lines response so they show on first load
     if (linesResp.todayPick) todayPick = linesResp.todayPick;
     if (linesResp.todayUnits != null) todayUnits = linesResp.todayUnits;
     console.log('Pregame lines loaded:', Object.keys(pregameLines).length, 'games');
   } catch(e) {
-    console.error('fetchPregameLines error:', e);
+    console.error('init preload error:', e);
   }
-  // Step 2: Now fetch scores and odds — pregameLines is ready for renderGames
+  // Step 2: Now fetch scores and odds — pregameLines + tiers ready for renderGames
   await Promise.all([
     refreshScores(),
     refreshOdds(),
@@ -908,7 +947,7 @@ function renderStartersTable() {
     const l5EraCls = eraColor(r.l5Era);
     return `<tr>
       <td>
-        <div class="sp-name">${r.name}</div>
+        <div class="sp-name">${tierBadge(r.name)}${r.name}</div>
         <div class="sp-team">${r.teamAbbr} vs ${r.oppAbbr}</div>
       </td>
       <td>${r.l5Wl}</td>
