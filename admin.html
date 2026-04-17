@@ -11,6 +11,7 @@
     --bg:#0A0D12;--surface:#12161E;--surface2:#1C2230;
     --border:rgba(255,255,255,0.07);--text:#F0F2F7;--muted:#6B7280;--accent:#F5C518;
     --purple:#B06AFF;--orange:#FF8C00;
+    --gold:#D4AF37;--silver:#C0C0C0;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
   body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;max-width:520px;margin:0 auto;padding:16px;}
@@ -67,18 +68,16 @@
   #claude-output{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:monospace;font-size:10px;resize:none;margin-top:10px;display:none;}
   #copy-btn{display:none;background:var(--surface2);color:var(--text);border:1px solid var(--orange);margin-top:8px;}
 
-  /* ── ADMIN TABS ── */
+  /* Admin tabs */
   .admin-tabs{display:flex;gap:2px;margin-bottom:16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;}
-  .admin-tab{flex:1;padding:9px 6px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:0.5px;border:none;background:transparent;color:var(--muted);border-radius:7px;cursor:pointer;transition:all 0.2s;}
+  .admin-tab{flex:1;padding:9px 4px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:0.5px;border:none;background:transparent;color:var(--muted);border-radius:7px;cursor:pointer;transition:all 0.2s;}
   .admin-tab.active{background:var(--surface2);color:var(--text);}
   .admin-tab-panel{display:none;}
   .admin-tab-panel.active{display:block;}
 
-  /* ── MODEL TAB ── */
+  /* GST Model tab */
   .model-header{background:linear-gradient(135deg,rgba(43,127,255,0.12),rgba(176,106,255,0.08));border:1px solid rgba(43,127,255,0.2);border-radius:12px;padding:16px;margin-bottom:16px;}
   .model-headline{font-family:'Barlow Condensed',sans-serif;font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--blue);margin-bottom:10px;}
-
-  /* Result card */
   .model-result{background:var(--surface);border:2px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px;transition:border-color 0.3s;}
   .model-result.bullish{border-color:rgba(0,196,106,0.5);}
   .model-result.bearish{border-color:rgba(43,127,255,0.5);}
@@ -93,8 +92,6 @@
   .result-signal.bear{color:var(--blue);}
   .result-signal.neut{color:var(--muted);}
   .result-edge{font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--muted);margin-top:2px;}
-
-  /* Breakdown table */
   .breakdown-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px;}
   .breakdown-table td{padding:5px 4px;border-bottom:1px solid var(--border);font-family:'Barlow Condensed',sans-serif;}
   .breakdown-table tr:last-child td{border-bottom:none;}
@@ -104,8 +101,6 @@
   .val-neg{color:var(--blue);}
   .val-neu{color:var(--text);}
   .val-total{color:var(--accent);font-size:16px;}
-
-  /* Game rows in model */
   .game-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;}
   .game-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
   .game-matchup{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--text);}
@@ -120,8 +115,6 @@
   .adj-pos{color:var(--green);}
   .adj-neg{color:var(--blue);}
   .adj-neu{color:var(--muted);}
-
-  /* Outlier flags */
   .outlier-section{margin-top:16px;}
   .outlier-title{font-family:'Barlow Condensed',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px;}
   .outlier-card{border-radius:8px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
@@ -133,19 +126,47 @@
   .outlier-badge{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;padding:3px 8px;border-radius:4px;}
   .badge-over{background:rgba(0,196,106,0.2);color:var(--green);}
   .badge-under{background:rgba(43,127,255,0.2);color:var(--blue);}
-
-  /* Slate inputs at top */
   .slate-input-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;}
   .slate-input-grid label{font-size:10px;color:var(--muted);display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:0.5px;}
   .slate-input-grid input,.slate-input-grid select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:14px;font-family:'Barlow Condensed',sans-serif;}
   .slate-input-grid input:focus,.slate-input-grid select:focus{outline:none;border-color:var(--accent);}
-
-  /* Separator */
   .section-sep{height:1px;background:var(--border);margin:14px 0;}
-
-  /* Spinner */
   .mini-spin{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin 0.7s linear infinite;display:inline-block;vertical-align:middle;margin-right:6px;}
   @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* Tiers tab */
+  .sub-tabs{display:flex;gap:1px;background:var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px;}
+  .sub-tab{flex:1;padding:10px;background:var(--surface2);border:none;color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:0.5px;cursor:pointer;}
+  .sub-tab.active{background:var(--purple);color:#fff;}
+  .pitcher-search{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:14px;margin-bottom:10px;}
+  .pitcher-search:focus{outline:none;border-color:var(--accent);}
+  .pitcher-list{max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:var(--surface2);}
+  .pitcher-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--border);font-size:13px;}
+  .pitcher-row:last-child{border-bottom:none;}
+  .pitcher-row-info{min-width:0;}
+  .pitcher-name{font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .pitcher-meta{font-size:10px;color:var(--muted);margin-top:1px;}
+  .tier-select{background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:5px 7px;color:var(--text);font-size:12px;cursor:pointer;font-family:'Barlow',sans-serif;}
+  .tier-select[data-tier="tier1"]{border-color:var(--gold);color:var(--gold);font-weight:700;}
+  .tier-select[data-tier="tier2"]{border-color:var(--silver);color:var(--silver);font-weight:700;}
+  .tier-count{font-size:11px;color:var(--muted);padding:6px 4px;}
+  .tier-count strong{color:var(--text);font-family:'Barlow Condensed',sans-serif;}
+  .gold{color:var(--gold);}
+  .silver{color:var(--silver);}
+  .sync-btn{background:transparent;border:1px solid var(--accent);color:var(--accent);padding:6px 12px;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:0.5px;cursor:pointer;margin-bottom:10px;}
+  .sync-btn:hover{background:rgba(245,197,24,0.1);}
+  .sync-btn:disabled{opacity:0.5;cursor:not-allowed;}
+  .lineup-buckets{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px;}
+  .lineup-bucket{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px;min-height:120px;}
+  .lineup-bucket-title{font-family:'Barlow Condensed',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;text-align:center;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+  .lineup-bucket-title.boom{color:var(--red);}
+  .lineup-bucket-title.bal{color:var(--accent);}
+  .lineup-bucket-title.contact{color:var(--blue);}
+  .team-chip{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;padding:3px 7px;margin:2px;border-radius:4px;background:var(--bg);color:var(--text);cursor:pointer;border:1px solid var(--border);user-select:none;}
+  .team-chip:hover{border-color:var(--accent);}
+  .team-chip.unassigned{opacity:0.5;background:transparent;}
+  .lineup-unassigned{background:var(--surface2);border:1px dashed var(--border);border-radius:8px;padding:8px;margin-top:8px;}
+  .lineup-unassigned-title{font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;}
 </style>
 </head>
 <body>
@@ -162,23 +183,21 @@
     <a href="/" class="back">← Tracker</a>
   </div>
 
-  <!-- Admin Tabs -->
   <div class="admin-tabs">
     <button class="admin-tab active" onclick="switchAdminTab('manage')">Manage</button>
-    <button class="admin-tab" onclick="switchAdminTab('model')">⚡ GST Model</button>
+    <button class="admin-tab" onclick="switchAdminTab('model')">⚡ Model</button>
+    <button class="admin-tab" onclick="switchAdminTab('tiers')">Tiers</button>
     <button class="admin-tab" onclick="switchAdminTab('export')">Export</button>
   </div>
 
-  <!-- ════════════════════════════════════════════ MANAGE TAB -->
+  <!-- ═════════════════════ MANAGE TAB ═════════════════════ -->
   <div id="tab-manage" class="admin-tab-panel active">
-
     <div class="card">
       <div class="card-title">Today's Slate</div>
       <div class="date-display" id="today-date">—</div>
       <div style="font-size:11px;color:var(--muted);" id="today-status">Loading...</div>
     </div>
 
-    <!-- Grand Salami -->
     <div class="card">
       <div class="card-title">Set Grand Salami Line</div>
       <div class="field">
@@ -206,7 +225,6 @@
       <button class="btn btn-primary" onclick="saveGrandSalami()">SAVE GRAND SALAMI</button>
     </div>
 
-    <!-- Today's Pick -->
     <div class="card">
       <div class="card-title">Today's Pick</div>
       <div class="row2">
@@ -216,7 +234,6 @@
       <div id="pick-status" style="text-align:center;font-size:12px;color:var(--muted);margin-top:8px;">No pick set</div>
     </div>
 
-    <!-- End of Day Result -->
     <div class="card">
       <div class="card-title">Save End of Day Result</div>
       <div class="row2" style="margin-bottom:10px;">
@@ -237,16 +254,14 @@
       <button class="btn btn-success" onclick="saveResult()">SAVE RESULT</button>
     </div>
 
-    <!-- History -->
     <div class="card">
       <div class="card-title">Recent History</div>
       <div id="history-list"><div style="color:var(--muted);font-size:13px;">Loading...</div></div>
     </div>
   </div>
 
-  <!-- ════════════════════════════════════════════ MODEL TAB -->
+  <!-- ═════════════════════ MODEL TAB ═════════════════════ -->
   <div id="tab-model" class="admin-tab-panel">
-
     <div class="model-header">
       <div class="model-headline">⚡ GST Formula Calculator</div>
       <div style="font-size:11px;color:var(--muted);line-height:1.6;">
@@ -254,7 +269,6 @@
       </div>
     </div>
 
-    <!-- Slate-level inputs -->
     <div class="card">
       <div class="card-title">Slate Setup</div>
       <div class="slate-input-grid">
@@ -299,7 +313,6 @@
       </div>
     </div>
 
-    <!-- Per-Game Adjustments -->
     <div class="card" id="model-games-card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <div class="card-title" style="margin-bottom:0;">Per-Game Inputs</div>
@@ -311,22 +324,18 @@
         </div>
       </div>
       <div id="model-games-list">
-        <div style="color:var(--muted);font-size:12px;text-align:center;padding:12px;">
-          Tap <strong>Auto-Load</strong> to pull today's games & starters, or add games manually below.
+        <div class="placeholder-msg" style="color:var(--muted);font-size:12px;text-align:center;padding:12px;">
+          Tap <strong>Auto-Load</strong> to pull today's games &amp; starters, or add games manually below.
         </div>
       </div>
       <button class="btn" style="background:var(--surface2);color:var(--muted);border:1px solid var(--border);margin-top:8px;font-size:13px;padding:10px;" onclick="addManualGame()">+ Add Game Row</button>
     </div>
 
-    <!-- Calculate button -->
     <button class="btn btn-model" onclick="runModel()" style="margin-bottom:16px;font-size:16px;padding:15px;letter-spacing:2px;">
       ⚡ RUN GST MODEL
     </button>
 
-    <!-- Results -->
     <div id="model-results" style="display:none;">
-
-      <!-- Summary card -->
       <div class="model-result" id="model-result-card">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;">
           <div>
@@ -343,30 +352,73 @@
         <table class="breakdown-table" id="r-breakdown"></table>
       </div>
 
-      <!-- Outliers -->
       <div class="outlier-section">
         <div class="outlier-title">🎯 Game-Level Outliers</div>
         <div id="r-outliers"></div>
       </div>
-
-    </div>
-
-  </div><!-- /tab-model -->
-
-  <!-- ════════════════════════════════════════════ EXPORT TAB -->
-  <div id="tab-export" class="admin-tab-panel">
-    <div class="card" style="border-color:rgba(255,140,0,0.3);">
-      <div class="card-title" style="color:var(--orange);">&#9889; Export for Claude</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Fetches all slate data and copies to clipboard ready to paste into Claude.</div>
-      <button class="btn btn-claude" id="export-btn" onclick="exportForClaude()">EXPORT ALL DATA &#8594; CLAUDE</button>
-      <div class="export-progress" id="export-progress"></div>
-      <div class="export-status" id="export-status"></div>
-      <textarea id="claude-output" rows="6" readonly></textarea>
-      <button class="btn" id="copy-btn" onclick="copyOutput()">&#128203; COPY TO CLIPBOARD</button>
     </div>
   </div>
 
-</div><!-- /main-content -->
+  <!-- ═════════════════════ TIERS TAB ═════════════════════ -->
+  <div id="tab-tiers" class="admin-tab-panel">
+    <div class="card">
+      <div class="card-title">Pitcher Tiers</div>
+      <div class="sub-tabs">
+        <button class="sub-tab active" id="sub-tab-today" onclick="showPitcherSubTab('today')">Today's Starters</button>
+        <button class="sub-tab" id="sub-tab-all" onclick="showPitcherSubTab('all')">All Starters</button>
+      </div>
+
+      <div id="pitcher-today">
+        <div class="tier-count" id="today-count">Loading today's starters...</div>
+        <div class="pitcher-list" id="today-list"><div style="padding:16px;color:var(--muted);font-size:12px;text-align:center;">Loading...</div></div>
+      </div>
+
+      <div id="pitcher-all" style="display:none;">
+        <button class="sync-btn" onclick="syncStarters()" id="sync-btn">↻ Sync from MLB API</button>
+        <input type="text" class="pitcher-search" id="pitcher-search" placeholder="Search pitchers..." oninput="filterPitchers()">
+        <div class="tier-count" id="all-count">—</div>
+        <div class="pitcher-list" id="all-list"><div style="padding:16px;color:var(--muted);font-size:12px;text-align:center;">Click "Sync from MLB API" to load pitchers</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Lineup Profiles</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Tap a team to cycle: Boom-Bust → Balanced → Contact → Unassigned</div>
+      <div class="lineup-buckets">
+        <div class="lineup-bucket">
+          <div class="lineup-bucket-title boom">Boom-Bust</div>
+          <div id="bucket-power_boom_bust"></div>
+        </div>
+        <div class="lineup-bucket">
+          <div class="lineup-bucket-title bal">Balanced</div>
+          <div id="bucket-balanced"></div>
+        </div>
+        <div class="lineup-bucket">
+          <div class="lineup-bucket-title contact">Contact</div>
+          <div id="bucket-contact"></div>
+        </div>
+      </div>
+      <div class="lineup-unassigned">
+        <div class="lineup-unassigned-title">Unassigned</div>
+        <div id="bucket-unassigned"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═════════════════════ EXPORT TAB ═════════════════════ -->
+  <div id="tab-export" class="admin-tab-panel">
+    <div class="card" style="border-color:rgba(255,140,0,0.3);">
+      <div class="card-title" style="color:var(--orange);">⚡ Export for Claude</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Fetches all slate data and copies to clipboard ready to paste into Claude.</div>
+      <button class="btn btn-claude" id="export-btn" onclick="exportForClaude()">EXPORT ALL DATA → CLAUDE</button>
+      <div class="export-progress" id="export-progress"></div>
+      <div class="export-status" id="export-status"></div>
+      <textarea id="claude-output" rows="6" readonly></textarea>
+      <button class="btn" id="copy-btn" onclick="copyOutput()">📋 COPY TO CLIPBOARD</button>
+    </div>
+  </div>
+
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -387,8 +439,9 @@ function checkPin() {
 document.getElementById('pin-input').addEventListener('input', checkPin);
 
 function switchAdminTab(tab) {
+  const tabs = ['manage','model','tiers','export'];
   document.querySelectorAll('.admin-tab').forEach((el, i) => {
-    el.classList.toggle('active', ['manage','model','export'][i] === tab);
+    el.classList.toggle('active', tabs[i] === tab);
   });
   document.querySelectorAll('.admin-tab-panel').forEach(el => el.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
@@ -425,11 +478,7 @@ function showToast(msg, type='ok') {
   setTimeout(() => t.className = 'toast', 2500);
 }
 
-// ════════════════════════════════════════════════════════════════
-// GST MODEL
-// ════════════════════════════════════════════════════════════════
-
-// WHIP → per-game adjustment
+// ═════════════════════ GST MODEL LOGIC ═════════════════════
 function whipAdj(whip) {
   if (!whip || whip === '—' || whip === '--') return 0;
   const w = parseFloat(whip);
@@ -441,7 +490,6 @@ function whipAdj(whip) {
   if (w < 1.60) return 0.3;
   return 0.6;
 }
-
 function whipTierLabel(whip) {
   if (!whip || whip === '—' || whip === '--') return 'No data';
   const w = parseFloat(whip);
@@ -453,16 +501,10 @@ function whipTierLabel(whip) {
   if (w < 1.60) return 'Soft (1.45–1.60)';
   return 'Poor (1.60+)';
 }
-
-// Rotation spot adjustment
 function rotAdj(rot) {
-  // rot: 1=ace, 2=solid, 3=mid, 4=soft, 5=backend
   const map = { '1': -0.2, '2': -0.1, '3': 0, '4': 0.1, '5': 0.2 };
   return map[String(rot)] || 0;
 }
-
-// Bullpen fatigue — only meaningful with soft starter
-// Returns { adj, note }
 function bullpenCombined(bpTier, awayWhip, homeWhip) {
   const avgWhip = ((parseFloat(awayWhip)||1.35) + (parseFloat(homeWhip)||1.35)) / 2;
   const isSoft = avgWhip >= 1.45;
@@ -472,28 +514,19 @@ function bullpenCombined(bpTier, awayWhip, homeWhip) {
   if (bpTier === 'fresh')  return { adj: -0.15, note: 'Fresh pen suppresses: early reliever use likely' };
   return { adj: 0, note: '' };
 }
-
-// Day of week overlay
 function dowAdj(dowVal) {
   const v = parseFloat(dowVal);
-  // 0 = Mon/Tue (under lean), 0.5 = Wed/Thu (neutral), 1 = Fri/Sat/Sun (over lean)
   if (v === 0) return -0.3;
   if (v === 1) return 0.3;
   return 0;
 }
-
 function dowLabel(dowVal) {
   const v = parseFloat(dowVal);
   if (v === 0) return 'Mon/Tue lean under (−0.3)';
   if (v === 1) return 'Fri/Sat/Sun lean over (+0.3)';
   return 'Wed/Thu neutral (0)';
 }
-
-// Asymmetry constant
 const ASYMMETRY_PER_GAME = 0.46;
-
-// ── Model state ──
-let modelGames = []; // array of { away, home, ou, awayWhip, homeWhip, awayRot, homeRot, bpTier }
 
 function getModelGames() {
   const rows = document.querySelectorAll('.model-game-row');
@@ -511,13 +544,10 @@ function getModelGames() {
 
 function addManualGame(data) {
   const container = document.getElementById('model-games-list');
-  // Remove placeholder
   const placeholder = container.querySelector('.placeholder-msg');
   if (placeholder) placeholder.remove();
-
   const d = data || {};
   const idx = container.querySelectorAll('.model-game-row').length;
-
   const div = document.createElement('div');
   div.className = 'game-card model-game-row';
   div.innerHTML = `
@@ -593,16 +623,11 @@ function updateGameAdj(row) {
   const homeRot  = row.querySelector('.mg-home-rot')?.value || '3';
   const bpTier   = row.querySelector('.mg-bp')?.value || 'fresh';
   const adjEl    = row.querySelector('.game-adj-val');
-
-  // Sum both starters + rotation spot
   const aWhipAdj = awayWhip ? whipAdj(awayWhip) : 0;
   const hWhipAdj = homeWhip ? whipAdj(homeWhip) : 0;
   const aRotAdj  = rotAdj(awayRot);
   const hRotAdj  = rotAdj(homeRot);
-  const bpObj    = bullpenCombined(bpTier,
-    awayWhip ? String(awayWhip) : '1.35',
-    homeWhip ? String(homeWhip) : '1.35');
-
+  const bpObj    = bullpenCombined(bpTier, awayWhip ? String(awayWhip) : '1.35', homeWhip ? String(homeWhip) : '1.35');
   const total = aWhipAdj + hWhipAdj + aRotAdj + hRotAdj + bpObj.adj;
   adjEl.textContent = (total >= 0 ? '+' : '') + total.toFixed(2);
   adjEl.className = 'game-adj-val ' + (total > 0 ? 'adj-pos' : total < 0 ? 'adj-neg' : 'adj-neu');
@@ -611,7 +636,7 @@ function updateGameAdj(row) {
 function clearGameInputs() {
   document.getElementById('model-games-list').innerHTML = `
     <div class="placeholder-msg" style="color:var(--muted);font-size:12px;text-align:center;padding:12px;">
-      Tap <strong>Auto-Load</strong> to pull today's games & starters, or add games manually below.
+      Tap <strong>Auto-Load</strong> to pull today's games &amp; starters, or add games manually below.
     </div>`;
 }
 
@@ -619,40 +644,24 @@ async function autoLoadGameData() {
   const btn = document.querySelector('[onclick="autoLoadGameData()"]');
   btn.disabled = true;
   btn.innerHTML = '<span class="mini-spin"></span> Loading...';
-
   try {
     const today = getTodayPDT();
-
-    // Fetch schedule + odds in parallel
     const [schedRes, oddsRes, bpRes] = await Promise.allSettled([
       fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}&hydrate=probablePitcher`),
       fetch('/api/odds'),
       fetchBullpenForAutoLoad(),
     ]);
-
-    const schedData = schedRes.status === 'fulfilled' && schedRes.value.ok
-      ? await schedRes.value.json() : null;
-    const oddsData  = oddsRes.status === 'fulfilled'  && oddsRes.value.ok
-      ? await oddsRes.value.json() : null;
+    const schedData = schedRes.status === 'fulfilled' && schedRes.value.ok ? await schedRes.value.json() : null;
+    const oddsData  = oddsRes.status === 'fulfilled'  && oddsRes.value.ok  ? await oddsRes.value.json()  : null;
     const bpData    = bpRes.status === 'fulfilled' ? bpRes.value : {};
-
     const games = schedData?.dates?.[0]?.games || [];
     const oddsMap = buildOddsLookup(oddsData?.games || []);
-
-    // Set slate-level inputs
     document.getElementById('m-games').value = games.length;
-
-    // Set day of week based on today
-    const dayOfWeek = new Date(Date.now() + -7*60*60*1000).getDay(); // 0=Sun,1=Mon...6=Sat
+    const dayOfWeek = new Date(Date.now() + -7*60*60*1000).getDay();
     const dowEl = document.getElementById('m-dow');
-    // Mon=1, Tue=2 → val 0; Wed=3,Thu=4 → val 0.5; Fri=5,Sat=6,Sun=0 → val 1
     const dowMap = {0:6,1:0,2:1,3:2,4:3,5:4,6:5};
     dowEl.selectedIndex = dowMap[dayOfWeek] ?? 2;
-
-    // Clear existing rows
     document.getElementById('model-games-list').innerHTML = '';
-
-    // Fetch pitcher stats for all probables
     const pitcherIds = [];
     for (const g of games) {
       for (const side of ['away','home']) {
@@ -660,7 +669,6 @@ async function autoLoadGameData() {
         if (p?.id) pitcherIds.push(p.id);
       }
     }
-
     let pitcherStats = {};
     if (pitcherIds.length) {
       try {
@@ -677,7 +685,6 @@ async function autoLoadGameData() {
         }
       } catch(e) { console.error('Pitcher stats error:', e); }
     }
-
     for (const g of games) {
       const awayAbbr = exportAbbr(g.teams.away.team.name);
       const homeAbbr = exportAbbr(g.teams.home.team.name);
@@ -685,31 +692,22 @@ async function autoLoadGameData() {
       const hk = g.teams.home.team.name.split(' ').pop().toLowerCase();
       const key = `${ak}-${hk}`;
       const odds = oddsMap[key];
-
       const awayP  = g.teams.away.probablePitcher;
       const homeP  = g.teams.home.probablePitcher;
       const awayStats = awayP ? (pitcherStats[awayP.id] || {}) : {};
       const homeStats = homeP ? (pitcherStats[homeP.id] || {}) : {};
-
-      // Bullpen: use combined worst tier for this game's teams
       const awayBp = bpData[awayAbbr]?.tier || 'fresh';
       const homeBp = bpData[homeAbbr]?.tier || 'fresh';
       const bpTier = awayBp === 'gassed' || homeBp === 'gassed' ? 'gassed'
                    : awayBp === 'taxed'  || homeBp === 'taxed'  ? 'taxed' : 'fresh';
-
       addManualGame({
-        away:      awayAbbr,
-        home:      homeAbbr,
-        ou:        odds?.line || '',
-        awayWhip:  awayStats.whip || '',
-        homeWhip:  homeStats.whip || '',
-        awayRot:   '3',
-        homeRot:   '3',
+        away: awayAbbr, home: homeAbbr,
+        ou: odds?.line || '',
+        awayWhip: awayStats.whip || '', homeWhip: homeStats.whip || '',
+        awayRot: '3', homeRot: '3',
         bpTier,
       });
     }
-
-    // Set naive total from odds data
     if (oddsData?.games?.length) {
       const naive = (oddsData.games || []).reduce((sum, g) => {
         const bk = (g.bookmakers||[]).find(b=>b.key==='draftkings')||(g.bookmakers||[])[0];
@@ -719,16 +717,11 @@ async function autoLoadGameData() {
       }, 0);
       document.getElementById('m-naive').value = naive.toFixed(1);
     }
-
-    // Load GS line from history
     try {
       const hist = await fetch('/api/history').then(r=>r.json());
       const todayRec = hist.find(r=>r.date===today);
-      if (todayRec?.grandSalamLine) {
-        document.getElementById('m-gsline').value = todayRec.grandSalamLine;
-      }
+      if (todayRec?.grandSalamLine) document.getElementById('m-gsline').value = todayRec.grandSalamLine;
     } catch(e) {}
-
     modelRecalc();
     showToast(`Loaded ${games.length} games`, 'ok');
   } catch(e) {
@@ -741,10 +734,9 @@ async function autoLoadGameData() {
 }
 
 async function fetchBullpenForAutoLoad() {
-  // Reuse same logic as index.html bullpen tab — 3-day weighted
-  function ipToOuts(ip) {
-    const s = String(ip||'0'), [inn,outs] = s.split('.').map(Number);
-    return (inn||0)*3+(outs||0);
+  function ipToOutsLocal(ip) {
+    const s = String(ip||'0'), parts = s.split('.').map(Number);
+    return (parts[0]||0)*3+(parts[1]||0);
   }
   function getPDTDate(off) {
     const d = new Date(Date.now()+(-7*60*60*1000)+(off*86400000));
@@ -752,7 +744,6 @@ async function fetchBullpenForAutoLoad() {
   }
   const dates = [getPDTDate(-1), getPDTDate(-2), getPDTDate(-3)];
   const weights = [0.70, 0.18, 0.12];
-
   const dayData = await Promise.all(dates.map(async dateStr => {
     try {
       const res = await fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${dateStr}&hydrate=linescore`);
@@ -767,7 +758,7 @@ async function fetchBullpenForAutoLoad() {
             const team = box.teams[side];
             const abbr = team.team.abbreviation;
             const outs = (team.pitchers||[]).map(id=>team.players[`ID${id}`]).slice(1)
-              .reduce((s,p)=>s+ipToOuts(p?.stats?.pitching?.inningsPitched||0),0);
+              .reduce((s,p)=>s+ipToOutsLocal(p?.stats?.pitching?.inningsPitched||0),0);
             if (!td[abbr]) td[abbr]={outs:0};
             td[abbr].outs += outs;
           }
@@ -776,7 +767,6 @@ async function fetchBullpenForAutoLoad() {
       return td;
     } catch(e) { return {}; }
   }));
-
   const result = {};
   const allTeams = new Set([...Object.keys(dayData[0]),...Object.keys(dayData[1]),...Object.keys(dayData[2])]);
   for (const abbr of allTeams) {
@@ -802,7 +792,6 @@ function buildOddsLookup(games) {
 }
 
 function modelRecalc() {
-  // Live recalc of game adj badges only — full model runs on button
   document.querySelectorAll('.model-game-row').forEach(row => updateGameAdj(row));
 }
 
@@ -813,81 +802,43 @@ function runModel() {
   const dowVal     = document.getElementById('m-dow').value;
   const gsLine     = parseFloat(document.getElementById('m-gsline').value) || null;
   const naive      = parseFloat(document.getElementById('m-naive').value) || null;
-
   if (numGames === 0) { showToast('Enter number of games', 'err'); return; }
-
-  // 1. Baseline
   const baseline = 8.5 * numGames;
-
-  // 2. Park factor (already summed, passed in)
   const parkAdj = parkFactor;
-
-  // 3. Weather
   const weatherTotal = weatherAdj * numGames;
-
-  // 4. Asymmetry
   const asymmetry = ASYMMETRY_PER_GAME * numGames;
-
-  // 5. Day-of-week
   const dowAdjVal = dowAdj(parseFloat(dowVal)) * numGames;
-
-  // 6. Per-game adjustments from game rows
   const gameRows = getModelGames();
-  let starterAdj = 0;
-  let bullpenAdj = 0;
+  let starterAdj = 0, bullpenAdj = 0;
   const gameDetails = [];
-
   for (const g of gameRows) {
-    const awayWA  = whipAdj(g.awayWhip);
-    const homeWA  = whipAdj(g.homeWhip);
-    const awayRA  = rotAdj(g.awayRot);
-    const homeRA  = rotAdj(g.homeRot);
-    const bpObj   = bullpenCombined(g.bpTier,
-      g.awayWhip || '1.35', g.homeWhip || '1.35');
-
-    const gameStarterAdj  = awayWA + homeWA + awayRA + homeRA;
-    const gameBullpenAdj  = bpObj.adj;
-    starterAdj  += gameStarterAdj;
-    bullpenAdj  += gameBullpenAdj;
-
-    // Per-game total adj vs baseline of 8.5
+    const awayWA = whipAdj(g.awayWhip);
+    const homeWA = whipAdj(g.homeWhip);
+    const awayRA = rotAdj(g.awayRot);
+    const homeRA = rotAdj(g.homeRot);
+    const bpObj  = bullpenCombined(g.bpTier, g.awayWhip || '1.35', g.homeWhip || '1.35');
+    const gameStarterAdj = awayWA + homeWA + awayRA + homeRA;
+    const gameBullpenAdj = bpObj.adj;
+    starterAdj += gameStarterAdj;
+    bullpenAdj += gameBullpenAdj;
     const gameAdj = gameStarterAdj + gameBullpenAdj;
     const gameProjRuns = 8.5 + gameAdj;
-
-    // Outlier score vs O/U line
     const ou = g.ou;
     const edge = ou ? (gameProjRuns - ou) : null;
-
     gameDetails.push({
-      away: g.away,
-      home: g.home,
-      ou,
-      gameProjRuns,
-      edge,
-      awayWhip: g.awayWhip,
-      homeWhip: g.homeWhip,
-      awayRot: g.awayRot,
-      homeRot: g.homeRot,
-      bpTier: g.bpTier,
-      bpNote: bpObj.note,
-      gameAdj,
+      away: g.away, home: g.home, ou, gameProjRuns, edge,
+      awayWhip: g.awayWhip, homeWhip: g.homeWhip,
+      awayRot: g.awayRot, homeRot: g.homeRot,
+      bpTier: g.bpTier, bpNote: bpObj.note, gameAdj,
     });
   }
-
-  // 7. Total GST projection
   const gst = baseline + parkAdj + weatherTotal + asymmetry + dowAdjVal + starterAdj + bullpenAdj;
-
-  // 8. Signal vs GS line
   const edge = gsLine ? gst - gsLine : null;
   const naiveEdge = naive ? gst - naive : null;
-
-  // ── Render results ──
   document.getElementById('model-results').style.display = 'block';
-
   const gstRounded = Math.round(gst * 10) / 10;
   const gstEl = document.getElementById('r-gst');
   gstEl.textContent = gstRounded;
-
   let signalTxt = '—', signalCls = 'neut', cardCls = 'neutral';
   if (edge !== null) {
     if (edge >= 1.5) { signalTxt = '🔥 STRONG OVER'; signalCls = 'bull'; cardCls = 'bullish'; }
@@ -903,21 +854,17 @@ function runModel() {
     ? `GST ${gstRounded} vs GS Line ${gsLine} → edge ${edge>=0?'+':''}${edge.toFixed(1)}`
     : naive ? `GST ${gstRounded} vs Naive ${naive} → ${naiveEdge>=0?'+':''}${naiveEdge?.toFixed(1)}` : '';
   document.getElementById('model-result-card').className = `model-result ${cardCls}`;
-
-  // Breakdown table
   const rows = [
     ['Baseline', `${numGames} games × 8.5`, baseline.toFixed(1), 'neu'],
     ['Park Factor Net', `BP left col sum`, parkAdj >= 0 ? `+${parkAdj.toFixed(1)}` : parkAdj.toFixed(1), parkAdj>0?'pos':parkAdj<0?'neg':'neu'],
-    ['Weather', `${parseFloat(document.getElementById('m-weather').value)>=0?'+':''  }${parseFloat(document.getElementById('m-weather').value)||0} × ${numGames} games`, weatherTotal>=0?`+${weatherTotal.toFixed(1)}`:weatherTotal.toFixed(1), weatherTotal>0?'pos':weatherTotal<0?'neg':'neu'],
+    ['Weather', `${parseFloat(document.getElementById('m-weather').value)>=0?'+':''}${parseFloat(document.getElementById('m-weather').value)||0} × ${numGames} games`, weatherTotal>=0?`+${weatherTotal.toFixed(1)}`:weatherTotal.toFixed(1), weatherTotal>0?'pos':weatherTotal<0?'neg':'neu'],
     ['Starter WHIP + Rotation', `${gameRows.length} games analyzed`, starterAdj>=0?`+${starterAdj.toFixed(2)}`:starterAdj.toFixed(2), starterAdj>0?'pos':starterAdj<0?'neg':'neu'],
     ['Bullpen Fatigue', `Paired w/ starter quality`, bullpenAdj>=0?`+${bullpenAdj.toFixed(2)}`:bullpenAdj.toFixed(2), bullpenAdj>0?'pos':bullpenAdj<0?'neg':'neu'],
     ['Asymmetry', `+${ASYMMETRY_PER_GAME} × ${numGames} games`, `+${asymmetry.toFixed(2)}`, 'pos'],
     ['Day-of-Week', dowLabel(dowVal), dowAdjVal>=0?`+${dowAdjVal.toFixed(1)}`:dowAdjVal.toFixed(1), dowAdjVal>0?'pos':dowAdjVal<0?'neg':'neu'],
   ];
-
   if (gsLine) rows.push(['GS Book Line', 'DraftKings', gsLine.toString(), 'neu']);
   if (naive) rows.push(['Naive Sum', 'Line sum', naive.toString(), 'neu']);
-
   document.getElementById('r-breakdown').innerHTML = rows.map(([label, note, val, cls]) => `
     <tr>
       <td class="lbl">${label}<br><span style="font-size:10px;color:var(--muted);font-weight:400;">${note}</span></td>
@@ -929,11 +876,7 @@ function runModel() {
       <td class="val val-total">${gstRounded}</td>
     </tr>
   `;
-
-  // ── Outliers ──
-  const sorted = [...gameDetails].filter(g => g.ou && g.edge !== null)
-    .sort((a,b) => Math.abs(b.edge) - Math.abs(a.edge));
-
+  const sorted = [...gameDetails].filter(g => g.ou && g.edge !== null).sort((a,b) => Math.abs(b.edge) - Math.abs(a.edge));
   const outlierHtml = sorted.length === 0
     ? '<div style="color:var(--muted);font-size:12px;padding:8px 0;">Enter per-game O/U lines to see outliers.</div>'
     : sorted.map(g => {
@@ -957,16 +900,233 @@ function runModel() {
           </div>
         </div>`;
       }).join('');
-
   document.getElementById('r-outliers').innerHTML = outlierHtml;
-
-  // Scroll to results
   document.getElementById('model-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// ════════════════════════════════════════════════════════════════
-// ABBR MAP
-// ════════════════════════════════════════════════════════════════
+// ═════════════════════ TIERS TAB ═════════════════════
+const ALL_TEAMS = ['AZ','ATL','BAL','BOS','CHC','CWS','CIN','CLE','COL','DET','HOU','KC','LAA','LAD','MIA','MIL','MIN','NYM','NYY','ATH','PHI','PIT','SD','SF','SEA','STL','TB','TEX','TOR','WSH'];
+let acesData = { pitchers: {} };
+let allStartersCache = [];
+let todayStartersCache = [];
+let lineupData = { profiles: {} };
+
+async function loadTiers() {
+  try {
+    const res = await fetch('/api/tiers');
+    const data = await res.json();
+    acesData = data.aces || { pitchers: {} };
+    lineupData = data.lineups || { profiles: {} };
+    renderAllStarters();
+    renderTodaysStarters();
+    renderLineupBuckets();
+  } catch(e) {
+    console.error('loadTiers error:', e);
+  }
+}
+
+function showPitcherSubTab(which) {
+  document.getElementById('sub-tab-today').classList.toggle('active', which === 'today');
+  document.getElementById('sub-tab-all').classList.toggle('active', which === 'all');
+  document.getElementById('pitcher-today').style.display = which === 'today' ? 'block' : 'none';
+  document.getElementById('pitcher-all').style.display = which === 'all' ? 'block' : 'none';
+}
+
+async function syncStarters() {
+  const btn = document.getElementById('sync-btn');
+  btn.disabled = true;
+  btn.textContent = 'Syncing...';
+  try {
+    const season = new Date().getFullYear();
+    const res = await fetch(`/api/tiers?action=sync&season=${season}`);
+    const data = await res.json();
+    if (data.ok) {
+      allStartersCache = data.starters || [];
+      allStartersCache.forEach(s => { acesData.pitchers[s.name] = s.tier; });
+      showToast(`${data.total} pitchers (${data.added} new)`, 'ok');
+      renderAllStarters();
+    } else {
+      showToast('Sync failed', 'err');
+    }
+  } catch(e) {
+    showToast('Error: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '↻ Sync from MLB API';
+  }
+}
+
+function tierSortKey(tier) {
+  return tier === 'tier1' ? 0 : tier === 'tier2' ? 1 : 2;
+}
+
+function renderAllStarters() {
+  const el = document.getElementById('all-list');
+  const countEl = document.getElementById('all-count');
+  if (!allStartersCache.length) {
+    const names = Object.keys(acesData.pitchers || {});
+    if (!names.length) {
+      el.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:12px;text-align:center;">Click "Sync from MLB API" to load pitchers</div>';
+      countEl.textContent = '—';
+      return;
+    }
+    allStartersCache = names.map(n => ({ name: n, team: '', gamesStarted: 0, tier: acesData.pitchers[n] || 'default' }));
+  }
+  allStartersCache.forEach(s => { s.tier = acesData.pitchers[s.name] || 'default'; });
+  const search = (document.getElementById('pitcher-search').value || '').toLowerCase();
+  const filtered = allStartersCache.filter(s => !search || s.name.toLowerCase().includes(search));
+  filtered.sort((a, b) => {
+    const t = tierSortKey(a.tier) - tierSortKey(b.tier);
+    if (t !== 0) return t;
+    const an = a.name.split(' ').slice(-1)[0].toLowerCase();
+    const bn = b.name.split(' ').slice(-1)[0].toLowerCase();
+    return an.localeCompare(bn);
+  });
+  const t1 = allStartersCache.filter(s => s.tier === 'tier1').length;
+  const t2 = allStartersCache.filter(s => s.tier === 'tier2').length;
+  const def = allStartersCache.length - t1 - t2;
+  countEl.innerHTML = `<strong class="gold">T1: ${t1}</strong> · <strong class="silver">T2: ${t2}</strong> · <strong>Default: ${def}</strong> · <strong>Total: ${allStartersCache.length}</strong>`;
+  el.innerHTML = filtered.map(s => `
+    <div class="pitcher-row">
+      <div class="pitcher-row-info">
+        <div class="pitcher-name">${s.name}</div>
+        <div class="pitcher-meta">${s.team || '—'}${s.gamesStarted ? ' · ' + s.gamesStarted + ' GS' : ''}</div>
+      </div>
+      <select class="tier-select" data-tier="${s.tier}" onchange="updatePitcherTier('${s.name.replace(/'/g, "\\'")}', this.value)">
+        <option value="default" ${s.tier === 'default' ? 'selected' : ''}>Default</option>
+        <option value="tier2" ${s.tier === 'tier2' ? 'selected' : ''}>Tier 2</option>
+        <option value="tier1" ${s.tier === 'tier1' ? 'selected' : ''}>Tier 1</option>
+      </select>
+    </div>
+  `).join('');
+}
+
+function filterPitchers() {
+  renderAllStarters();
+}
+
+async function updatePitcherTier(name, tier) {
+  acesData.pitchers[name] = tier;
+  const s = allStartersCache.find(x => x.name === name);
+  if (s) s.tier = tier;
+  renderAllStarters();
+  renderTodaysStarters();
+  try {
+    const res = await fetch('/api/tiers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'ace', pitcherName: name, tier })
+    });
+    const data = await res.json();
+    if (!data.ok) showToast('Save failed', 'err');
+  } catch(e) {
+    showToast('Error: ' + e.message, 'err');
+  }
+}
+
+async function loadTodaysStarters() {
+  try {
+    const today = getTodayPDT();
+    const url = `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}&hydrate=probablePitcher`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const games = data.dates?.[0]?.games || [];
+    const starters = [];
+    for (const g of games) {
+      const ap = g.teams?.away?.probablePitcher;
+      const hp = g.teams?.home?.probablePitcher;
+      const aAbbr = g.teams.away.team.abbreviation;
+      const hAbbr = g.teams.home.team.abbreviation;
+      if (ap) starters.push({ name: ap.fullName, team: aAbbr, opp: hAbbr });
+      if (hp) starters.push({ name: hp.fullName, team: hAbbr, opp: aAbbr });
+    }
+    todayStartersCache = starters;
+    renderTodaysStarters();
+  } catch(e) {
+    console.error('loadTodaysStarters error:', e);
+    document.getElementById('today-list').innerHTML = '<div style="padding:16px;color:var(--red);font-size:12px;text-align:center;">Error loading today\'s starters</div>';
+  }
+}
+
+function renderTodaysStarters() {
+  const el = document.getElementById('today-list');
+  const countEl = document.getElementById('today-count');
+  if (!todayStartersCache.length) {
+    el.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:12px;text-align:center;">No probable starters posted for today</div>';
+    countEl.textContent = '—';
+    return;
+  }
+  const enriched = todayStartersCache.map(s => ({
+    ...s,
+    tier: acesData.pitchers[s.name] || 'default',
+  }));
+  const t1 = enriched.filter(s => s.tier === 'tier1').length;
+  const t2 = enriched.filter(s => s.tier === 'tier2').length;
+  const def = enriched.length - t1 - t2;
+  countEl.innerHTML = `<strong class="gold">T1: ${t1}</strong> · <strong class="silver">T2: ${t2}</strong> · <strong>Default: ${def}</strong> · <strong>Total: ${enriched.length}</strong>`;
+  enriched.sort((a, b) => {
+    const t = tierSortKey(a.tier) - tierSortKey(b.tier);
+    if (t !== 0) return t;
+    return a.team.localeCompare(b.team);
+  });
+  el.innerHTML = enriched.map(s => `
+    <div class="pitcher-row">
+      <div class="pitcher-row-info">
+        <div class="pitcher-name">${s.name}</div>
+        <div class="pitcher-meta">${s.team} vs ${s.opp}</div>
+      </div>
+      <select class="tier-select" data-tier="${s.tier}" onchange="updatePitcherTier('${s.name.replace(/'/g, "\\'")}', this.value)">
+        <option value="default" ${s.tier === 'default' ? 'selected' : ''}>Default</option>
+        <option value="tier2" ${s.tier === 'tier2' ? 'selected' : ''}>Tier 2</option>
+        <option value="tier1" ${s.tier === 'tier1' ? 'selected' : ''}>Tier 1</option>
+      </select>
+    </div>
+  `).join('');
+}
+
+function cycleTeamProfile(team) {
+  const current = lineupData.profiles[team];
+  const next = current === 'power_boom_bust' ? 'balanced'
+             : current === 'balanced' ? 'contact'
+             : current === 'contact' ? null
+             : 'power_boom_bust';
+  if (next === null) delete lineupData.profiles[team];
+  else lineupData.profiles[team] = next;
+  renderLineupBuckets();
+  saveLineupBulk();
+}
+
+async function saveLineupBulk() {
+  try {
+    const res = await fetch('/api/tiers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'bulkLineups', bulkLineups: lineupData.profiles })
+    });
+    const data = await res.json();
+    if (!data.ok) showToast('Save failed', 'err');
+  } catch(e) {
+    showToast('Error: ' + e.message, 'err');
+  }
+}
+
+function renderLineupBuckets() {
+  const buckets = { power_boom_bust: [], balanced: [], contact: [], unassigned: [] };
+  for (const team of ALL_TEAMS) {
+    const p = lineupData.profiles[team];
+    if (p && buckets[p]) buckets[p].push(team);
+    else buckets.unassigned.push(team);
+  }
+  function chipHtml(team, assigned) {
+    return `<span class="team-chip${assigned ? '' : ' unassigned'}" onclick="cycleTeamProfile('${team}')">${team}</span>`;
+  }
+  document.getElementById('bucket-power_boom_bust').innerHTML = buckets.power_boom_bust.sort().map(t => chipHtml(t, true)).join('') || '<span style="font-size:11px;color:var(--muted);">—</span>';
+  document.getElementById('bucket-balanced').innerHTML = buckets.balanced.sort().map(t => chipHtml(t, true)).join('') || '<span style="font-size:11px;color:var(--muted);">—</span>';
+  document.getElementById('bucket-contact').innerHTML = buckets.contact.sort().map(t => chipHtml(t, true)).join('') || '<span style="font-size:11px;color:var(--muted);">—</span>';
+  document.getElementById('bucket-unassigned').innerHTML = buckets.unassigned.sort().map(t => chipHtml(t, false)).join('');
+}
+
+// ═════════════════════ ABBR + EXPORT ═════════════════════
 const EXPORT_ABBR = {
   'New York Yankees':'NYY','San Francisco Giants':'SF','Athletics':'ATH','Oakland Athletics':'ATH',
   'Toronto Blue Jays':'TOR','Colorado Rockies':'COL','Miami Marlins':'MIA',
@@ -986,10 +1146,6 @@ function getPDTDateExport(offsetDays) {
   var d = new Date(Date.now() + (-7 * 60 * 60 * 1000) + (offsetDays * 86400000));
   return d.toISOString().split('T')[0];
 }
-
-// ════════════════════════════════════════════════════════════════
-// EXPORT
-// ════════════════════════════════════════════════════════════════
 
 function setProgress(id, label, state) {
   var el = document.getElementById('prog-' + id);
@@ -1047,23 +1203,19 @@ async function exportForClaude() {
   document.getElementById('export-status').textContent='';
   document.getElementById('claude-output').style.display='none';
   document.getElementById('copy-btn').style.display='none';
-
   var today = getPDTDateExport();
   var bpDates = [getPDTDateExport(-1),getPDTDateExport(-2),getPDTDateExport(-3)];
   var oddsData=null, historyData=null, startersData=[], bullpenData=null, gameList=[];
-
   setProgress('odds','Odds + GS line...','loading');
   try {
     oddsData = await (await fetch('/api/odds')).json();
     setProgress('odds','Odds: '+(oddsData.games||[]).length+' games','done');
   } catch(e){setProgress('odds','Odds failed','fail');}
-
   setProgress('history','History...','loading');
   try {
     historyData = await (await fetch('/api/history')).json();
     setProgress('history','History: '+historyData.length+' records','done');
   } catch(e){setProgress('history','History failed','fail');}
-
   setProgress('starters','Schedule + starters...','loading');
   try {
     var res = await fetch('https://statsapi.mlb.com/api/v1/schedule?sportId=1&date='+today+'&hydrate=linescore');
@@ -1097,27 +1249,37 @@ async function exportForClaude() {
           var splits=(person.stats||[]).find(function(s){return s.group&&s.group.displayName==='pitching';});
           var stat=(splits&&splits.splits&&splits.splits[0])?splits.splits[0].stat:{};
           statsMap[person.id]={ era:stat.era||'--',whip:stat.whip||'--',ip:stat.inningsPitched||'--',
-            k9:stat.strikeoutsPer9Inn||'--', wins:stat.wins!==undefined?stat.wins:0,losses:stat.losses!==undefined?stat.losses:0 };
+            k9:stat.strikeoutsPer9Inn||'--', hr9:stat.homeRunsPer9||'--',
+            wins:stat.wins!==undefined?stat.wins:0,losses:stat.losses!==undefined?stat.losses:0 };
         });
       } catch(e){}
     }
     pitcherIds.forEach(function(id){
-      var meta=pitcherMeta[id], s=statsMap[id]||{era:'--',whip:'--',ip:'--',k9:'--',wins:0,losses:0};
+      var meta=pitcherMeta[id], s=statsMap[id]||{era:'--',whip:'--',ip:'--',k9:'--',hr9:'--',wins:0,losses:0};
       startersData.push(Object.assign({},meta,s));
     });
     setProgress('starters','Starters: '+startersData.length+' pitchers, '+gameList.length+' games','done');
   } catch(e){setProgress('starters','Starters failed: '+e.message,'fail');}
-
   setProgress('bullpen','Bullpen (3 days)...','loading');
   try {
     bullpenData = await fetchBullpenExport(bpDates);
     setProgress('bullpen','Bullpen: '+bullpenData.length+' teams','done');
   } catch(e){setProgress('bullpen','Bullpen failed','fail');}
 
+  // Pull tier + lineup data for export context
+  var tierInfo = {};
+  try {
+    var tr = await fetch('/api/tiers');
+    if (tr.ok) {
+      var td = await tr.json();
+      tierInfo.aces = (td.aces && td.aces.pitchers) || {};
+      tierInfo.lineups = (td.lineups && td.lineups.profiles) || {};
+    }
+  } catch(e){}
+
   var out=[];
   var todayRec=(historyData||[]).find(function(r){return r.date===today;})||{};
   var pregLines=todayRec.pregameLines||{};
-
   out.push('=== GST MORNING EXPORT -- '+today+' ===');
   out.push('Generated: '+new Date().toLocaleTimeString());
   out.push('');
@@ -1144,7 +1306,6 @@ async function exportForClaude() {
     var un=mkt?mkt.outcomes.find(function(o){return o.name==='Under';}):null;
     if (ov) oddsLookup[key]={line:ov.point,op:ov.price,up:un?un.price:null};
   });
-
   out.push('--- GAME LINES (DraftKings) ---');
   gameList.forEach(function(g){
     var ak=(g.awayFull||g.away).split(' ').pop().toLowerCase();
@@ -1160,14 +1321,35 @@ async function exportForClaude() {
   out.push('');
 
   out.push('--- PROBABLE STARTERS (2026 Season Stats) ---');
+  function tierTag(name) {
+    var t = tierInfo.aces && tierInfo.aces[name];
+    if (t === 'tier1') return ' [T1]';
+    if (t === 'tier2') return ' [T2]';
+    return '';
+  }
   gameList.forEach(function(g){
     out.push(g.away+' @ '+g.home+':');
     var awayP=startersData.find(function(s){return s.team===g.away&&s.side==='away';});
     var homeP=startersData.find(function(s){return s.team===g.home&&s.side==='home';});
-    out.push('  '+g.away+': '+(awayP?awayP.name+' | ERA '+awayP.era+' | WHIP '+awayP.whip+' | IP '+awayP.ip+' | K/9 '+awayP.k9+' | '+awayP.wins+'-'+awayP.losses:'TBD'));
-    out.push('  '+g.home+': '+(homeP?homeP.name+' | ERA '+homeP.era+' | WHIP '+homeP.whip+' | IP '+homeP.ip+' | K/9 '+homeP.k9+' | '+homeP.wins+'-'+homeP.losses:'TBD'));
+    out.push('  '+g.away+': '+(awayP?awayP.name+tierTag(awayP.name)+' | ERA '+awayP.era+' | WHIP '+awayP.whip+' | HR/9 '+(awayP.hr9||'--')+' | IP '+awayP.ip+' | K/9 '+awayP.k9+' | '+awayP.wins+'-'+awayP.losses:'TBD'));
+    out.push('  '+g.home+': '+(homeP?homeP.name+tierTag(homeP.name)+' | ERA '+homeP.era+' | WHIP '+homeP.whip+' | HR/9 '+(homeP.hr9||'--')+' | IP '+homeP.ip+' | K/9 '+homeP.k9+' | '+homeP.wins+'-'+homeP.losses:'TBD'));
   });
   out.push('');
+
+  if (tierInfo.lineups && Object.keys(tierInfo.lineups).length > 0) {
+    out.push('--- LINEUP PROFILES ---');
+    var bb = [], bal = [], con = [];
+    Object.keys(tierInfo.lineups).forEach(function(t) {
+      var p = tierInfo.lineups[t];
+      if (p === 'power_boom_bust') bb.push(t);
+      else if (p === 'balanced') bal.push(t);
+      else if (p === 'contact') con.push(t);
+    });
+    out.push('Boom-Bust: '+(bb.sort().join(', ')||'—'));
+    out.push('Balanced:  '+(bal.sort().join(', ')||'—'));
+    out.push('Contact:   '+(con.sort().join(', ')||'—'));
+    out.push('');
+  }
 
   out.push('--- BULLPEN FATIGUE (Weighted 3-Day) ---');
   out.push('Weights: 70% '+bpDates[0]+' / 18% '+bpDates[1]+' / 12% '+bpDates[2]);
@@ -1175,7 +1357,6 @@ async function exportForClaude() {
     out.push(b.abbr+': '+b.weightedIp+' IP -- '+b.tier+' | Days: '+b.dayIp.join(' / '));
   });
   out.push('');
-
   out.push('--- RECENT HISTORY (Last 10) ---');
   (historyData||[]).slice(0,10).forEach(function(r){
     var rawGap=(r.actualRuns!=null&&r.grandSalamLine)?r.actualRuns-r.grandSalamLine:null;
@@ -1184,12 +1365,10 @@ async function exportForClaude() {
   });
   out.push('');
   out.push('=== END EXPORT ===');
-
   var output=out.join('\n');
   document.getElementById('claude-output').value=output;
   document.getElementById('claude-output').style.display='block';
   document.getElementById('copy-btn').style.display='block';
-
   try {
     await navigator.clipboard.writeText(output);
     document.getElementById('export-status').textContent='Copied to clipboard — paste into Claude';
@@ -1208,33 +1387,26 @@ async function copyOutput() {
   catch(e){ document.getElementById('claude-output').select(); document.execCommand('copy'); showToast('Copied','ok'); }
 }
 
-// ════════════════════════════════════════════════════════════════
-// MANAGE TAB LOGIC
-// ════════════════════════════════════════════════════════════════
-
+// ═════════════════════ MANAGE TAB ═════════════════════
 async function loadHistory() {
   try {
     const res = await fetch('/api/history');
     const history = await res.json();
     const today = getTodayPDT();
     const todayRecord = history.find(r => r.date === today);
-
     if (todayRecord) {
       const status = [];
       if (todayRecord.grandSalamLine) status.push(`GS: ${todayRecord.grandSalamLine}`);
       if (todayRecord.gamesOnSlate) status.push(`${todayRecord.gamesOnSlate} games`);
       if (todayRecord.naiveTotal) status.push(`Naive: ${todayRecord.naiveTotal}`);
       document.getElementById('today-status').textContent = status.join(' · ') || 'No data yet';
-
       if (todayRecord.grandSalamLine) {
         document.getElementById('gs-line').value = todayRecord.grandSalamLine;
         document.getElementById('gs-over').value = todayRecord.gsOverPrice || '';
         document.getElementById('gs-under').value = todayRecord.gsUnderPrice || '';
         document.getElementById('gs-book').value = todayRecord.gsBook || 'DraftKings';
       }
-      if (todayRecord.units != null) {
-        document.getElementById('gs-units').value = todayRecord.units;
-      }
+      if (todayRecord.units != null) document.getElementById('gs-units').value = todayRecord.units;
       if (todayRecord.todayPick) {
         document.getElementById('pick-status').textContent = `Pick set: ${todayRecord.todayPick}`;
         document.getElementById('pick-status').style.color = todayRecord.todayPick === 'OVER' ? '#00C46A' : '#2B7FFF';
@@ -1246,7 +1418,6 @@ async function loadHistory() {
     } else {
       document.getElementById('today-status').textContent = 'No record yet — odds fetch will create one';
     }
-
     const recent = history.slice(0, 7);
     document.getElementById('history-list').innerHTML = recent.map(r => {
       const resCls = r.result === 'over' ? 'over' : r.result === 'under' ? 'under' : 'pending';
@@ -1336,11 +1507,12 @@ function initAdmin() {
   document.getElementById('today-date').textContent = getTodayPDT();
   document.getElementById('result-date-display').textContent = `Saving for: ${resultDate}`;
   loadHistory();
-  // Set DOW default based on actual day
   const dayOfWeek = new Date(Date.now() + -7*60*60*1000).getDay();
   const dowEl = document.getElementById('m-dow');
   const dowMap = {0:6,1:0,2:1,3:2,4:3,5:4,6:5};
   if (dowEl) dowEl.selectedIndex = dowMap[dayOfWeek] ?? 2;
+  loadTiers();
+  loadTodaysStarters();
 }
 </script>
 </body>
