@@ -195,7 +195,7 @@
     <button class="admin-tab" onclick="switchAdminTab('model')">Model</button>
     <button class="admin-tab" onclick="switchAdminTab('beta')">⚡ Beta</button>
     <button class="admin-tab" onclick="switchAdminTab('tiers')">Tiers</button>
-    <button class="admin-tab" onclick="switchAdminTab('outliers')">Outliers</button>
+    <button class="admin-tab" onclick="switchAdminTab('outliers')">Outlier Hist</button>
     <button class="admin-tab" onclick="switchAdminTab('export')">Export</button>
   </div>
 
@@ -394,25 +394,25 @@
     </div>
 
     <div class="card">
-      <div class="card-title">Lineup Profiles</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Drag teams into buckets. Drop back to Unassigned to remove.</div>
+      <div class="card-title">Offensive Ranking</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Drag teams into tiers. Drop to Unranked to remove. Based on slugging/power profile.</div>
       <div class="lineup-buckets">
-        <div class="lineup-bucket">
-          <div class="lineup-bucket-title boom">Boom-Bust</div>
-          <div id="bucket-power_boom_bust"></div>
+        <div class="lineup-bucket" style="min-height:110px;">
+          <div class="lineup-bucket-title boom">Tier 1 · Boom-Bust</div>
+          <div id="bucket-power_boom_bust" style="min-height:70px;padding:4px;"></div>
         </div>
-        <div class="lineup-bucket">
-          <div class="lineup-bucket-title bal">Balanced</div>
-          <div id="bucket-balanced"></div>
+        <div class="lineup-bucket" style="min-height:110px;">
+          <div class="lineup-bucket-title bal">Tier 2 · Balanced</div>
+          <div id="bucket-balanced" style="min-height:70px;padding:4px;"></div>
         </div>
-        <div class="lineup-bucket">
-          <div class="lineup-bucket-title contact">Contact</div>
-          <div id="bucket-contact"></div>
+        <div class="lineup-bucket" style="min-height:110px;">
+          <div class="lineup-bucket-title contact">Tier 3 · Contact</div>
+          <div id="bucket-contact" style="min-height:70px;padding:4px;"></div>
         </div>
       </div>
-      <div class="lineup-unassigned">
-        <div class="lineup-unassigned-title">Unassigned</div>
-        <div id="bucket-unassigned"></div>
+      <div class="lineup-unassigned" style="min-height:56px;padding:10px;">
+        <div class="lineup-unassigned-title">Unranked</div>
+        <div id="bucket-unassigned" style="min-height:30px;"></div>
       </div>
     </div>
   </div>
@@ -512,10 +512,10 @@
   <!-- ═════════════════════ OUTLIER HISTORY TAB ═════════════════════ -->
   <div id="tab-outliers" class="admin-tab-panel">
     <div class="card">
-      <div class="card-title">Outlier Accuracy History</div>
+      <div class="card-title">Outlier History</div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">
-        🔥 Ceiling = game scored 12+ runs &nbsp;·&nbsp; ❄️ Floor = game scored 5 or fewer runs.<br>
-        Tap any row to expand individual games.
+        🔥 Ceiling = game scored 12+ runs &nbsp;·&nbsp; ❄️ Floor = game scored 5 or fewer.<br>
+        Shows our tail counter picks vs. actual results. Tap any row to expand games.
       </div>
       <div id="outlier-history-list"><div style="color:var(--muted);font-size:12px;text-align:center;padding:16px;">Loading...</div></div>
     </div>
@@ -1107,7 +1107,7 @@ function renderAllStarters() {
   const t1 = allStartersCache.filter(s => s.tier === 'tier1').length;
   const t2 = allStartersCache.filter(s => s.tier === 'tier2').length;
   const def = allStartersCache.length - t1 - t2;
-  countEl.innerHTML = `<strong class="gold">T1: ${t1}</strong> · <strong class="silver">T2: ${t2}</strong> · <strong>Default: ${def}</strong> · <strong>Total: ${allStartersCache.length}</strong>`;
+  countEl.innerHTML = `<strong class="gold">T1: ${t1}</strong> · <strong class="silver">T2: ${t2}</strong> · <strong style="color:var(--muted)">T3: ${def}</strong> · <strong>Total: ${allStartersCache.length}</strong>`;
   el.innerHTML = filtered.map(s => `
     <div class="pitcher-row">
       <div class="pitcher-row-info">
@@ -1115,7 +1115,7 @@ function renderAllStarters() {
         <div class="pitcher-meta">${s.team || '—'}${s.gamesStarted ? ' · ' + s.gamesStarted + ' GS' : ''}</div>
       </div>
       <select class="tier-select" data-tier="${s.tier}" onchange="updatePitcherTier('${s.name.replace(/'/g, "\\'")}', this.value)">
-        <option value="default" ${s.tier === 'default' ? 'selected' : ''}>Default</option>
+        <option value="default" ${s.tier === 'default' ? 'selected' : ''}>Tier 3</option>
         <option value="tier2" ${s.tier === 'tier2' ? 'selected' : ''}>Tier 2</option>
         <option value="tier1" ${s.tier === 'tier1' ? 'selected' : ''}>Tier 1</option>
       </select>
@@ -1164,8 +1164,8 @@ async function loadTodaysStarters() {
     for (const g of games) {
       const ap = g.teams?.away?.probablePitcher;
       const hp = g.teams?.home?.probablePitcher;
-      const aAbbr = g.teams.away.team.abbreviation;
-      const hAbbr = g.teams.home.team.abbreviation;
+      const aAbbr = g.teams?.away?.team?.abbreviation || g.teams?.away?.team?.name?.split(' ').pop() || '???';
+      const hAbbr = g.teams?.home?.team?.abbreviation || g.teams?.home?.team?.name?.split(' ').pop() || '???';
       if (ap) starters.push({ name: ap.fullName, team: aAbbr, opp: hAbbr });
       if (hp) starters.push({ name: hp.fullName, team: hAbbr, opp: aAbbr });
     }
@@ -1194,7 +1194,7 @@ function renderTodaysStarters() {
   const t1 = enriched.filter(s => s.tier === 'tier1').length;
   const t2 = enriched.filter(s => s.tier === 'tier2').length;
   const def = enriched.length - t1 - t2;
-  countEl.innerHTML = `<strong class="gold">T1: ${t1}</strong> · <strong class="silver">T2: ${t2}</strong> · <strong>Default: ${def}</strong> · <strong>Total: ${enriched.length}</strong>`;
+  countEl.innerHTML = `<strong class="gold">T1: ${t1}</strong> · <strong class="silver">T2: ${t2}</strong> · <strong>T3: ${def}</strong> · <strong>Total: ${enriched.length}</strong>`;
   enriched.sort((a, b) => {
     const t = tierSortKey(a.tier) - tierSortKey(b.tier);
     if (t !== 0) return t;
@@ -1207,7 +1207,7 @@ function renderTodaysStarters() {
         <div class="pitcher-meta">${s.team} vs ${s.opp}</div>
       </div>
       <select class="tier-select" data-tier="${s.tier}" onchange="updatePitcherTier('${s.name.replace(/'/g, "\\'")}', this.value)">
-        <option value="default" ${s.tier === 'default' ? 'selected' : ''}>Default</option>
+        <option value="default" ${s.tier === 'default' ? 'selected' : ''}>Tier 3</option>
         <option value="tier2" ${s.tier === 'tier2' ? 'selected' : ''}>Tier 2</option>
         <option value="tier1" ${s.tier === 'tier1' ? 'selected' : ''}>Tier 1</option>
       </select>
@@ -1242,7 +1242,7 @@ function renderLineupBuckets() {
     const el = document.getElementById(elId);
     const teams = buckets[profile];
     el.innerHTML = teams.sort().map(chipHtml).join('') ||
-      (profile !== 'unassigned' ? '<span style="font-size:11px;color:var(--muted);">Drop teams here</span>' : '');
+      (profile !== 'unassigned' ? `<span style="font-size:11px;color:var(--muted);">Drop teams here</span>` : '');
   }
 
   // Attach drop zone listeners to all buckets + unassigned
@@ -1281,7 +1281,7 @@ function onBucketDrop(elId) {
   }
   renderLineupBuckets();
   saveLineupBulk();
-  showToast(`${draggedTeam} → ${newProfile ? newProfile.replace('power_boom_bust','Boom-Bust') : 'Unassigned'}`, 'ok');
+  showToast(`${draggedTeam} → ${newProfile ? newProfile.replace('power_boom_bust','Tier 1').replace('balanced','Tier 2').replace('contact','Tier 3') : 'Unranked'}`, 'ok');
 }
 
 async function saveLineupBulk() {
@@ -1900,7 +1900,7 @@ function renderBetaGameRow(g) {
   const placeholder = container.querySelector('.placeholder-msg, div[style*="text-align:center"]');
   if (placeholder) placeholder.remove();
   const scored = scoreGame(g);
-  const tierLabel = t => t === 'tier1' ? '<span class="gold">T1</span>' : t === 'tier2' ? '<span class="silver">T2</span>' : 'Def';
+  const tierLabel = t => t === 'tier1' ? '<span class="gold">T1</span>' : t === 'tier2' ? '<span class="silver">T2</span>' : '<span style="color:var(--muted)">T3</span>';
   const bpLabel = g.bpAdj != null ? `${g.bpAdj >= 0 ? '+' : ''}${g.bpAdj}` : '—';
   const p12Label = g.p12 != null ? `<span style="font-size:9px;color:var(--muted);margin-left:3px;">P12+: ${g.p12}%</span>` : '';
   const div = document.createElement('div');
@@ -1954,15 +1954,34 @@ function runBetaModel() {
   document.getElementById('b-signal').style.color = signalColor;
   document.getElementById('b-counts').textContent = `${ceiling} ceiling · ${neutral} neutral · ${floor} floor`;
 
-  // Render game breakdown sorted by score descending
   gameResults.sort((a,b) => b.scored.total - a.scored.total);
+  renderBetaBreakdown(gameResults);
+  document.getElementById('beta-results').style.display = 'block';
+  document.getElementById('beta-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // Save results to blob so they persist across refresh
+  const today = getTodayPDT();
+  const gsLine = parseFloat(document.getElementById('b-gsline').value) || null;
+  const naive  = parseFloat(document.getElementById('b-naive').value) || null;
+  saveBetaResults(today, { gsLine, naive, ceiling, floor, neutral, lean, signal,
+    games: gameResults.map(g => ({
+      matchup: g.matchup, away: g.away, home: g.home, ou: g.ou,
+      bpAdj: g.bpAdj, p12: g.p12,
+      awayTier: g.awayTier, homeTier: g.homeTier,
+      bpTier: g.bpTier, awayLineup: g.awayLineup, homeLineup: g.homeLineup,
+      scored: { total: g.scored.total, label: g.scored.label, s1: g.scored.s1, s2: g.scored.s2, s3: g.scored.s3, s4: g.scored.s4 },
+    }))
+  });
+}
+
+function renderBetaBreakdown(gameResults) {
   document.getElementById('beta-game-results').innerHTML = gameResults.map(g => {
     const s = g.scored;
     const cls = s.label === 'ceiling' ? 'outlier-over' : s.label === 'floor' ? 'outlier-under' : 'outlier-neutral';
     const emoji = s.label === 'ceiling' ? '🔥' : s.label === 'floor' ? '❄️' : '⚖️';
     const scoreColor = s.total >= 3 ? 'var(--green)' : s.total <= -3 ? 'var(--blue)' : 'var(--text)';
     const p12ctx = g.p12 != null
-      ? `<div style="margin-top:6px;font-size:10px;color:var(--muted);text-align:right;">P(12+ runs): <span style="color:var(--text);font-weight:700;">${g.p12}%</span> <span style="color:var(--muted);">(context only · not scored)</span></div>`
+      ? `<div style="margin-top:6px;font-size:10px;color:var(--muted);text-align:right;">P(12+ runs): <span style="color:var(--text);font-weight:700;">${g.p12}%</span> <span style="color:var(--muted);">(context only)</span></div>`
       : '';
     return `<div class="outlier-card ${cls}" style="flex-direction:column;align-items:stretch;gap:6px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -1978,9 +1997,57 @@ function runBetaModel() {
       ${p12ctx}
     </div>`;
   }).join('');
+}
 
-  document.getElementById('beta-results').style.display = 'block';
-  document.getElementById('beta-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+async function saveBetaResults(date, payload) {
+  try {
+    await fetch('/api/park-weather?type=beta', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'beta', date, ...payload })
+    });
+    showToast('Beta results saved ✓', 'ok');
+  } catch(e) { console.error('saveBetaResults:', e); }
+}
+
+async function loadBetaResults() {
+  try {
+    const today = getTodayPDT();
+    const res = await fetch(`/api/park-weather?type=beta&date=${today}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const r = data.betaResults;
+    if (!r || !r.games?.length) return;
+
+    // Restore slate setup inputs
+    if (r.gsLine) document.getElementById('b-gsline').value = r.gsLine;
+    if (r.naive) document.getElementById('b-naive').value = r.naive;
+    if (r.games?.length) document.getElementById('b-games').value = r.games.length;
+
+    // Restore betaGames state so Re-run works
+    betaGames = r.games.map(g => ({ ...g }));
+
+    // Restore game rows in the list
+    document.getElementById('beta-games-list').innerHTML = '';
+    for (const g of betaGames) renderBetaGameRow(g);
+
+    // Restore results display
+    document.getElementById('b-ceiling-count').textContent = r.ceiling;
+    document.getElementById('b-neutral-count').textContent = r.neutral;
+    document.getElementById('b-floor-count').textContent = r.floor;
+    document.getElementById('b-lean-score').textContent = (r.lean >= 0 ? '+' : '') + r.lean;
+    document.getElementById('b-lean-score').style.color = r.lean >= 3 ? 'var(--green)' : r.lean <= -3 ? 'var(--blue)' : 'var(--muted)';
+    document.getElementById('b-signal').textContent = r.signal || '—';
+    document.getElementById('b-signal').style.color = r.lean >= 2 ? 'var(--green)' : r.lean <= -2 ? 'var(--blue)' : 'var(--muted)';
+    document.getElementById('b-counts').textContent = `${r.ceiling} ceiling · ${r.neutral} neutral · ${r.floor} floor`;
+
+    const sorted = [...r.games].sort((a,b) => b.scored.total - a.scored.total);
+    renderBetaBreakdown(sorted);
+    document.getElementById('beta-results').style.display = 'block';
+
+    const savedTime = r.savedAt ? new Date(r.savedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}) : '';
+    showToast(`Beta results restored${savedTime ? ' · saved ' + savedTime : ''}`, 'ok');
+  } catch(e) { console.error('loadBetaResults:', e); }
 }
 
 // ═════════════════════ OUTLIER HISTORY TAB ═════════════════════
@@ -1988,62 +2055,125 @@ async function loadOutlierHistory() {
   const el = document.getElementById('outlier-history-list');
   el.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:16px;">Loading...</div>';
   try {
-    const [histRes, schedDates] = await Promise.all([
-      fetch('/api/history').then(r => r.json()),
-      Promise.resolve(null),
-    ]);
-    const history = histRes.filter(r => r.actualRuns != null && r.date);
+    const histRes = await fetch('/api/history').then(r => r.json());
+    const history = histRes.filter(r => r.actualRuns != null && r.date).slice(0, 20);
     if (!history.length) {
       el.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:16px;">No completed slates yet.</div>';
       return;
     }
-    // For each date with actual runs, fetch final scores to find 12+ and 5- games
-    const rows = await Promise.all(history.slice(0, 20).map(async rec => {
-      try {
-        const res = await fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${rec.date}&hydrate=linescore`);
-        const data = await res.json();
-        const games = (data.dates?.[0]?.games || []).filter(g => g.status.detailedState === 'Final');
-        const ceilingGames = games.filter(g => {
-          const total = (g.teams.away.score || 0) + (g.teams.home.score || 0);
-          return total >= 12;
-        });
-        const floorGames = games.filter(g => {
-          const total = (g.teams.away.score || 0) + (g.teams.home.score || 0);
-          return total <= 5;
-        });
-        return { rec, games, ceilingGames, floorGames };
-      } catch(e) {
-        return { rec, games: [], ceilingGames: [], floorGames: [] };
-      }
+
+    // For each date, fetch game scores AND saved beta results in parallel
+    const rows = await Promise.all(history.map(async rec => {
+      const [schedRes, betaRes] = await Promise.allSettled([
+        fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${rec.date}&hydrate=linescore`).then(r=>r.json()),
+        fetch(`/api/park-weather?type=beta&date=${rec.date}`).then(r=>r.json()),
+      ]);
+      const schedData = schedRes.status === 'fulfilled' ? schedRes.value : null;
+      const betaData  = betaRes.status === 'fulfilled' ? betaRes.value?.betaResults : null;
+      const allGames = (schedData?.dates?.[0]?.games || []).filter(g => g.status.detailedState === 'Final');
+      return { rec, allGames, betaData };
     }));
 
+    // Accumulate hit rate stats across all slates
+    let totalCeilingPicks = 0, ceilingHits = 0;
+    let totalFloorPicks = 0, floorHits = 0;
+
+    const abbr = t => t?.team?.abbreviation || t?.team?.name?.split(' ').pop()?.slice(0,3) || '???';
+
     el.innerHTML = rows.map((row, idx) => {
-      const { rec, games, ceilingGames, floorGames } = row;
+      const { rec, allGames, betaData } = row;
       const date = rec.date.slice(5).split('-').map(n=>parseInt(n)).join('/');
-      const result = rec.result ? rec.result.toUpperCase() : 'Pending';
+
+      // Classify actual game outcomes
+      const actualCeiling = new Set();
+      const actualFloor   = new Set();
+      const gameScores = {};
+      for (const g of allGames) {
+        const total = (g.teams.away.score||0) + (g.teams.home.score||0);
+        const away = abbr(g.teams.away);
+        const home = abbr(g.teams.home);
+        const key = `${away}@${home}`;
+        gameScores[key] = { away, home, total, ou: null };
+        if (total >= 12) actualCeiling.add(key);
+        if (total <= 5)  actualFloor.add(key);
+      }
+
+      // Our picks from saved beta results
+      const ourCeiling = new Set();
+      const ourFloor   = new Set();
+      const betaGamesMap = {};
+      if (betaData?.games) {
+        for (const bg of betaData.games) {
+          betaGamesMap[bg.matchup] = bg;
+          if (bg.scored?.label === 'ceiling') ourCeiling.add(bg.matchup);
+          if (bg.scored?.label === 'floor')   ourFloor.add(bg.matchup);
+          // attach ou to gameScores
+          if (gameScores[bg.matchup]) gameScores[bg.matchup].ou = bg.ou;
+        }
+      }
+
+      // Accumulate stats
+      for (const m of ourCeiling) {
+        totalCeilingPicks++;
+        if (actualCeiling.has(m)) ceilingHits++;
+      }
+      for (const m of ourFloor) {
+        totalFloorPicks++;
+        if (actualFloor.has(m)) floorHits++;
+      }
+
+      // Build per-game rows
       const pick = rec.todayPick || '—';
+      const slateResult = rec.result?.toUpperCase() || 'Pending';
       const won = rec.result && rec.todayPick && rec.result.toLowerCase() === rec.todayPick.toLowerCase();
-      const resultColor = won ? 'var(--green)' : (rec.result && rec.result !== 'pending' && rec.result !== 'void') ? 'var(--red)' : 'var(--muted)';
+      const slateColor = won ? 'var(--green)' : (rec.result && !['pending','void'].includes(rec.result)) ? 'var(--red)' : 'var(--muted)';
+      const betaSignal = betaData?.signal || '—';
+      const betaLean = betaData?.lean ?? null;
+      const betaColor = betaLean >= 2 ? 'var(--green)' : betaLean <= -2 ? 'var(--blue)' : 'var(--muted)';
 
-      const abbr = g => g.team?.abbreviation || g.team?.name?.split(' ').pop()?.slice(0,3).toUpperCase() || '???';
+      const gameRowsHtml = Object.entries(gameScores).map(([key, gs]) => {
+        const isCeilActual = actualCeiling.has(key);
+        const isFloorActual = actualFloor.has(key);
+        const isCeilPick   = ourCeiling.has(key);
+        const isFloorPick  = ourFloor.has(key);
+        const betaScore = betaGamesMap[key]?.scored;
 
-      const ceilGamesHtml = ceilingGames.map(g => {
-        const total = (g.teams.away.score||0)+(g.teams.home.score||0);
-        const away = abbr(g.teams.away);
-        const home = abbr(g.teams.home);
-        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:rgba(0,196,106,0.06);border:1px solid rgba(0,196,106,0.15);border-radius:6px;margin-bottom:4px;">
-          <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;">${away} @ ${home}</span>
-          <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;color:var(--green);">🔥 ${total} runs</span>
-        </div>`;
-      }).join('');
+        // Highlight logic:
+        // - Our pick AND correct → bright green/blue
+        // - Our pick AND wrong  → red border
+        // - Actual outlier we missed → yellow border
+        let rowStyle = 'background:var(--surface2);border:1px solid var(--border);';
+        let badge = '';
+        if (isCeilActual && isCeilPick) {
+          rowStyle = 'background:rgba(0,196,106,0.1);border:1px solid rgba(0,196,106,0.4);';
+          badge = '<span style="font-size:10px;color:var(--green);font-weight:700;">✓ CEILING HIT</span>';
+        } else if (isFloorActual && isFloorPick) {
+          rowStyle = 'background:rgba(43,127,255,0.1);border:1px solid rgba(43,127,255,0.4);';
+          badge = '<span style="font-size:10px;color:var(--blue);font-weight:700;">✓ FLOOR HIT</span>';
+        } else if ((isCeilPick || isFloorPick) && !isCeilActual && !isFloorActual) {
+          rowStyle = 'background:rgba(255,59,59,0.06);border:1px solid rgba(255,59,59,0.25);';
+          badge = `<span style="font-size:10px;color:var(--red);font-weight:700;">✗ MISS</span>`;
+        } else if (isCeilActual && !isCeilPick) {
+          rowStyle = 'background:rgba(245,197,24,0.06);border:1px solid rgba(245,197,24,0.3);';
+          badge = '<span style="font-size:10px;color:var(--accent);">🔥 MISSED CEILING</span>';
+        } else if (isFloorActual && !isFloorPick) {
+          rowStyle = 'background:rgba(245,197,24,0.06);border:1px solid rgba(245,197,24,0.3);';
+          badge = '<span style="font-size:10px;color:var(--accent);">❄️ MISSED FLOOR</span>';
+        }
 
-      const floorGamesHtml = floorGames.map(g => {
-        const total = (g.teams.away.score||0)+(g.teams.home.score||0);
-        const away = abbr(g.teams.away);
-        const home = abbr(g.teams.home);
-        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:rgba(43,127,255,0.06);border:1px solid rgba(43,127,255,0.15);border-radius:6px;margin-bottom:4px;">
-          <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;">${away} @ ${home}</span>
-          <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;color:var(--blue);">❄️ ${total} runs</span>
+        const resultEmoji = isCeilActual ? '🔥' : isFloorActual ? '❄️' : '';
+        const scoreStr = betaScore ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--muted);margin-left:4px;">${betaScore.total >= 0 ? '+' : ''}${betaScore.total}</span>` : '';
+
+        return `<div style="${rowStyle}border-radius:6px;padding:6px 8px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;">${gs.away} @ ${gs.home}</span>
+            ${gs.ou ? `<span style="font-size:10px;color:var(--muted);margin-left:4px;">O/U ${gs.ou}</span>` : ''}
+            ${scoreStr}
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            ${badge}
+            <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;">${resultEmoji} ${gs.total} runs</span>
+          </div>
         </div>`;
       }).join('');
 
@@ -2052,25 +2182,43 @@ async function loadOutlierHistory() {
           <div onclick="toggleOutlierRow(${idx})" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;cursor:pointer;background:var(--surface2);">
             <div style="font-family:'Barlow Condensed',sans-serif;">
               <span style="font-size:15px;font-weight:700;">${date}</span>
-              <span style="font-size:11px;color:var(--muted);margin-left:8px;">${games.length} games</span>
+              <span style="font-size:11px;color:var(--muted);margin-left:6px;">${allGames.length} games</span>
+              <span style="font-size:11px;color:var(--green);margin-left:8px;">🔥 ${actualCeiling.size}</span>
+              <span style="font-size:11px;color:var(--blue);margin-left:4px;">❄️ ${actualFloor.size}</span>
             </div>
             <div style="display:flex;gap:10px;align-items:center;">
-              <span style="font-size:12px;color:var(--green);">🔥 ${ceilingGames.length}</span>
-              <span style="font-size:12px;color:var(--blue);">❄️ ${floorGames.length}</span>
-              <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:${resultColor};">${pick} → ${result}</span>
-              <span style="color:var(--muted);font-size:12px;">›</span>
+              ${betaData ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:${betaColor};">${betaSignal.replace('🔥 ','').replace('❄️ ','').replace('📈 ','').replace('📉 ','').replace('⚖️ ','')}</span>` : ''}
+              <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:${slateColor};">${pick} → ${slateResult}</span>
+              <span style="color:var(--muted);font-size:14px;">›</span>
             </div>
           </div>
           <div id="outlier-row-${idx}" style="display:none;padding:10px 12px;background:var(--surface);">
-            ${ceilingGames.length ? `<div style="font-size:10px;color:var(--green);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">🔥 Ceiling Games (12+ runs)</div>${ceilGamesHtml}` : ''}
-            ${floorGames.length ? `<div style="font-size:10px;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;margin:${ceilingGames.length?'10px':0} 0 6px;">❄️ Floor Games (5 or fewer runs)</div>${floorGamesHtml}` : ''}
-            ${!ceilingGames.length && !floorGames.length ? '<div style="color:var(--muted);font-size:12px;text-align:center;padding:8px;">No outlier games this slate</div>' : ''}
-            <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);">
-              GS Line: ${rec.grandSalamLine||'—'} · Naive: ${rec.naiveTotal||'—'} · Actual: ${rec.actualRuns} · Gap: ${rec.actualRuns&&rec.grandSalamLine?(rec.actualRuns-rec.grandSalamLine>0?'+':'')+(rec.actualRuns-rec.grandSalamLine).toFixed(1):'—'}
+            <div style="margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border);">
+              <span style="font-size:10px;color:var(--muted);">GS: ${rec.grandSalamLine||'—'} · Naive: ${rec.naiveTotal||'—'} · Actual: ${rec.actualRuns} · Gap: ${rec.actualRuns&&rec.grandSalamLine?(rec.actualRuns-rec.grandSalamLine>0?'+':'')+(rec.actualRuns-rec.grandSalamLine).toFixed(1):'—'}</span>
+              ${betaData ? `<span style="font-size:10px;color:${betaColor};margin-left:8px;">Beta: ${betaData.ceiling}🔥 ${betaData.floor}❄️ lean ${betaData.lean>=0?'+':''}${betaData.lean}</span>` : '<span style="font-size:10px;color:var(--muted);margin-left:8px;">No beta data saved</span>'}
             </div>
+            ${gameRowsHtml || '<div style="color:var(--muted);font-size:12px;text-align:center;padding:8px;">No final scores found</div>'}
           </div>
         </div>`;
     }).join('');
+
+    // Append summary stats at top
+    const ceilPct = totalCeilingPicks > 0 ? Math.round(ceilingHits/totalCeilingPicks*100) : null;
+    const floorPct = totalFloorPicks > 0 ? Math.round(floorHits/totalFloorPicks*100) : null;
+    const summaryHtml = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+      <div style="background:rgba(0,196,106,0.08);border:1px solid rgba(0,196,106,0.2);border-radius:8px;padding:10px;text-align:center;">
+        <div style="font-size:10px;color:var(--green);text-transform:uppercase;letter-spacing:0.5px;">🔥 Ceiling Hit Rate</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:var(--green);">${ceilPct !== null ? ceilPct+'%' : '—'}</div>
+        <div style="font-size:10px;color:var(--muted);">${ceilingHits}/${totalCeilingPicks} picks correct</div>
+      </div>
+      <div style="background:rgba(43,127,255,0.08);border:1px solid rgba(43,127,255,0.2);border-radius:8px;padding:10px;text-align:center;">
+        <div style="font-size:10px;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;">❄️ Floor Hit Rate</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:var(--blue);">${floorPct !== null ? floorPct+'%' : '—'}</div>
+        <div style="font-size:10px;color:var(--muted);">${floorHits}/${totalFloorPicks} picks correct</div>
+      </div>
+    </div>`;
+    el.innerHTML = summaryHtml + el.innerHTML;
+
   } catch(e) {
     el.innerHTML = `<div style="color:var(--red);font-size:12px;text-align:center;padding:16px;">Error: ${e.message}</div>`;
   }
@@ -2089,8 +2237,9 @@ function initAdmin() {
   const dowEl = document.getElementById('m-dow');
   const dowMap = {0:6,1:0,2:1,3:2,4:3,5:4,6:5};
   if (dowEl) dowEl.selectedIndex = dowMap[dayOfWeek] ?? 2;
-  loadTiers(); // loads tiers then today's starters in sequence
-  loadBPData(); // load any saved BP data for today
+  loadTiers();
+  loadBPData();
+  loadBetaResults();
 }
 </script>
 </body>
