@@ -375,7 +375,10 @@
       </div>
 
       <div id="pitcher-today">
-        <div class="tier-count" id="today-count">Loading today's starters...</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div class="tier-count" id="today-count">Loading today's starters...</div>
+          <button onclick="loadTodaysStarters()" style="background:transparent;border:1px solid var(--border);color:var(--muted);font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;">↻ Refresh</button>
+        </div>
         <div class="pitcher-list" id="today-list"><div style="padding:16px;color:var(--muted);font-size:12px;text-align:center;">Loading...</div></div>
       </div>
 
@@ -422,10 +425,8 @@
         <code style="color:var(--accent);font-size:10px;">AWAY@HOME | +0.98 | note</code>
       </div>
       <textarea id="bp-paste-input" rows="8" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:monospace;font-size:11px;resize:vertical;" placeholder="NYM@CHC | +0.98 | wind_out | 44%&#10;LAD@COL | +0.87 | wind_in_cold | 51%&#10;TOR@ARI | +0.33 | warm | 38%&#10;TEX@SEA | -1.74 | wind_in_cold | 21%&#10;..."></textarea>
-      <div style="display:flex;gap:8px;margin-top:8px;">
-        <button class="btn btn-primary" style="flex:1;padding:10px;font-size:13px;" onclick="parseBPInput()">⚡ PARSE &amp; SAVE</button>
-        <button class="btn" style="flex:0 0 auto;padding:10px 14px;font-size:13px;background:var(--surface2);color:var(--muted);border:1px solid var(--border);" onclick="clearBPInput()">Clear</button>
-      </div>
+      <button class="btn btn-primary" style="width:100%;padding:12px;font-size:14px;margin-top:8px;" onclick="parseBPInput()">⚡ PARSE &amp; SAVE</button>
+      <button class="btn" style="width:100%;padding:10px;font-size:13px;margin-top:6px;background:transparent;color:var(--muted);border:1px solid var(--border);" onclick="clearBPInput()">Clear</button>
       <div id="bp-parse-status" style="font-size:11px;color:var(--muted);margin-top:8px;min-height:14px;"></div>
     </div>
 
@@ -1027,16 +1028,20 @@ let lineupData = { profiles: {} };
 async function loadTiers() {
   try {
     const res = await fetch('/api/tiers');
-    const data = await res.json();
-    acesData = data.aces || { pitchers: {} };
-    lineupData = data.lineups || { profiles: {} };
-    // Load today's starters first, THEN render (so tier lookup works)
-    await loadTodaysStarters();
-    renderAllStarters();
-    renderLineupBuckets();
+    if (res.ok) {
+      const data = await res.json();
+      acesData = data.aces || { pitchers: {} };
+      lineupData = data.lineups || { profiles: {} };
+    }
   } catch(e) {
-    console.error('loadTiers error:', e);
+    console.error('loadTiers fetch error:', e);
   }
+  // Always render lineup buckets — ALL_TEAMS is hardcoded, doesn't depend on API
+  renderLineupBuckets();
+  // Load today's starters (needs acesData for tier lookup)
+  await loadTodaysStarters();
+  // Render all starters list (only if synced before)
+  renderAllStarters();
 }
 
 function showPitcherSubTab(which) {
@@ -1139,10 +1144,17 @@ async function updatePitcherTier(name, tier) {
 }
 
 async function loadTodaysStarters() {
+  document.getElementById('today-count').textContent = 'Loading today\'s starters...';
+  document.getElementById('today-list').innerHTML = '<div style="padding:16px;color:var(--muted);font-size:12px;text-align:center;">Fetching from MLB API...</div>';
   try {
     const today = getTodayPDT();
-    const url = `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}&hydrate=probablePitcher`;
-    const res = await fetch(url);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(
+      `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}&hydrate=probablePitcher`,
+      { signal: controller.signal }
+    );
+    clearTimeout(timeout);
     const data = await res.json();
     const games = data.dates?.[0]?.games || [];
     const starters = [];
@@ -1157,8 +1169,10 @@ async function loadTodaysStarters() {
     todayStartersCache = starters;
     renderTodaysStarters();
   } catch(e) {
+    const msg = e.name === 'AbortError' ? 'Timed out — MLB API slow, try again' : e.message;
     console.error('loadTodaysStarters error:', e);
-    document.getElementById('today-list').innerHTML = `<div style="padding:16px;color:var(--red);font-size:12px;text-align:center;">Error: ${e.message}</div>`;
+    document.getElementById('today-count').textContent = '—';
+    document.getElementById('today-list').innerHTML = `<div style="padding:16px;color:var(--red);font-size:12px;text-align:center;">${msg}</div>`;
   }
 }
 
@@ -2020,7 +2034,8 @@ function toggleOutlierRow(idx) {
   const el = document.getElementById(`outlier-row-${idx}`);
   if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
-</script>
+
+function initAdmin() {
   document.getElementById('today-date').textContent = getTodayPDT();
   document.getElementById('result-date-display').textContent = `Saving for: ${resultDate}`;
   loadHistory();
