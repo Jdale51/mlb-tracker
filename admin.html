@@ -166,11 +166,14 @@
   .lineup-bucket-title.boom{color:var(--red);}
   .lineup-bucket-title.bal{color:var(--accent);}
   .lineup-bucket-title.contact{color:var(--blue);}
-  .team-chip{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;padding:3px 7px;margin:2px;border-radius:4px;background:var(--bg);color:var(--text);cursor:pointer;border:1px solid var(--border);user-select:none;}
-  .team-chip:hover{border-color:var(--accent);}
-  .team-chip.unassigned{opacity:0.5;background:transparent;}
-  .lineup-unassigned{background:var(--surface2);border:1px dashed var(--border);border-radius:8px;padding:8px;margin-top:8px;}
-  .lineup-unassigned-title{font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;}
+  .team-chip{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;padding:4px 8px;margin:2px;border-radius:4px;background:var(--bg);color:var(--text);cursor:grab;border:1px solid var(--border);user-select:none;}
+  .team-chip:active{cursor:grabbing;}
+  .team-chip.dragging{opacity:0.4;}
+  .team-chip.unassigned{opacity:0.6;background:transparent;}
+  .lineup-bucket{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px;min-height:80px;transition:border-color 0.15s,background 0.15s;}
+  .lineup-bucket.drag-over{border-color:var(--accent);background:rgba(245,197,24,0.06);}
+  .lineup-unassigned{background:var(--surface2);border:1px dashed var(--border);border-radius:8px;padding:8px;margin-top:8px;min-height:44px;transition:border-color 0.15s;}
+  .lineup-unassigned.drag-over{border-color:var(--accent);}
 </style>
 </head>
 <body>
@@ -392,7 +395,7 @@
 
     <div class="card">
       <div class="card-title">Lineup Profiles</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Tap a team to cycle: Boom-Bust → Balanced → Contact → Unassigned</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Drag teams into buckets. Drop back to Unassigned to remove.</div>
       <div class="lineup-buckets">
         <div class="lineup-bucket">
           <div class="lineup-bucket-title boom">Boom-Bust</div>
@@ -1195,7 +1198,7 @@ function renderTodaysStarters() {
   enriched.sort((a, b) => {
     const t = tierSortKey(a.tier) - tierSortKey(b.tier);
     if (t !== 0) return t;
-    return a.team.localeCompare(b.team);
+    return (a.team || '').localeCompare(b.team || '');
   });
   el.innerHTML = enriched.map(s => `
     <div class="pitcher-row">
@@ -1212,16 +1215,73 @@ function renderTodaysStarters() {
   `).join('');
 }
 
-function cycleTeamProfile(team) {
-  const current = lineupData.profiles[team];
-  const next = current === 'power_boom_bust' ? 'balanced'
-             : current === 'balanced' ? 'contact'
-             : current === 'contact' ? null
-             : 'power_boom_bust';
-  if (next === null) delete lineupData.profiles[team];
-  else lineupData.profiles[team] = next;
+let draggedTeam = null;
+
+function renderLineupBuckets() {
+  const buckets = { power_boom_bust: [], balanced: [], contact: [], unassigned: [] };
+  for (const team of ALL_TEAMS) {
+    const p = lineupData.profiles[team];
+    if (p && buckets[p]) buckets[p].push(team);
+    else buckets.unassigned.push(team);
+  }
+
+  function chipHtml(team) {
+    return `<span class="team-chip" draggable="true" data-team="${team}"
+      ondragstart="onChipDragStart(event,'${team}')"
+      ondragend="onChipDragEnd(event)">${team}</span>`;
+  }
+
+  const bucketIds = {
+    power_boom_bust: 'bucket-power_boom_bust',
+    balanced: 'bucket-balanced',
+    contact: 'bucket-contact',
+    unassigned: 'bucket-unassigned',
+  };
+
+  for (const [profile, elId] of Object.entries(bucketIds)) {
+    const el = document.getElementById(elId);
+    const teams = buckets[profile];
+    el.innerHTML = teams.sort().map(chipHtml).join('') ||
+      (profile !== 'unassigned' ? '<span style="font-size:11px;color:var(--muted);">Drop teams here</span>' : '');
+  }
+
+  // Attach drop zone listeners to all buckets + unassigned
+  for (const elId of Object.values(bucketIds)) {
+    const el = document.getElementById(elId);
+    el.ondragover  = e => { e.preventDefault(); el.classList.add('drag-over'); };
+    el.ondragleave = e => el.classList.remove('drag-over');
+    el.ondrop      = e => { e.preventDefault(); el.classList.remove('drag-over'); onBucketDrop(elId); };
+  }
+}
+
+function onChipDragStart(e, team) {
+  draggedTeam = team;
+  e.dataTransfer.effectAllowed = 'move';
+  setTimeout(() => { if (e.target) e.target.classList.add('dragging'); }, 0);
+}
+
+function onChipDragEnd(e) {
+  if (e.target) e.target.classList.remove('dragging');
+  draggedTeam = null;
+}
+
+function onBucketDrop(elId) {
+  if (!draggedTeam) return;
+  const profileMap = {
+    'bucket-power_boom_bust': 'power_boom_bust',
+    'bucket-balanced': 'balanced',
+    'bucket-contact': 'contact',
+    'bucket-unassigned': null,
+  };
+  const newProfile = profileMap[elId];
+  if (newProfile === null) {
+    delete lineupData.profiles[draggedTeam];
+  } else {
+    lineupData.profiles[draggedTeam] = newProfile;
+  }
   renderLineupBuckets();
   saveLineupBulk();
+  showToast(`${draggedTeam} → ${newProfile ? newProfile.replace('power_boom_bust','Boom-Bust') : 'Unassigned'}`, 'ok');
 }
 
 async function saveLineupBulk() {
@@ -1236,22 +1296,6 @@ async function saveLineupBulk() {
   } catch(e) {
     showToast('Error: ' + e.message, 'err');
   }
-}
-
-function renderLineupBuckets() {
-  const buckets = { power_boom_bust: [], balanced: [], contact: [], unassigned: [] };
-  for (const team of ALL_TEAMS) {
-    const p = lineupData.profiles[team];
-    if (p && buckets[p]) buckets[p].push(team);
-    else buckets.unassigned.push(team);
-  }
-  function chipHtml(team, assigned) {
-    return `<span class="team-chip${assigned ? '' : ' unassigned'}" onclick="cycleTeamProfile('${team}')">${team}</span>`;
-  }
-  document.getElementById('bucket-power_boom_bust').innerHTML = buckets.power_boom_bust.sort().map(t => chipHtml(t, true)).join('') || '<span style="font-size:11px;color:var(--muted);">—</span>';
-  document.getElementById('bucket-balanced').innerHTML = buckets.balanced.sort().map(t => chipHtml(t, true)).join('') || '<span style="font-size:11px;color:var(--muted);">—</span>';
-  document.getElementById('bucket-contact').innerHTML = buckets.contact.sort().map(t => chipHtml(t, true)).join('') || '<span style="font-size:11px;color:var(--muted);">—</span>';
-  document.getElementById('bucket-unassigned').innerHTML = buckets.unassigned.sort().map(t => chipHtml(t, false)).join('');
 }
 
 // ═════════════════════ ABBR + EXPORT ═════════════════════
@@ -1981,10 +2025,12 @@ async function loadOutlierHistory() {
       const won = rec.result && rec.todayPick && rec.result.toLowerCase() === rec.todayPick.toLowerCase();
       const resultColor = won ? 'var(--green)' : (rec.result && rec.result !== 'pending' && rec.result !== 'void') ? 'var(--red)' : 'var(--muted)';
 
+      const abbr = g => g.team?.abbreviation || g.team?.name?.split(' ').pop()?.slice(0,3).toUpperCase() || '???';
+
       const ceilGamesHtml = ceilingGames.map(g => {
         const total = (g.teams.away.score||0)+(g.teams.home.score||0);
-        const away = g.teams.away.team.abbreviation;
-        const home = g.teams.home.team.abbreviation;
+        const away = abbr(g.teams.away);
+        const home = abbr(g.teams.home);
         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:rgba(0,196,106,0.06);border:1px solid rgba(0,196,106,0.15);border-radius:6px;margin-bottom:4px;">
           <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;">${away} @ ${home}</span>
           <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;color:var(--green);">🔥 ${total} runs</span>
@@ -1993,8 +2039,8 @@ async function loadOutlierHistory() {
 
       const floorGamesHtml = floorGames.map(g => {
         const total = (g.teams.away.score||0)+(g.teams.home.score||0);
-        const away = g.teams.away.team.abbreviation;
-        const home = g.teams.home.team.abbreviation;
+        const away = abbr(g.teams.away);
+        const home = abbr(g.teams.home);
         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:rgba(43,127,255,0.06);border:1px solid rgba(43,127,255,0.15);border-radius:6px;margin-bottom:4px;">
           <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;">${away} @ ${home}</span>
           <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;color:var(--blue);">❄️ ${total} runs</span>
