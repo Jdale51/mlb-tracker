@@ -422,27 +422,28 @@ let pitcherStatsCache = {}; // keyed by pitcher id
 async function fetchPitcherStats(id) {
   if (pitcherStatsCache[id]) return pitcherStatsCache[id];
   try {
-    const [seasonRes, last5Res] = await Promise.all([
+    const [seasonRes, gameLogRes] = await Promise.all([
       fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=season&group=pitching&season=2026&gameType=R`),
-      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=lastXGames&group=pitching&limit=5&season=2026&gameType=R`)
+      fetch(`https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=gameLog&group=pitching&season=2026&gameType=R`)
     ]);
     const seasonData = await seasonRes.json();
-    const last5Data = await last5Res.json();
+    const gameLogData = await gameLogRes.json();
 
     const s = seasonData.stats?.[0]?.splits?.[0]?.stat || {};
 
-    // Find the pitching stat group explicitly, take up to 5 splits
-    const pitchingGroup = last5Data.stats?.find(sg => sg.group?.displayName === 'pitching');
-    const startSplits = (pitchingGroup?.splits || []).slice(0, 5);
+    // gameLog returns one split per game appearance, sorted most recent first
+    const allGames = gameLogData.stats?.[0]?.splits || [];
+    // Filter to starts only (gamesStarted > 0), take last 5
+    const startSplits = allGames.filter(sp => (sp.stat?.gamesStarted || 0) > 0).slice(0, 5);
 
-    const l5Outs  = startSplits.reduce((sum, sp) => sum + ipToOuts(sp.stat?.inningsPitched || 0), 0);
-    const l5K     = startSplits.reduce((sum, sp) => sum + (sp.stat?.strikeOuts || 0), 0);
-    const l5ER    = startSplits.reduce((sum, sp) => sum + (sp.stat?.earnedRuns || 0), 0);
-    const l5H     = startSplits.reduce((sum, sp) => sum + (sp.stat?.hits || 0), 0);
-    const l5BB    = startSplits.reduce((sum, sp) => sum + (sp.stat?.baseOnBalls || 0), 0);
-    const l5AB    = startSplits.reduce((sum, sp) => sum + (sp.stat?.atBats || 0), 0);
-    const l5HR    = startSplits.reduce((sum, sp) => sum + (sp.stat?.homeRuns || 0), 0);
-    // W-L: lastXGames splits are per-game, each split has wins/losses for that individual game
+    const l5Outs = startSplits.reduce((sum, sp) => sum + ipToOuts(sp.stat?.inningsPitched || 0), 0);
+    const l5K    = startSplits.reduce((sum, sp) => sum + (sp.stat?.strikeOuts || 0), 0);
+    const l5ER   = startSplits.reduce((sum, sp) => sum + (sp.stat?.earnedRuns || 0), 0);
+    const l5H    = startSplits.reduce((sum, sp) => sum + (sp.stat?.hits || 0), 0);
+    const l5BB   = startSplits.reduce((sum, sp) => sum + (sp.stat?.baseOnBalls || 0), 0);
+    const l5AB   = startSplits.reduce((sum, sp) => sum + (sp.stat?.atBats || 0), 0);
+    const l5HR   = startSplits.reduce((sum, sp) => sum + (sp.stat?.homeRuns || 0), 0);
+    // gameLog splits are truly per-game so wins/losses are per-game decisions
     const l5W = startSplits.reduce((sum, sp) => sum + (sp.stat?.wins || 0), 0);
     const l5L = startSplits.reduce((sum, sp) => sum + (sp.stat?.losses || 0), 0);
 
