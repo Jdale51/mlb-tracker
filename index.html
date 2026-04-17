@@ -248,6 +248,7 @@ let oCD = getOddsInterval()/1000;
 let timer = null;
 let aceTiers = {};      // { "Pitcher Name": "tier1" | "tier2" | "default" }
 let lineupProfiles = {}; // { "NYY": "power_boom_bust" | "balanced" | "contact" }
+let parkWeatherData = {}; // { "NYM@CHC": 0.98, ... } keyed by away@home
 
 const ABBR = {
   'New York Yankees':'NYY','San Francisco Giants':'SF','Athletics':'ATH','Oakland Athletics':'ATH',
@@ -283,6 +284,23 @@ async function fetchTiers() {
     console.log(`[Tiers] ${Object.keys(aceTiers).length} pitchers, ${Object.keys(lineupProfiles).length} lineups`);
   } catch(e) {
     console.error('fetchTiers error:', e);
+  }
+}
+
+async function fetchParkWeather() {
+  try {
+    const today = getPDTDate();
+    const res = await fetch(`/api/park-weather?date=${today}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    // Convert array to lookup: { "NYM@CHC": 0.98 }
+    parkWeatherData = {};
+    for (const entry of (data.games || [])) {
+      parkWeatherData[entry.matchup] = entry.runAdj;
+    }
+    console.log(`[ParkWeather] ${Object.keys(parkWeatherData).length} games loaded`);
+  } catch(e) {
+    console.error('fetchParkWeather error:', e);
   }
 }
 
@@ -424,14 +442,9 @@ async function fetchPitcherStats(id) {
     const l5BB    = startSplits.reduce((sum, sp) => sum + (sp.stat?.baseOnBalls || 0), 0);
     const l5AB    = startSplits.reduce((sum, sp) => sum + (sp.stat?.atBats || 0), 0);
     const l5HR    = startSplits.reduce((sum, sp) => sum + (sp.stat?.homeRuns || 0), 0);
-    // W-L: splits are cumulative totals so diff consecutive to find per-game decisions
-    let l5W = 0, l5L = 0;
-    for (let i = 0; i < startSplits.length; i++) {
-      const cur = startSplits[i].stat || {};
-      const prev = i > 0 ? (startSplits[i-1].stat || {}) : { wins: 0, losses: 0 };
-      if ((cur.wins || 0) > (prev.wins || 0)) l5W++;
-      if ((cur.losses || 0) > (prev.losses || 0)) l5L++;
-    }
+    // W-L: lastXGames splits are per-game, each split has wins/losses for that individual game
+    const l5W = startSplits.reduce((sum, sp) => sum + (sp.stat?.wins || 0), 0);
+    const l5L = startSplits.reduce((sum, sp) => sum + (sp.stat?.losses || 0), 0);
 
     const l5Era  = l5Outs > 0 ? ((l5ER * 27) / l5Outs).toFixed(2) : '—';
     const l5Whip = l5Outs > 0 ? ((l5H + l5BB) / (l5Outs / 3)).toFixed(2) : '—';
@@ -440,18 +453,28 @@ async function fetchPitcherStats(id) {
     const l5Baa  = l5AB > 0 ? (l5H / l5AB).toFixed(3) : '—';
     const l5Wl   = startSplits.length > 0 ? `${l5W}-${l5L}` : '—';
 
-    // Season BAA
-    const baa = s.atBats > 0 ? (s.hits / s.atBats).toFixed(3) : '—';
+    // Season BAA + HR/9
+    const baa  = s.atBats > 0 ? (s.hits / s.atBats).toFixed(3) : '—';
+    const hr9  = s.homeRunsPer9 != null ? parseFloat(s.homeRunsPer9).toFixed(2) : '—';
+
+    // Trending: compare L5 WHIP vs season WHIP (needs ≥2 starts)
+    const seasonWhipNum = parseFloat(s.whip);
+    const l5WhipNum = parseFloat(l5Whip);
+    let trending = 'neutral';
+    if (startSplits.length >= 2 && !isNaN(seasonWhipNum) && !isNaN(l5WhipNum)) {
+      if (l5WhipNum - seasonWhipNum >= 0.25) trending = 'down';
+      else if (seasonWhipNum - l5WhipNum >= 0.25) trending = 'up';
+    }
 
     const result = {
       era:   s.era ?? '—',
       whip:  s.whip ?? '—',
       k9:    s.strikeoutsPer9Inn ?? '—',
-      hr9:   s.homeRunsPer9 ?? '—',
+      hr9,
       baa,
       wins:   s.wins ?? 0,
       losses: s.losses ?? 0,
-      l5Era, l5Whip, l5K9, l5Hr9, l5Baa, l5Wl,
+      l5Era, l5Whip, l5K9, l5Hr9, l5Baa, l5Wl, trending,
     };
 
     pitcherStatsCache[id] = result;
@@ -637,7 +660,7 @@ function renderGames(gs, id, live){
 
     // Open O/U — left-anchored after status badge, never overlaps inning
     const openLineHtml = gradeLine
-      ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--muted);margin-left:6px;">Open: O/U ${gradeLine}</span>`
+      ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--muted);margin-left:6px;">Open: O/U ${gradeLine}${outlierEmoji}</span>`
       : '';
 
     // Pitcher display with stats from cache
@@ -651,7 +674,16 @@ function renderGames(gs, id, live){
         statStr = `<span style="color:var(--muted);padding-left:4px;">(${era}, ${wl})</span>`;
       }
       const badge = tierBadge(pitcher.name);
-      return `<div class="tpitcher" style="text-align:${align};">${badge}${pitcher.name}${statStr}</div>`;
+      const trend = cached?.trending === 'up' ? ' 📈' : cached?.trending === 'down' ? ' 📉' : '';
+      return `<div class="tpitcher" style="text-align:${align};">${badge}${pitcher.name}${trend}${statStr}</div>`;
+    }
+
+    // Outlier emoji on opening line (uses BP park data if available)
+    const bpAdj = (typeof parkWeatherData !== 'undefined') ? parkWeatherData[`${g.away}@${g.home}`] : null;
+    let outlierEmoji = '';
+    if (bpAdj != null) {
+      if (bpAdj >= 0.75) outlierEmoji = ' 🔥';
+      else if (bpAdj <= -0.75) outlierEmoji = ' ❄️';
     }
 
     return `<div class="game">
@@ -746,7 +778,7 @@ function renderHistory(records){
     <tbody>${rows}</tbody>
     <tfoot><tr style="border-top:2px solid var(--border);">
       <td colspan="7"></td>
-      <td style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:15px;padding-top:8px;"><span style="color:var(--green)">${correctPicks}</span><span style="color:var(--muted)"> / </span><span style="color:var(--blue)">${totalPicks}</span></td>
+      <td style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:15px;padding-top:8px;"><span style="color:var(--green)">${correctPicks}</span><span style="color:var(--muted)"> – </span><span style="color:var(--blue)">${totalPicks - correctPicks}</span></td>
       <td style="${netColor};font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:15px;padding-top:8px;">${netUnits>0?'+':''}${netUnits.toFixed(1)}u</td>
     </tr></tfoot>
   </table>`;
@@ -877,6 +909,7 @@ async function init(){
     const [linesResp] = await Promise.all([
       fetchPregameLines(),
       fetchTiers(),
+      fetchParkWeather(),
     ]);
     pregameLines = linesResp.pregameLines || {};
     // Load pick and units early from lines response so they show on first load
@@ -945,9 +978,10 @@ function renderStartersTable() {
   const rows = sorted.map(r => {
     const sEraCls  = eraColor(r.seasonEra);
     const l5EraCls = eraColor(r.l5Era);
+    const trendEmoji = r.trending === 'up' ? ' 📈' : r.trending === 'down' ? ' 📉' : '';
     return `<tr>
       <td>
-        <div class="sp-name">${tierBadge(r.name)}${r.name}</div>
+        <div class="sp-name">${tierBadge(r.name)}${r.name}${trendEmoji}</div>
         <div class="sp-team">${r.teamAbbr} vs ${r.oppAbbr}</div>
       </td>
       <td>${r.l5Wl}</td>
@@ -955,11 +989,13 @@ function renderStartersTable() {
       <td>${r.l5Whip}</td>
       <td>${r.l5Baa}</td>
       <td>${r.l5K9}</td>
+      <td>${r.l5Hr9}</td>
       <td class="sp-divider-col">${r.seasonWl}</td>
       <td class="${sEraCls}">${r.seasonEra}</td>
       <td>${r.whip}</td>
       <td>${r.baa}</td>
       <td>${r.k9}</td>
+      <td>${r.hr9}</td>
     </tr>`;
   }).join('');
 
@@ -967,8 +1003,8 @@ function renderStartersTable() {
     <thead>
       <tr>
         <th style="border-bottom:none;"></th>
-        <th colspan="5" style="text-align:center;color:var(--accent);border-bottom:2px solid rgba(245,197,24,0.4);">Last 5 Starts</th>
-        <th colspan="5" class="sp-divider-col" style="text-align:center;color:var(--muted);border-bottom:2px solid rgba(255,255,255,0.1);">2026 Season</th>
+        <th colspan="6" style="text-align:center;color:var(--accent);border-bottom:2px solid rgba(245,197,24,0.4);">Last 5 Starts</th>
+        <th colspan="6" class="sp-divider-col" style="text-align:center;color:var(--muted);border-bottom:2px solid rgba(255,255,255,0.1);">2026 Season</th>
       </tr>
       <tr>
         <th style="text-align:left;">Pitcher</th>
@@ -977,11 +1013,13 @@ function renderStartersTable() {
         ${th('WHIP','l5Whip')}
         ${th('BAA','l5Baa')}
         ${th('K/9','l5K9')}
+        ${th('HR/9','l5Hr9')}
         ${th('W-L','seasonWl','sp-divider-col')}
         ${th('ERA','seasonEra')}
         ${th('WHIP','whip')}
         ${th('BAA','baa')}
         ${th('K/9','k9')}
+        ${th('HR/9','hr9')}
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -1040,9 +1078,12 @@ async function loadStarters() {
       l5Whip: s?.l5Whip ?? '—',
       l5Baa:  s?.l5Baa  ?? '—',
       l5K9:   s?.l5K9   ?? '—',
+      l5Hr9:  s?.l5Hr9  ?? '—',
+      trending: s?.trending ?? 'neutral',
       seasonWl:  s ? `${s.wins}-${s.losses}` : '—',
       seasonEra: s?.era  ?? '—',
       whip:      s?.whip ?? '—',
+      hr9:       s?.hr9  ?? '—',
       baa:       s?.baa  ?? '—',
       k9:        s?.k9   ?? '—',
     };
