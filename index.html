@@ -248,7 +248,8 @@ let oCD = getOddsInterval()/1000;
 let timer = null;
 let aceTiers = {};      // { "Pitcher Name": "tier1" | "tier2" | "default" }
 let lineupProfiles = {}; // { "NYY": "power_boom_bust" | "balanced" | "contact" }
-let parkWeatherData = {}; // { "NYM@CHC": 0.98, ... } keyed by away@home
+let parkWeatherData = {}; // { "NYM@CHC": 0.98, ... }
+let betaTailScores  = {}; // { "NYM@CHC": { total: 4, label: "ceiling" } }
 
 const ABBR = {
   'New York Yankees':'NYY','San Francisco Giants':'SF','Athletics':'ATH','Oakland Athletics':'ATH',
@@ -290,15 +291,25 @@ async function fetchTiers() {
 async function fetchParkWeather() {
   try {
     const today = getPDTDate();
-    const res = await fetch(`/api/park-weather?date=${today}`);
-    if (!res.ok) return;
-    const data = await res.json();
-    // Convert array to lookup: { "NYM@CHC": 0.98 }
-    parkWeatherData = {};
-    for (const entry of (data.games || [])) {
-      parkWeatherData[entry.matchup] = entry.runAdj;
+    const [bpRes, betaRes] = await Promise.allSettled([
+      fetch(`/api/park-weather?date=${today}`),
+      fetch(`/api/park-weather?type=beta&date=${today}`),
+    ]);
+    if (bpRes.status === 'fulfilled' && bpRes.value.ok) {
+      const data = await bpRes.value.json();
+      parkWeatherData = {};
+      for (const entry of (data.games || [])) {
+        parkWeatherData[entry.matchup] = entry.runAdj;
+      }
     }
-    console.log(`[ParkWeather] ${Object.keys(parkWeatherData).length} games loaded`);
+    if (betaRes.status === 'fulfilled' && betaRes.value.ok) {
+      const data = await betaRes.value.json();
+      betaTailScores = {};
+      for (const g of (data.betaResults?.games || [])) {
+        if (g.matchup && g.scored) betaTailScores[g.matchup] = g.scored;
+      }
+      console.log(`[Beta] ${Object.keys(betaTailScores).length} tail scores loaded`);
+    }
   } catch(e) {
     console.error('fetchParkWeather error:', e);
   }
@@ -659,12 +670,13 @@ function renderGames(gs, id, live){
     const sl=g.status==='final'?'Final':g.status==='live'?'● Live':'Upcoming';
     const inn=g.status==='live'&&g.inning?`<span class="inn">${g.inning}</span>`:'';
 
-    // Outlier emoji on opening line (uses BP park data if available) — must be before openLineHtml
-    const bpAdj = parkWeatherData[`${g.away}@${g.home}`] ?? null;
+    // Outlier emoji — uses saved Beta model tail score if available, otherwise none
+    const matchupKey = `${g.away}@${g.home}`;
+    const tailScore = betaTailScores[matchupKey] ?? null;
     let outlierEmoji = '';
-    if (bpAdj != null) {
-      if (bpAdj >= 0.75) outlierEmoji = ' 🔥';
-      else if (bpAdj <= -0.75) outlierEmoji = ' ❄️';
+    if (tailScore) {
+      if (tailScore.label === 'ceiling') outlierEmoji = ' 🔥';
+      else if (tailScore.label === 'floor') outlierEmoji = ' ❄️';
     }
 
     // Open O/U — left-anchored after status badge, never overlaps inning
