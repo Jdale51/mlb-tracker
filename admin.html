@@ -70,10 +70,14 @@
 
   /* Admin tabs */
   .admin-tabs{display:flex;gap:2px;margin-bottom:16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;}
-  .admin-tab{flex:1;padding:9px 4px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:0.5px;border:none;background:transparent;color:var(--muted);border-radius:7px;cursor:pointer;transition:all 0.2s;}
+  .admin-tab{flex:1;padding:9px 4px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;letter-spacing:0.5px;border:none;background:transparent;color:var(--muted);border-radius:7px;cursor:pointer;transition:all 0.2s;}
   .admin-tab.active{background:var(--surface2);color:var(--text);}
   .admin-tab-panel{display:none;}
   .admin-tab-panel.active{display:block;}
+  .beta-score-badge{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;padding:4px 10px;border-radius:6px;}
+  .beta-score-badge.ceiling{background:rgba(0,196,106,0.15);color:var(--green);border:1px solid rgba(0,196,106,0.3);}
+  .beta-score-badge.floor{background:rgba(43,127,255,0.15);color:var(--blue);border:1px solid rgba(43,127,255,0.3);}
+  .beta-score-badge.neutral{background:var(--surface2);color:var(--muted);border:1px solid var(--border);}
 
   /* GST Model tab */
   .model-header{background:linear-gradient(135deg,rgba(43,127,255,0.12),rgba(176,106,255,0.08));border:1px solid rgba(43,127,255,0.2);border-radius:12px;padding:16px;margin-bottom:16px;}
@@ -185,8 +189,10 @@
 
   <div class="admin-tabs">
     <button class="admin-tab active" onclick="switchAdminTab('manage')">Manage</button>
-    <button class="admin-tab" onclick="switchAdminTab('model')">⚡ Model</button>
+    <button class="admin-tab" onclick="switchAdminTab('model')">Model</button>
+    <button class="admin-tab" onclick="switchAdminTab('beta')">⚡ Beta</button>
     <button class="admin-tab" onclick="switchAdminTab('tiers')">Tiers</button>
+    <button class="admin-tab" onclick="switchAdminTab('outliers')">Outliers</button>
     <button class="admin-tab" onclick="switchAdminTab('export')">Export</button>
   </div>
 
@@ -405,6 +411,112 @@
     </div>
   </div>
 
+  <!-- ═════════════════════ BETA MODEL TAB ═════════════════════ -->
+  <div id="tab-beta" class="admin-tab-panel">
+
+    <!-- BP Morning Paste -->
+    <div class="card">
+      <div class="card-title" style="color:var(--accent);">☀️ Morning BP Input</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">
+        Paste the text block generated from the BP screenshot. Format per line:<br>
+        <code style="color:var(--accent);font-size:10px;">AWAY@HOME | +0.98 | note</code>
+      </div>
+      <textarea id="bp-paste-input" rows="8" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:monospace;font-size:11px;resize:vertical;" placeholder="NYM@CHC | +0.98 | wind_out | 44%&#10;LAD@COL | +0.87 | wind_in_cold | 51%&#10;TOR@ARI | +0.33 | warm | 38%&#10;TEX@SEA | -1.74 | wind_in_cold | 21%&#10;..."></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn btn-primary" style="flex:1;padding:10px;font-size:13px;" onclick="parseBPInput()">⚡ PARSE &amp; SAVE</button>
+        <button class="btn" style="flex:0 0 auto;padding:10px 14px;font-size:13px;background:var(--surface2);color:var(--muted);border:1px solid var(--border);" onclick="clearBPInput()">Clear</button>
+      </div>
+      <div id="bp-parse-status" style="font-size:11px;color:var(--muted);margin-top:8px;min-height:14px;"></div>
+    </div>
+
+    <!-- Beta Model Slate Setup -->
+    <div class="card">
+      <div class="card-title">⚡ Beta Tail Counter — Slate Setup</div>
+      <div class="slate-input-grid">
+        <div>
+          <label>Games</label>
+          <input type="number" id="b-games" value="15" min="1" max="20">
+        </div>
+        <div>
+          <label>GS Line</label>
+          <input type="number" id="b-gsline" placeholder="e.g. 128.5" step="0.5">
+        </div>
+        <div>
+          <label>Naive Sum</label>
+          <input type="number" id="b-naive" placeholder="e.g. 122.5" step="0.1">
+        </div>
+      </div>
+    </div>
+
+    <!-- Per-Game Tail Counter Inputs -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div class="card-title" style="margin-bottom:0;">Per-Game Tail Scoring</div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-sm" style="background:rgba(43,127,255,0.15);color:var(--blue);border:1px solid rgba(43,127,255,0.3);" onclick="autoLoadBetaGames()">⬇ Auto-Load</button>
+          <button class="btn btn-sm" style="background:var(--surface2);color:var(--muted);border:1px solid var(--border);" onclick="clearBetaGames()">Clear</button>
+        </div>
+      </div>
+      <div id="beta-games-list">
+        <div style="color:var(--muted);font-size:12px;text-align:center;padding:12px;">
+          Tap <strong>Auto-Load</strong> to pull today's games, or wait for BP data to be pasted above.
+        </div>
+      </div>
+    </div>
+
+    <!-- Run Beta Model -->
+    <button class="btn" style="background:linear-gradient(135deg,#1a3a3a,#00C46A);color:#fff;border:1px solid rgba(0,196,106,0.4);margin-bottom:16px;font-size:16px;padding:15px;letter-spacing:2px;" onclick="runBetaModel()">
+      ⚡ RUN TAIL COUNTER
+    </button>
+
+    <!-- Beta Results -->
+    <div id="beta-results" style="display:none;">
+      <div class="card" id="beta-slate-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);">Slate Lean</div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:40px;font-weight:900;line-height:1;" id="b-lean-score">—</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);">Signal</div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;" id="b-signal">—</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;" id="b-counts">—</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px;">
+          <div style="background:rgba(0,196,106,0.08);border:1px solid rgba(0,196,106,0.2);border-radius:8px;padding:8px;text-align:center;">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--green);text-transform:uppercase;letter-spacing:0.5px;">🔥 Ceiling</div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:var(--green);" id="b-ceiling-count">0</div>
+          </div>
+          <div style="background:rgba(107,114,128,0.08);border:1px solid rgba(107,114,128,0.2);border-radius:8px;padding:8px;text-align:center;">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">⚖️ Neutral</div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:var(--muted);" id="b-neutral-count">0</div>
+          </div>
+          <div style="background:rgba(43,127,255,0.08);border:1px solid rgba(43,127,255,0.2);border-radius:8px;padding:8px;text-align:center;">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;">❄️ Floor</div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:var(--blue);" id="b-floor-count">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Per-game outlier cards -->
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px;">Game Breakdown</div>
+      <div id="beta-game-results"></div>
+    </div>
+  </div>
+
+  <!-- ═════════════════════ OUTLIER HISTORY TAB ═════════════════════ -->
+  <div id="tab-outliers" class="admin-tab-panel">
+    <div class="card">
+      <div class="card-title">Outlier Accuracy History</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">
+        🔥 Ceiling = game scored 12+ runs &nbsp;·&nbsp; ❄️ Floor = game scored 5 or fewer runs.<br>
+        Tap any row to expand individual games.
+      </div>
+      <div id="outlier-history-list"><div style="color:var(--muted);font-size:12px;text-align:center;padding:16px;">Loading...</div></div>
+    </div>
+  </div>
+
   <!-- ═════════════════════ EXPORT TAB ═════════════════════ -->
   <div id="tab-export" class="admin-tab-panel">
     <div class="card" style="border-color:rgba(255,140,0,0.3);">
@@ -439,12 +551,13 @@ function checkPin() {
 document.getElementById('pin-input').addEventListener('input', checkPin);
 
 function switchAdminTab(tab) {
-  const tabs = ['manage','model','tiers','export'];
+  const tabs = ['manage','model','beta','tiers','outliers','export'];
   document.querySelectorAll('.admin-tab').forEach((el, i) => {
     el.classList.toggle('active', tabs[i] === tab);
   });
   document.querySelectorAll('.admin-tab-panel').forEach(el => el.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
+  if (tab === 'outliers') loadOutlierHistory();
 }
 
 function getTodayPDT() {
@@ -917,8 +1030,9 @@ async function loadTiers() {
     const data = await res.json();
     acesData = data.aces || { pitchers: {} };
     lineupData = data.lineups || { profiles: {} };
+    // Load today's starters first, THEN render (so tier lookup works)
+    await loadTodaysStarters();
     renderAllStarters();
-    renderTodaysStarters();
     renderLineupBuckets();
   } catch(e) {
     console.error('loadTiers error:', e);
@@ -1044,7 +1158,7 @@ async function loadTodaysStarters() {
     renderTodaysStarters();
   } catch(e) {
     console.error('loadTodaysStarters error:', e);
-    document.getElementById('today-list').innerHTML = '<div style="padding:16px;color:var(--red);font-size:12px;text-align:center;">Error loading today\'s starters</div>';
+    document.getElementById('today-list').innerHTML = `<div style="padding:16px;color:var(--red);font-size:12px;text-align:center;">Error: ${e.message}</div>`;
   }
 }
 
@@ -1503,7 +1617,410 @@ async function saveResult() {
   finally { btn.disabled = false; btn.textContent = 'SAVE RESULT'; }
 }
 
-function initAdmin() {
+// ═════════════════════ BP PASTE & PARK-WEATHER ═════════════════════
+let bpGameData = {}; // { "NYM@CHC": { runAdj: 0.98, note: "wind_out" } }
+
+async function loadBPData() {
+  try {
+    const today = getTodayPDT();
+    const res = await fetch(`/api/park-weather?date=${today}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    bpGameData = {};
+    for (const g of (data.games || [])) {
+      bpGameData[g.matchup] = { runAdj: g.runAdj, note: g.note || '' };
+    }
+    if (Object.keys(bpGameData).length > 0) {
+      document.getElementById('bp-parse-status').textContent = `✓ ${Object.keys(bpGameData).length} games loaded for ${today}`;
+      document.getElementById('bp-parse-status').style.color = 'var(--green)';
+      // Rebuild textarea display
+      document.getElementById('bp-paste-input').value = Object.entries(bpGameData)
+        .map(([m, v]) => `${m} | ${v.runAdj >= 0 ? '+' : ''}${v.runAdj} | ${v.note}${v.p12 != null ? ' | ' + v.p12 + '%' : ''}`).join('\n');
+    }
+  } catch(e) { console.error('loadBPData error:', e); }
+}
+
+function parseBPInput() {
+  const raw = document.getElementById('bp-paste-input').value.trim();
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  const games = [];
+  const errors = [];
+  for (const line of lines) {
+    const parts = line.split('|').map(p => p.trim());
+    if (parts.length < 2) { errors.push(line); continue; }
+    const matchup = parts[0];
+    const runAdj = parseFloat(parts[1]);
+    const note = parts[2] || '';
+    const p12 = parts[3] ? parseFloat(parts[3].replace('%','').trim()) : null;
+    if (!matchup.includes('@') || isNaN(runAdj)) { errors.push(line); continue; }
+    games.push({ matchup, runAdj, note, p12: isNaN(p12) ? null : p12 });
+    bpGameData[matchup] = { runAdj, note, p12: isNaN(p12) ? null : p12 };
+  }
+  if (errors.length) {
+    document.getElementById('bp-parse-status').textContent = `⚠ ${games.length} parsed, ${errors.length} invalid lines`;
+    document.getElementById('bp-parse-status').style.color = 'var(--orange)';
+  } else {
+    document.getElementById('bp-parse-status').textContent = `✓ ${games.length} games parsed — saving...`;
+    document.getElementById('bp-parse-status').style.color = 'var(--green)';
+  }
+  // Save to blob
+  saveBPData(games);
+}
+
+async function saveBPData(games) {
+  try {
+    const today = getTodayPDT();
+    const res = await fetch('/api/park-weather', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: today, games })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      document.getElementById('bp-parse-status').textContent = `✓ ${games.length} games saved for ${today}`;
+      document.getElementById('bp-parse-status').style.color = 'var(--green)';
+      showToast(`BP data saved: ${games.length} games`, 'ok');
+    }
+  } catch(e) {
+    document.getElementById('bp-parse-status').textContent = 'Save failed: ' + e.message;
+    document.getElementById('bp-parse-status').style.color = 'var(--red)';
+  }
+}
+
+function clearBPInput() {
+  document.getElementById('bp-paste-input').value = '';
+  document.getElementById('bp-parse-status').textContent = '';
+}
+
+// ═════════════════════ BETA TAIL COUNTER MODEL ═════════════════════
+// Scoring: each signal contributes to a per-game score
+// +3 or higher = CEILING, -3 or lower = FLOOR, else NEUTRAL
+
+let betaGames = []; // [{ matchup, away, home, ou, bpAdj, awayWhip, homeWhip, awayTier, homeTier, bpTier, awayLineup, homeLineup }]
+
+function bpAdjScore(adj) {
+  if (adj == null) return 0;
+  if (adj >= 0.75) return 2;
+  if (adj >= 0.30) return 1;
+  if (adj <= -0.75) return -2;
+  if (adj <= -0.30) return -1;
+  return 0;
+}
+
+function starterBlowupScore(whip, tierName) {
+  // tier: tier1=-1, tier2=0, default=check whip
+  let base = 0;
+  if (tierName === 'tier1') base = -1;
+  else if (tierName === 'tier2') base = 0;
+  else {
+    // Default: use whip + hr9 proxy
+    const w = parseFloat(whip) || 1.35;
+    if (w >= 1.60) base = 2;
+    else if (w >= 1.45) base = 1;
+    else if (w < 1.15) base = -1;
+  }
+  return base;
+}
+
+function lineupScore(profile) {
+  if (profile === 'power_boom_bust') return 1;
+  if (profile === 'contact') return -1;
+  return 0;
+}
+
+function bullpenScore(bpTier, awayWhip, homeWhip) {
+  const avgWhip = ((parseFloat(awayWhip)||1.35) + (parseFloat(homeWhip)||1.35)) / 2;
+  const isSoft = avgWhip >= 1.45;
+  if (!isSoft) return 0;
+  if (bpTier === 'gassed') return 2;
+  if (bpTier === 'taxed') return 1;
+  if (bpTier === 'fresh') return -1;
+  return 0;
+}
+
+function scoreGame(g) {
+  const s1 = bpAdjScore(g.bpAdj);
+  const awayStarter = starterBlowupScore(g.awayWhip, g.awayTier);
+  const homeStarter = starterBlowupScore(g.homeWhip, g.homeTier);
+  const s2 = Math.max(-2, Math.min(2, awayStarter + homeStarter)); // cap at ±2
+  const s3 = bullpenScore(g.bpTier, g.awayWhip, g.homeWhip);
+  const s4 = Math.max(-1, Math.min(1, lineupScore(g.awayLineup) + lineupScore(g.homeLineup)));
+  const total = s1 + s2 + s3 + s4;
+  return { total, s1, s2, s3, s4,
+    label: total >= 3 ? 'ceiling' : total <= -3 ? 'floor' : 'neutral' };
+}
+
+async function autoLoadBetaGames() {
+  const btn = document.querySelector('[onclick="autoLoadBetaGames()"]');
+  btn.disabled = true; btn.innerHTML = '<span class="mini-spin"></span> Loading...';
+  try {
+    const today = getTodayPDT();
+    const [schedRes, oddsRes, bpFetch] = await Promise.allSettled([
+      fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}&hydrate=probablePitcher`),
+      fetch('/api/odds'),
+      fetchBullpenForAutoLoad(),
+    ]);
+    const schedData = schedRes.status === 'fulfilled' && schedRes.value.ok ? await schedRes.value.json() : null;
+    const oddsData  = oddsRes.status === 'fulfilled' && oddsRes.value.ok ? await oddsRes.value.json() : null;
+    const bpData    = bpFetch.status === 'fulfilled' ? bpFetch.value : {};
+    const games = schedData?.dates?.[0]?.games || [];
+    const oddsMap = buildOddsLookup(oddsData?.games || []);
+    // Fetch pitcher stats
+    const pitcherIds = [];
+    for (const g of games) {
+      for (const side of ['away','home']) {
+        const p = g.teams[side].probablePitcher;
+        if (p?.id) pitcherIds.push(p.id);
+      }
+    }
+    let pitcherStats = {};
+    if (pitcherIds.length) {
+      try {
+        const sr = await fetch(`https://statsapi.mlb.com/api/v1/people?personIds=${pitcherIds.join(',')}&hydrate=stats(group=[pitching],type=[season],season=2026)`);
+        const sd = await sr.json();
+        for (const p of (sd.people || [])) {
+          const sg = p.stats?.find(s => s.group?.displayName === 'pitching');
+          const stat = sg?.splits?.[0]?.stat || {};
+          pitcherStats[p.id] = { whip: stat.whip ? parseFloat(stat.whip).toFixed(2) : '' };
+        }
+      } catch(e) {}
+    }
+    betaGames = [];
+    document.getElementById('beta-games-list').innerHTML = '';
+    document.getElementById('b-games').value = games.length;
+    for (const g of games) {
+      const awayAbbr = exportAbbr(g.teams.away.team.name);
+      const homeAbbr = exportAbbr(g.teams.home.team.name);
+      const ak = g.teams.away.team.name.split(' ').pop().toLowerCase();
+      const hk = g.teams.home.team.name.split(' ').pop().toLowerCase();
+      const key = `${ak}-${hk}`;
+      const odds = oddsMap[key];
+      const awayP = g.teams.away.probablePitcher;
+      const homeP = g.teams.home.probablePitcher;
+      const awayStats = awayP ? (pitcherStats[awayP.id] || {}) : {};
+      const homeStats = homeP ? (pitcherStats[homeP.id] || {}) : {};
+      const awayBpTier = bpData[awayAbbr]?.tier || 'fresh';
+      const homeBpTier = bpData[homeAbbr]?.tier || 'fresh';
+      const combinedBp = awayBpTier === 'gassed' || homeBpTier === 'gassed' ? 'gassed'
+                       : awayBpTier === 'taxed' || homeBpTier === 'taxed' ? 'taxed' : 'fresh';
+      const matchup = `${awayAbbr}@${homeAbbr}`;
+      const bpEntry = bpGameData[matchup];
+      const awayTier = acesData.pitchers[awayP?.fullName] || 'default';
+      const homeTier = acesData.pitchers[homeP?.fullName] || 'default';
+      const awayLineup = lineupData.profiles[awayAbbr] || null;
+      const homeLineup = lineupData.profiles[homeAbbr] || null;
+      const gameObj = {
+        matchup, away: awayAbbr, home: homeAbbr,
+        ou: odds?.line || null,
+        bpAdj: bpEntry?.runAdj ?? null,
+        p12: bpEntry?.p12 ?? null,
+        awayWhip: awayStats.whip || '', homeWhip: homeStats.whip || '',
+        awayTier, homeTier, bpTier: combinedBp,
+        awayLineup, homeLineup,
+        awayName: awayP?.fullName || 'TBD', homeName: homeP?.fullName || 'TBD',
+      };
+      betaGames.push(gameObj);
+      renderBetaGameRow(gameObj);
+    }
+    // Load GS/naive
+    try {
+      const hist = await fetch('/api/history').then(r=>r.json());
+      const rec = hist.find(r=>r.date===today);
+      if (rec?.grandSalamLine) document.getElementById('b-gsline').value = rec.grandSalamLine;
+      if (rec?.naiveTotal) document.getElementById('b-naive').value = rec.naiveTotal;
+    } catch(e) {}
+    showToast(`Loaded ${games.length} games`, 'ok');
+  } catch(e) {
+    showToast('Load error: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false; btn.innerHTML = '⬇ Auto-Load';
+  }
+}
+
+function renderBetaGameRow(g) {
+  const container = document.getElementById('beta-games-list');
+  const placeholder = container.querySelector('.placeholder-msg, div[style*="text-align:center"]');
+  if (placeholder) placeholder.remove();
+  const scored = scoreGame(g);
+  const tierLabel = t => t === 'tier1' ? '<span class="gold">T1</span>' : t === 'tier2' ? '<span class="silver">T2</span>' : 'Def';
+  const bpLabel = g.bpAdj != null ? `${g.bpAdj >= 0 ? '+' : ''}${g.bpAdj}` : '—';
+  const p12Label = g.p12 != null ? `<span style="font-size:9px;color:var(--muted);margin-left:3px;">P12+: ${g.p12}%</span>` : '';
+  const div = document.createElement('div');
+  div.className = 'game-card beta-game-row';
+  div.dataset.matchup = g.matchup;
+  div.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:900;">${g.away} @ ${g.home} <span style="color:var(--muted);font-size:12px;">O/U ${g.ou||'—'}</span></div>
+      <div class="beta-score-badge ${scored.label}" data-matchup="${g.matchup}">${scored.total >= 0 ? '+' : ''}${scored.total}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;font-size:10px;color:var(--muted);text-align:center;">
+      <div>BP<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:13px;">${bpLabel}</span>${p12Label}</div>
+      <div>Starters<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:13px;">${tierLabel(g.awayTier)}/${tierLabel(g.homeTier)}</span></div>
+      <div>Bullpen<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:13px;">${g.bpTier}</span></div>
+      <div>Lineups<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:11px;">${(g.awayLineup||'—').replace('power_boom_bust','⚡')}/${(g.homeLineup||'—').replace('power_boom_bust','⚡')}</span></div>
+    </div>
+  `;
+  container.appendChild(div);
+}
+
+function clearBetaGames() {
+  betaGames = [];
+  document.getElementById('beta-games-list').innerHTML = `<div style="color:var(--muted);font-size:12px;text-align:center;padding:12px;">Tap <strong>Auto-Load</strong> to pull today's games.</div>`;
+  document.getElementById('beta-results').style.display = 'none';
+}
+
+function runBetaModel() {
+  if (!betaGames.length) { showToast('Load games first', 'err'); return; }
+  let ceiling = 0, floor = 0, neutral = 0;
+  const gameResults = [];
+  for (const g of betaGames) {
+    const scored = scoreGame(g);
+    if (scored.label === 'ceiling') ceiling++;
+    else if (scored.label === 'floor') floor++;
+    else neutral++;
+    gameResults.push({ ...g, scored });
+  }
+  const lean = ceiling - floor;
+  document.getElementById('b-ceiling-count').textContent = ceiling;
+  document.getElementById('b-neutral-count').textContent = neutral;
+  document.getElementById('b-floor-count').textContent = floor;
+  document.getElementById('b-lean-score').textContent = (lean >= 0 ? '+' : '') + lean;
+  const leanEl = document.getElementById('b-lean-score');
+  leanEl.style.color = lean >= 3 ? 'var(--green)' : lean <= -3 ? 'var(--blue)' : 'var(--muted)';
+  let signal = '⚖️ NO EDGE', signalColor = 'var(--muted)';
+  if (lean >= 3) { signal = '🔥 OVER LEAN'; signalColor = 'var(--green)'; }
+  else if (lean <= -3) { signal = '❄️ UNDER LEAN'; signalColor = 'var(--blue)'; }
+  else if (lean >= 2) { signal = '📈 MILD OVER'; signalColor = 'var(--green)'; }
+  else if (lean <= -2) { signal = '📉 MILD UNDER'; signalColor = 'var(--blue)'; }
+  document.getElementById('b-signal').textContent = signal;
+  document.getElementById('b-signal').style.color = signalColor;
+  document.getElementById('b-counts').textContent = `${ceiling} ceiling · ${neutral} neutral · ${floor} floor`;
+
+  // Render game breakdown sorted by score descending
+  gameResults.sort((a,b) => b.scored.total - a.scored.total);
+  document.getElementById('beta-game-results').innerHTML = gameResults.map(g => {
+    const s = g.scored;
+    const cls = s.label === 'ceiling' ? 'outlier-over' : s.label === 'floor' ? 'outlier-under' : 'outlier-neutral';
+    const emoji = s.label === 'ceiling' ? '🔥' : s.label === 'floor' ? '❄️' : '⚖️';
+    const scoreColor = s.total >= 3 ? 'var(--green)' : s.total <= -3 ? 'var(--blue)' : 'var(--text)';
+    const p12ctx = g.p12 != null
+      ? `<div style="margin-top:6px;font-size:10px;color:var(--muted);text-align:right;">P(12+ runs): <span style="color:var(--text);font-weight:700;">${g.p12}%</span> <span style="color:var(--muted);">(context only · not scored)</span></div>`
+      : '';
+    return `<div class="outlier-card ${cls}" style="flex-direction:column;align-items:stretch;gap:6px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="outlier-matchup">${emoji} ${g.away} @ ${g.home} <span style="color:var(--muted);font-size:12px;">O/U ${g.ou||'—'}</span></div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:${scoreColor};">${s.total >= 0 ? '+' : ''}${s.total}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;font-size:10px;color:var(--muted);text-align:center;">
+        <div>Park/Weather<br><span style="color:${s.s1>0?'var(--green)':s.s1<0?'var(--blue)':'var(--text)'};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${s.s1>=0?'+':''}${s.s1}</span></div>
+        <div>Starters<br><span style="color:${s.s2>0?'var(--green)':s.s2<0?'var(--blue)':'var(--text)'};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${s.s2>=0?'+':''}${s.s2}</span></div>
+        <div>Bullpen<br><span style="color:${s.s3>0?'var(--green)':s.s3<0?'var(--blue)':'var(--text)'};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${s.s3>=0?'+':''}${s.s3}</span></div>
+        <div>Lineups<br><span style="color:${s.s4>0?'var(--green)':s.s4<0?'var(--blue)':'var(--text)'};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${s.s4>=0?'+':''}${s.s4}</span></div>
+      </div>
+      ${p12ctx}
+    </div>`;
+  }).join('');
+
+  document.getElementById('beta-results').style.display = 'block';
+  document.getElementById('beta-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ═════════════════════ OUTLIER HISTORY TAB ═════════════════════
+async function loadOutlierHistory() {
+  const el = document.getElementById('outlier-history-list');
+  el.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:16px;">Loading...</div>';
+  try {
+    const [histRes, schedDates] = await Promise.all([
+      fetch('/api/history').then(r => r.json()),
+      Promise.resolve(null),
+    ]);
+    const history = histRes.filter(r => r.actualRuns != null && r.date);
+    if (!history.length) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:16px;">No completed slates yet.</div>';
+      return;
+    }
+    // For each date with actual runs, fetch final scores to find 12+ and 5- games
+    const rows = await Promise.all(history.slice(0, 20).map(async rec => {
+      try {
+        const res = await fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${rec.date}&hydrate=linescore`);
+        const data = await res.json();
+        const games = (data.dates?.[0]?.games || []).filter(g => g.status.detailedState === 'Final');
+        const ceilingGames = games.filter(g => {
+          const total = (g.teams.away.score || 0) + (g.teams.home.score || 0);
+          return total >= 12;
+        });
+        const floorGames = games.filter(g => {
+          const total = (g.teams.away.score || 0) + (g.teams.home.score || 0);
+          return total <= 5;
+        });
+        return { rec, games, ceilingGames, floorGames };
+      } catch(e) {
+        return { rec, games: [], ceilingGames: [], floorGames: [] };
+      }
+    }));
+
+    el.innerHTML = rows.map((row, idx) => {
+      const { rec, games, ceilingGames, floorGames } = row;
+      const date = rec.date.slice(5).split('-').map(n=>parseInt(n)).join('/');
+      const result = rec.result ? rec.result.toUpperCase() : 'Pending';
+      const pick = rec.todayPick || '—';
+      const won = rec.result && rec.todayPick && rec.result.toLowerCase() === rec.todayPick.toLowerCase();
+      const resultColor = won ? 'var(--green)' : (rec.result && rec.result !== 'pending' && rec.result !== 'void') ? 'var(--red)' : 'var(--muted)';
+
+      const ceilGamesHtml = ceilingGames.map(g => {
+        const total = (g.teams.away.score||0)+(g.teams.home.score||0);
+        const away = g.teams.away.team.abbreviation;
+        const home = g.teams.home.team.abbreviation;
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:rgba(0,196,106,0.06);border:1px solid rgba(0,196,106,0.15);border-radius:6px;margin-bottom:4px;">
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;">${away} @ ${home}</span>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;color:var(--green);">🔥 ${total} runs</span>
+        </div>`;
+      }).join('');
+
+      const floorGamesHtml = floorGames.map(g => {
+        const total = (g.teams.away.score||0)+(g.teams.home.score||0);
+        const away = g.teams.away.team.abbreviation;
+        const home = g.teams.home.team.abbreviation;
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:rgba(43,127,255,0.06);border:1px solid rgba(43,127,255,0.15);border-radius:6px;margin-bottom:4px;">
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;">${away} @ ${home}</span>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;color:var(--blue);">❄️ ${total} runs</span>
+        </div>`;
+      }).join('');
+
+      return `
+        <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:8px;overflow:hidden;">
+          <div onclick="toggleOutlierRow(${idx})" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;cursor:pointer;background:var(--surface2);">
+            <div style="font-family:'Barlow Condensed',sans-serif;">
+              <span style="font-size:15px;font-weight:700;">${date}</span>
+              <span style="font-size:11px;color:var(--muted);margin-left:8px;">${games.length} games</span>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <span style="font-size:12px;color:var(--green);">🔥 ${ceilingGames.length}</span>
+              <span style="font-size:12px;color:var(--blue);">❄️ ${floorGames.length}</span>
+              <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:${resultColor};">${pick} → ${result}</span>
+              <span style="color:var(--muted);font-size:12px;">›</span>
+            </div>
+          </div>
+          <div id="outlier-row-${idx}" style="display:none;padding:10px 12px;background:var(--surface);">
+            ${ceilingGames.length ? `<div style="font-size:10px;color:var(--green);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">🔥 Ceiling Games (12+ runs)</div>${ceilGamesHtml}` : ''}
+            ${floorGames.length ? `<div style="font-size:10px;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;margin:${ceilingGames.length?'10px':0} 0 6px;">❄️ Floor Games (5 or fewer runs)</div>${floorGamesHtml}` : ''}
+            ${!ceilingGames.length && !floorGames.length ? '<div style="color:var(--muted);font-size:12px;text-align:center;padding:8px;">No outlier games this slate</div>' : ''}
+            <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);">
+              GS Line: ${rec.grandSalamLine||'—'} · Naive: ${rec.naiveTotal||'—'} · Actual: ${rec.actualRuns} · Gap: ${rec.actualRuns&&rec.grandSalamLine?(rec.actualRuns-rec.grandSalamLine>0?'+':'')+(rec.actualRuns-rec.grandSalamLine).toFixed(1):'—'}
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = `<div style="color:var(--red);font-size:12px;text-align:center;padding:16px;">Error: ${e.message}</div>`;
+  }
+}
+
+function toggleOutlierRow(idx) {
+  const el = document.getElementById(`outlier-row-${idx}`);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+</script>
   document.getElementById('today-date').textContent = getTodayPDT();
   document.getElementById('result-date-display').textContent = `Saving for: ${resultDate}`;
   loadHistory();
@@ -1511,8 +2028,8 @@ function initAdmin() {
   const dowEl = document.getElementById('m-dow');
   const dowMap = {0:6,1:0,2:1,3:2,4:3,5:4,6:5};
   if (dowEl) dowEl.selectedIndex = dowMap[dayOfWeek] ?? 2;
-  loadTiers();
-  loadTodaysStarters();
+  loadTiers(); // loads tiers then today's starters in sequence
+  loadBPData(); // load any saved BP data for today
 }
 </script>
 </body>
