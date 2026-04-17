@@ -2063,10 +2063,6 @@ async function loadOutlierHistory() {
   try {
     const histRes = await fetch('/api/history').then(r => r.json());
     const history = histRes.filter(r => r.actualRuns != null && r.date).slice(0, 20);
-    if (!history.length) {
-      el.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:16px;">No completed slates yet.</div>';
-      return;
-    }
 
     // For each date, fetch game scores AND saved beta results in parallel
     const rows = await Promise.all(history.map(async rec => {
@@ -2077,8 +2073,43 @@ async function loadOutlierHistory() {
       const schedData = schedRes.status === 'fulfilled' ? schedRes.value : null;
       const betaData  = betaRes.status === 'fulfilled' ? betaRes.value?.betaResults : null;
       const allGames = (schedData?.dates?.[0]?.games || []).filter(g => g.status.detailedState === 'Final');
-      return { rec, allGames, betaData };
+      return { rec, allGames, betaData, inProgress: false };
     }));
+
+    // Check for today's in-progress slate — prepend if beta results exist for today
+    // and today is not already in the completed history list.
+    const today = getTodayPDT();
+    const todayInHistory = rows.some(r => r.rec.date === today);
+    if (!todayInHistory) {
+      try {
+        const [schedRes, betaRes] = await Promise.allSettled([
+          fetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${today}&hydrate=linescore`).then(r=>r.json()),
+          fetch(`/api/park-weather?type=beta&date=${today}`).then(r=>r.json()),
+        ]);
+        const schedData = schedRes.status === 'fulfilled' ? schedRes.value : null;
+        const betaData  = betaRes.status === 'fulfilled' ? betaRes.value?.betaResults : null;
+        if (betaData?.games?.length) {
+          const finalGames = (schedData?.dates?.[0]?.games || []).filter(g => g.status.detailedState === 'Final');
+          const totalGames = (schedData?.dates?.[0]?.games || []).length;
+          // Synthetic "record" for today — no actualRuns, no pick result
+          const todayRec = {
+            date: today,
+            grandSalamLine: null,
+            naiveTotal: null,
+            actualRuns: null,
+            todayPick: null,
+            result: null,
+            _totalGamesToday: totalGames,
+          };
+          rows.unshift({ rec: todayRec, allGames: finalGames, betaData, inProgress: true });
+        }
+      } catch(e) { console.error('in-progress fetch failed:', e); }
+    }
+
+    if (!rows.length) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:16px;">No completed slates yet.</div>';
+      return;
+    }
 
     // Accumulate hit rate stats across all slates
     let totalCeilingPicks = 0, ceilingHits = 0;
@@ -2125,14 +2156,19 @@ async function loadOutlierHistory() {
         }
       }
 
-      // Accumulate stats
-      for (const m of ourCeiling) {
-        totalCeilingPicks++;
-        if (actualCeiling.has(m)) ceilingHits++;
-      }
-      for (const m of ourFloor) {
-        totalFloorPicks++;
-        if (actualFloor.has(m)) floorHits++;
+      // Accumulate stats — skip in-progress slates so partial data doesn't skew the hit rate.
+      // Only count picks whose games have actually gone final (i.e. appear in gameScores).
+      if (!row.inProgress) {
+        for (const m of ourCeiling) {
+          if (!(m in gameScores)) continue;
+          totalCeilingPicks++;
+          if (actualCeiling.has(m)) ceilingHits++;
+        }
+        for (const m of ourFloor) {
+          if (!(m in gameScores)) continue;
+          totalFloorPicks++;
+          if (actualFloor.has(m)) floorHits++;
+        }
       }
 
       // Build per-game rows
@@ -2218,27 +2254,55 @@ async function loadOutlierHistory() {
         </div>`;
       }).join('');
 
+      // Slate header right side + expanded body — different for in-progress vs completed
+      const totalToday = rec._totalGamesToday || 0;
+      const slateRightHtml = row.inProgress
+        ? `${betaData ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:${betaColor};">${betaSignal.replace('🔥 ','').replace('❄️ ','').replace('📈 ','').replace('📉 ','').replace('⚖️ ','')}</span>` : ''}
+           <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:var(--accent);">${allGames.length}/${totalToday} FINAL</span>
+           <span style="color:var(--muted);font-size:14px;">›</span>`
+        : `${betaData ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:${betaColor};">${betaSignal.replace('🔥 ','').replace('❄️ ','').replace('📈 ','').replace('📉 ','').replace('⚖️ ','')}</span>` : ''}
+           <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:${slateColor};">${pick} → ${slateResult}</span>
+           <span style="color:var(--muted);font-size:14px;">›</span>`;
+
+      const dateLabel = row.inProgress
+        ? `<span style="font-size:15px;font-weight:700;">${date}</span><span style="font-size:10px;color:var(--accent);font-weight:700;margin-left:6px;text-transform:uppercase;letter-spacing:0.5px;">In Progress</span>`
+        : `<span style="font-size:15px;font-weight:700;">${date}</span>`;
+
+      const gamesCountLabel = row.inProgress
+        ? `<span style="font-size:11px;color:var(--muted);margin-left:6px;">${allGames.length}/${totalToday} final</span>`
+        : `<span style="font-size:11px;color:var(--muted);margin-left:6px;">${allGames.length} games</span>`;
+
+      const expandedHeaderHtml = row.inProgress
+        ? `<span style="font-size:10px;color:var(--muted);">${allGames.length} of ${totalToday} games final · slate not yet graded</span>
+           ${betaData ? `<span style="font-size:10px;color:${betaColor};margin-left:8px;">Beta: ${betaData.ceiling}🔥 ${betaData.floor}❄️ lean ${betaData.lean>=0?'+':''}${betaData.lean}</span>` : ''}`
+        : `<span style="font-size:10px;color:var(--muted);">GS: ${rec.grandSalamLine||'—'} · Naive: ${rec.naiveTotal||'—'} · Actual: ${rec.actualRuns} · Gap: ${rec.actualRuns&&rec.grandSalamLine?(rec.actualRuns-rec.grandSalamLine>0?'+':'')+(rec.actualRuns-rec.grandSalamLine).toFixed(1):'—'}</span>
+           ${betaData ? `<span style="font-size:10px;color:${betaColor};margin-left:8px;">Beta: ${betaData.ceiling}🔥 ${betaData.floor}❄️ lean ${betaData.lean>=0?'+':''}${betaData.lean}</span>` : '<span style="font-size:10px;color:var(--muted);margin-left:8px;">No beta data saved</span>'}`;
+
+      const emptyBodyMsg = row.inProgress
+        ? '<div style="color:var(--muted);font-size:12px;text-align:center;padding:8px;">No games final yet today</div>'
+        : '<div style="color:var(--muted);font-size:12px;text-align:center;padding:8px;">No final scores found</div>';
+
+      // In-progress rows start expanded so finished games are visible immediately
+      const startExpanded = row.inProgress && allGames.length > 0;
+
       return `
-        <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:8px;overflow:hidden;">
+        <div style="border:1px solid ${row.inProgress ? 'var(--accent)' : 'var(--border)'};border-radius:10px;margin-bottom:8px;overflow:hidden;">
           <div onclick="toggleOutlierRow(${idx})" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;cursor:pointer;background:var(--surface2);">
             <div style="font-family:'Barlow Condensed',sans-serif;">
-              <span style="font-size:15px;font-weight:700;">${date}</span>
-              <span style="font-size:11px;color:var(--muted);margin-left:6px;">${allGames.length} games</span>
+              ${dateLabel}
+              ${gamesCountLabel}
               <span style="font-size:11px;color:var(--green);margin-left:8px;">🔥 ${actualCeiling.size}</span>
               <span style="font-size:11px;color:var(--blue);margin-left:4px;">❄️ ${actualFloor.size}</span>
             </div>
             <div style="display:flex;gap:10px;align-items:center;">
-              ${betaData ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:${betaColor};">${betaSignal.replace('🔥 ','').replace('❄️ ','').replace('📈 ','').replace('📉 ','').replace('⚖️ ','')}</span>` : ''}
-              <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:${slateColor};">${pick} → ${slateResult}</span>
-              <span style="color:var(--muted);font-size:14px;">›</span>
+              ${slateRightHtml}
             </div>
           </div>
-          <div id="outlier-row-${idx}" style="display:none;padding:10px 12px;background:var(--surface);">
+          <div id="outlier-row-${idx}" style="display:${startExpanded ? 'block' : 'none'};padding:10px 12px;background:var(--surface);">
             <div style="margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border);">
-              <span style="font-size:10px;color:var(--muted);">GS: ${rec.grandSalamLine||'—'} · Naive: ${rec.naiveTotal||'—'} · Actual: ${rec.actualRuns} · Gap: ${rec.actualRuns&&rec.grandSalamLine?(rec.actualRuns-rec.grandSalamLine>0?'+':'')+(rec.actualRuns-rec.grandSalamLine).toFixed(1):'—'}</span>
-              ${betaData ? `<span style="font-size:10px;color:${betaColor};margin-left:8px;">Beta: ${betaData.ceiling}🔥 ${betaData.floor}❄️ lean ${betaData.lean>=0?'+':''}${betaData.lean}</span>` : '<span style="font-size:10px;color:var(--muted);margin-left:8px;">No beta data saved</span>'}
+              ${expandedHeaderHtml}
             </div>
-            ${gameRowsHtml || '<div style="color:var(--muted);font-size:12px;text-align:center;padding:8px;">No final scores found</div>'}
+            ${gameRowsHtml || emptyBodyMsg}
           </div>
         </div>`;
     }).join('');
@@ -2313,6 +2377,21 @@ function initAdmin() {
   loadTiers();
   loadBPData();
   loadBetaResults();
+
+  // Auto-refresh the outlier history tab when the browser tab regains focus,
+  // but only if the outlier panel is currently active. Debounced so it won't
+  // double-fire if the user also clicks Refresh or switches tabs around the
+  // same moment.
+  let _outlierLastAutoFetch = 0;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    const panel = document.getElementById('tab-outliers');
+    if (!panel || !panel.classList.contains('active')) return;
+    const now = Date.now();
+    if (now - _outlierLastAutoFetch < 10000) return; // 10s debounce
+    _outlierLastAutoFetch = now;
+    loadOutlierHistory();
+  });
 }
 </script>
 </body>
