@@ -7,6 +7,10 @@
     {
       "path": "/api/cron-gs-scraper",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron-outcomes",
+      "schedule": "0 9 * * *"
     }
   ]
 }
