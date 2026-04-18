@@ -74,6 +74,24 @@
   .admin-tab.active{background:var(--surface2);color:var(--text);}
   .admin-tab-panel{display:none;}
   .admin-tab-panel.active{display:block;}
+  /* Game Log tab */
+  .gl-chip{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.4px;padding:5px 9px;border-radius:14px;border:1px solid var(--border);background:var(--surface);color:var(--muted);cursor:pointer;transition:all 0.15s;}
+  .gl-chip.active{background:var(--surface2);color:var(--text);border-color:var(--accent);}
+  .gl-chip:hover{color:var(--text);}
+  .gl-row{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-family:'Barlow Condensed',sans-serif;font-size:12px;cursor:pointer;}
+  .gl-row.ceil{background:rgba(0,196,106,0.07);border-color:rgba(0,196,106,0.25);}
+  .gl-row.floor{background:rgba(43,127,255,0.07);border-color:rgba(43,127,255,0.25);}
+  .gl-row-head{display:grid;grid-template-columns:44px 84px 1fr 34px 44px 48px 28px;gap:6px;align-items:center;}
+  .gl-row-head > div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .gl-exp{display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;color:var(--text);}
+  .gl-exp.open{display:block;}
+  .gl-exp-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .gl-exp-label{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:0.4px;}
+  .gl-exp-val{font-size:11px;color:var(--text);}
+  .gl-comp{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:4px;}
+  .gl-comp > div{text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:3px 2px;}
+  .gl-comp-lbl{font-size:9px;color:var(--muted);}
+  .gl-comp-val{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;}
   .beta-score-badge{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;padding:4px 10px;border-radius:6px;}
   .beta-score-badge.ceiling{background:rgba(0,196,106,0.15);color:var(--green);border:1px solid rgba(0,196,106,0.3);}
   .beta-score-badge.floor{background:rgba(43,127,255,0.15);color:var(--blue);border:1px solid rgba(43,127,255,0.3);}
@@ -196,6 +214,7 @@
     <button class="admin-tab" onclick="switchAdminTab('beta')">⚡ Beta</button>
     <button class="admin-tab" onclick="switchAdminTab('tiers')">Tiers</button>
     <button class="admin-tab" onclick="switchAdminTab('outliers')">Outlier Hist</button>
+    <button class="admin-tab" onclick="switchAdminTab('gamelog')">Game Log</button>
     <button class="admin-tab" onclick="switchAdminTab('export')">Export</button>
   </div>
 
@@ -527,6 +546,109 @@
     </div>
   </div>
 
+  <!-- ═════════════════════ GAME LOG TAB ═════════════════════ -->
+  <div id="tab-gamelog" class="admin-tab-panel">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap;">
+        <div class="card-title" style="margin:0;">Game Log</div>
+        <div style="display:flex;gap:6px;">
+          <button id="gl-refresh-btn" class="btn" style="padding:6px 12px;font-size:12px;" onclick="loadGameLog()">↻ Refresh</button>
+          <button id="gl-export-btn" class="btn" style="padding:6px 12px;font-size:12px;background:transparent;border:1px solid var(--border);color:var(--text);" onclick="exportGameLogCsv()">⬇ Export CSV</button>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">
+        Per-game dataset with predictions, outcomes, and environment. Filter to isolate what drives 🔥 12+ or ❄️ ≤5 totals.
+      </div>
+
+      <!-- FILTERS -->
+      <div id="gl-filters" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:10px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Date from
+            <input type="date" id="gl-date-from" style="width:100%;padding:6px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);margin-top:3px;font-size:12px;" onchange="applyGameLogFilters()">
+          </label>
+          <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;">Date to
+            <input type="date" id="gl-date-to" style="width:100%;padding:6px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);margin-top:3px;font-size:12px;" onchange="applyGameLogFilters()">
+          </label>
+        </div>
+
+        <div style="margin-bottom:8px;">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px;">Outcome</div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;">
+            <button class="gl-chip gl-chip-outcome active" data-outcome="all" onclick="toggleGlOutcome('all')">All</button>
+            <button class="gl-chip gl-chip-outcome" data-outcome="ceiling" onclick="toggleGlOutcome('ceiling')">🔥 Ceiling (12+)</button>
+            <button class="gl-chip gl-chip-outcome" data-outcome="floor" onclick="toggleGlOutcome('floor')">❄️ Floor (≤5)</button>
+            <button class="gl-chip gl-chip-outcome" data-outcome="neutral" onclick="toggleGlOutcome('neutral')">Neutral</button>
+          </div>
+        </div>
+
+        <div style="margin-bottom:8px;">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px;">Park</div>
+          <select id="gl-park" multiple style="width:100%;min-height:60px;padding:4px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;" onchange="applyGameLogFilters()"></select>
+          <div style="font-size:9px;color:var(--muted);margin-top:2px;">Tip: leave empty or cmd/ctrl-click to multi-select. Empty = all parks.</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px;">Temp °F</div>
+            <div style="display:flex;gap:4px;">
+              <input type="number" id="gl-temp-min" placeholder="min" style="width:50%;padding:6px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;" oninput="applyGameLogFilters()">
+              <input type="number" id="gl-temp-max" placeholder="max" style="width:50%;padding:6px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;" oninput="applyGameLogFilters()">
+            </div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px;">Wind mph</div>
+            <div style="display:flex;gap:4px;">
+              <input type="number" id="gl-wind-min" placeholder="min" style="width:50%;padding:6px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;" oninput="applyGameLogFilters()">
+              <input type="number" id="gl-wind-max" placeholder="max" style="width:50%;padding:6px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;" oninput="applyGameLogFilters()">
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:8px;">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px;">Wind Direction</div>
+          <div id="gl-wind-dir" style="display:flex;gap:4px;flex-wrap:wrap;">
+            <button class="gl-chip gl-chip-wind active" data-dir="out" onclick="toggleGlWindDir('out')">Out</button>
+            <button class="gl-chip gl-chip-wind active" data-dir="in" onclick="toggleGlWindDir('in')">In</button>
+            <button class="gl-chip gl-chip-wind active" data-dir="cross" onclick="toggleGlWindDir('cross')">Cross</button>
+            <button class="gl-chip gl-chip-wind active" data-dir="none" onclick="toggleGlWindDir('none')">None</button>
+            <button class="gl-chip gl-chip-wind active" data-dir="dome" onclick="toggleGlWindDir('dome')">Dome</button>
+          </div>
+        </div>
+
+        <div style="margin-bottom:8px;">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px;">Condition</div>
+          <div id="gl-condition" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+        </div>
+
+        <div style="margin-bottom:6px;">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px;">GST Component Floors (game must have component ≥ value)</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;">
+            <label style="font-size:9px;color:var(--muted);">s1 Park/Wx
+              <input type="number" id="gl-s1-min" placeholder="≥" style="width:100%;padding:4px;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px;margin-top:2px;" oninput="applyGameLogFilters()">
+            </label>
+            <label style="font-size:9px;color:var(--muted);">s2 Starters
+              <input type="number" id="gl-s2-min" placeholder="≥" style="width:100%;padding:4px;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px;margin-top:2px;" oninput="applyGameLogFilters()">
+            </label>
+            <label style="font-size:9px;color:var(--muted);">s3 Bullpen
+              <input type="number" id="gl-s3-min" placeholder="≥" style="width:100%;padding:4px;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px;margin-top:2px;" oninput="applyGameLogFilters()">
+            </label>
+            <label style="font-size:9px;color:var(--muted);">s4 Lineups
+              <input type="number" id="gl-s4-min" placeholder="≥" style="width:100%;padding:4px;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px;margin-top:2px;" oninput="applyGameLogFilters()">
+            </label>
+          </div>
+        </div>
+
+        <button class="btn" style="padding:6px 12px;font-size:11px;background:transparent;border:1px solid var(--border);color:var(--muted);" onclick="resetGameLogFilters()">Reset Filters</button>
+      </div>
+
+      <!-- SUMMARY STRIP -->
+      <div id="gl-summary" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;color:var(--muted);"></div>
+
+      <!-- GAME ROWS -->
+      <div id="gl-list" style="display:flex;flex-direction:column;gap:4px;"><div style="color:var(--muted);font-size:12px;text-align:center;padding:16px;">Loading...</div></div>
+    </div>
+  </div>
+
   <!-- ═════════════════════ EXPORT TAB ═════════════════════ -->
   <div id="tab-export" class="admin-tab-panel">
     <div class="card" style="border-color:rgba(255,140,0,0.3);">
@@ -580,13 +702,14 @@ function checkPin() {
 document.getElementById('pin-input').addEventListener('input', checkPin);
 
 function switchAdminTab(tab) {
-  const tabs = ['manage','model','beta','tiers','outliers','export'];
+  const tabs = ['manage','model','beta','tiers','outliers','gamelog','export'];
   document.querySelectorAll('.admin-tab').forEach((el, i) => {
     el.classList.toggle('active', tabs[i] === tab);
   });
   document.querySelectorAll('.admin-tab-panel').forEach(el => el.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
   if (tab === 'outliers') loadOutlierHistory();
+  if (tab === 'gamelog') loadGameLog();
 }
 
 function getTodayPDT() {
@@ -2418,6 +2541,484 @@ function exportOutlierHistoryCsv() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   showToast(`Exported ${sorted.length} games`, 'ok');
+}
+
+// ═════════════════════ GAME LOG TAB ═════════════════════
+// In-memory cache of joined rows: beta-results + game-outcomes per game.
+// One row per game with all fields flattened + derived weather fields.
+let _glRows = [];                  // all games across all dates we loaded
+let _glFiltered = [];              // subset after filter pass
+let _glOutcomeSel = new Set(['all']);   // outcome filter state
+let _glWindDirSel = new Set(['out','in','cross','none','dome']);
+let _glConditionSel = new Set();   // populated once data loads
+let _glLoaded = false;             // avoid repeat fetches within a session
+
+// Parse MLB wind string → { speed: number|null, dir: 'out'|'in'|'cross'|'none'|null }
+function _glParseWind(s, condition) {
+  if (condition && /roof closed/i.test(condition)) return { speed: 0, dir: 'dome' };
+  if (!s) return { speed: null, dir: null };
+  const m = String(s).match(/^(\d+)\s*mph/i);
+  const speed = m ? parseInt(m[1]) : null;
+  const rest = String(s).toLowerCase();
+  let dir = null;
+  if (/\bnone\b/.test(rest) || speed === 0) dir = 'none';
+  else if (/out to/.test(rest)) dir = 'out';
+  else if (/in from/.test(rest)) dir = 'in';
+  else if (/l to r|r to l/.test(rest)) dir = 'cross';
+  return { speed, dir };
+}
+
+// Derive outcome label for a row ('ceiling' | 'floor' | 'neutral')
+function _glOutcomeLabel(row) {
+  if (row.ceiling) return 'ceiling';
+  if (row.floor) return 'floor';
+  return 'neutral';
+}
+
+// Load all game-outcomes + beta-results blobs, join them per matchup, produce flat rows.
+async function loadGameLog() {
+  const listEl = document.getElementById('gl-list');
+  listEl.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:16px;">Loading game log...</div>';
+  try {
+    // Step 1: list all blobs via the history endpoint we already have — but /api/history
+    // only returns slate-level records. We need to know which dates have game-outcomes blobs.
+    // We infer the date set from /api/history (those are the days we saved slate data).
+    // For each date with a history record, try to fetch both beta-results and game-outcomes.
+    const hist = await fetch('/api/history').then(r => r.json());
+    const dates = hist.map(r => r.date).filter(Boolean).sort();
+    if (!dates.length) {
+      listEl.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:16px;">No history found.</div>';
+      return;
+    }
+
+    // Parallel fetch all beta + outcome blobs per date. Missing blobs return null.
+    const perDate = await Promise.all(dates.map(async date => {
+      const [betaRes, outRes] = await Promise.allSettled([
+        fetch(`/api/park-weather?type=beta&date=${date}`).then(r => r.ok ? r.json() : null),
+        fetch(`/api/game-outcomes?date=${date}`).then(r => r.ok ? r.json() : null),
+      ]);
+      return {
+        date,
+        beta: betaRes.status === 'fulfilled' && betaRes.value ? betaRes.value.betaResults : null,
+        outcomes: outRes.status === 'fulfilled' && outRes.value ? outRes.value : null,
+      };
+    }));
+
+    // Build flat rows, one per game
+    const rows = [];
+    for (const d of perDate) {
+      const outcomesArr = d.outcomes?.games || [];
+      const betaArr = d.beta?.games || [];
+      const betaByMatch = {};
+      for (const b of betaArr) betaByMatch[b.matchup] = b;
+      for (const o of outcomesArr) {
+        const b = betaByMatch[o.matchup] || null;
+        const w = _glParseWind(o.weatherActual?.wind, o.weatherActual?.condition);
+        const away = o.pitching?.away || {};
+        const home = o.pitching?.home || {};
+        rows.push({
+          date: d.date,
+          matchup: o.matchup,
+          away: o.away,
+          home: o.home,
+          park: o.park || '',
+          gamePk: o.gamePk,
+          // totals
+          total: o.totals?.total ?? null,
+          awayRuns: o.totals?.awayRuns ?? null,
+          homeRuns: o.totals?.homeRuns ?? null,
+          ceiling: !!o.totals?.ceiling,
+          floor: !!o.totals?.floor,
+          // HR
+          hrTotal: o.homeRuns?.total ?? 0,
+          hrSolo: o.homeRuns?.solo ?? 0,
+          hr2: o.homeRuns?.twoRun ?? 0,
+          hr3: o.homeRuns?.threeRun ?? 0,
+          hrGS: o.homeRuns?.grandSlam ?? 0,
+          runsViaHr: o.homeRuns?.runsViaHr ?? 0,
+          hrAway: o.homeRuns?.byTeam?.away ?? 0,
+          hrHome: o.homeRuns?.byTeam?.home ?? 0,
+          // pitching — away
+          awayStarterName: away.starter?.name || '',
+          awayStarterIp: away.starter?.ip ?? null,
+          awayStarterR: away.starter?.runsAllowed ?? null,
+          awayStarterER: away.starter?.earnedRuns ?? null,
+          awayStarterHR: away.starter?.hrAllowed ?? null,
+          awayStarterPulledEarly: !!away.starter?.pulledEarly,
+          awayStarterWentDeep: !!away.starter?.wentDeep,
+          awayStarterMatchedProbable: away.starter?.matchedProbable,
+          awayBullpenIp: away.bullpen?.ip ?? null,
+          awayBullpenR: away.bullpen?.runsAllowed ?? null,
+          awayBullpenER: away.bullpen?.earnedRuns ?? null,
+          awayBullpenHR: away.bullpen?.hrAllowed ?? null,
+          // pitching — home
+          homeStarterName: home.starter?.name || '',
+          homeStarterIp: home.starter?.ip ?? null,
+          homeStarterR: home.starter?.runsAllowed ?? null,
+          homeStarterER: home.starter?.earnedRuns ?? null,
+          homeStarterHR: home.starter?.hrAllowed ?? null,
+          homeStarterPulledEarly: !!home.starter?.pulledEarly,
+          homeStarterWentDeep: !!home.starter?.wentDeep,
+          homeStarterMatchedProbable: home.starter?.matchedProbable,
+          homeBullpenIp: home.bullpen?.ip ?? null,
+          homeBullpenR: home.bullpen?.runsAllowed ?? null,
+          homeBullpenER: home.bullpen?.earnedRuns ?? null,
+          homeBullpenHR: home.bullpen?.hrAllowed ?? null,
+          // defense
+          awayErrors: o.defense?.away?.errors ?? 0,
+          awayUnearnedAllowed: o.defense?.away?.unearnedRunsAllowed ?? 0,
+          homeErrors: o.defense?.home?.errors ?? 0,
+          homeUnearnedAllowed: o.defense?.home?.unearnedRunsAllowed ?? 0,
+          // weather
+          temp: o.weatherActual?.temp ?? null,
+          condition: o.weatherActual?.condition || '',
+          windRaw: o.weatherActual?.wind || '',
+          windSpeed: w.speed,
+          windDir: w.dir,
+          // beta components (may be null if no beta was saved that day)
+          ou: b?.ou ?? null,
+          bpAdj: b?.bpAdj ?? null,
+          p12: b?.p12 ?? null,
+          awayTier: b?.awayTier || null,
+          homeTier: b?.homeTier || null,
+          bpTier: b?.bpTier || null,
+          awayLineup: b?.awayLineup || null,
+          homeLineup: b?.homeLineup || null,
+          s1: b?.scored?.s1 ?? null,
+          s2: b?.scored?.s2 ?? null,
+          s3: b?.scored?.s3 ?? null,
+          s4: b?.scored?.s4 ?? null,
+          gstTotal: b?.scored?.total ?? null,
+          gstLabel: b?.scored?.label || null,
+        });
+      }
+    }
+    rows.sort((a,b) => b.date.localeCompare(a.date) || a.matchup.localeCompare(b.matchup));
+    _glRows = rows;
+    _glLoaded = true;
+
+    _glInitFilterControls();
+    applyGameLogFilters();
+  } catch(e) {
+    listEl.innerHTML = `<div style="color:var(--red);font-size:12px;text-align:center;padding:16px;">Error loading: ${e.message}</div>`;
+  }
+}
+
+// Populate the park dropdown + condition chips from the loaded data once.
+function _glInitFilterControls() {
+  // Park multi-select
+  const parkSel = document.getElementById('gl-park');
+  const parks = Array.from(new Set(_glRows.map(r => r.park).filter(Boolean))).sort();
+  parkSel.innerHTML = parks.map(p => `<option value="${p}">${p}</option>`).join('');
+
+  // Condition chips
+  const conditions = Array.from(new Set(_glRows.map(r => r.condition).filter(Boolean))).sort();
+  if (!_glConditionSel.size) for (const c of conditions) _glConditionSel.add(c);
+  const condEl = document.getElementById('gl-condition');
+  condEl.innerHTML = conditions.map(c =>
+    `<button class="gl-chip gl-chip-cond ${_glConditionSel.has(c)?'active':''}" data-cond="${c.replace(/"/g,'&quot;')}" onclick="toggleGlCondition(this.dataset.cond)">${c}</button>`
+  ).join('');
+
+  // Date range defaults: span of data
+  const dates = _glRows.map(r => r.date).sort();
+  if (dates.length) {
+    const fromEl = document.getElementById('gl-date-from');
+    const toEl = document.getElementById('gl-date-to');
+    if (!fromEl.value) fromEl.value = dates[0];
+    if (!toEl.value) toEl.value = dates[dates.length - 1];
+  }
+}
+
+// Chip toggles — outcome is single-select (radio-like), wind-dir and condition are multi-select.
+function toggleGlOutcome(key) {
+  _glOutcomeSel = new Set([key]);
+  document.querySelectorAll('#gl-filters .gl-chip-outcome').forEach(el => {
+    el.classList.toggle('active', el.dataset.outcome === key);
+  });
+  applyGameLogFilters();
+}
+function toggleGlWindDir(key) {
+  if (_glWindDirSel.has(key)) _glWindDirSel.delete(key);
+  else _glWindDirSel.add(key);
+  document.querySelectorAll('#gl-wind-dir .gl-chip-wind').forEach(el => {
+    el.classList.toggle('active', _glWindDirSel.has(el.dataset.dir));
+  });
+  applyGameLogFilters();
+}
+function toggleGlCondition(key) {
+  if (_glConditionSel.has(key)) _glConditionSel.delete(key);
+  else _glConditionSel.add(key);
+  document.querySelectorAll('#gl-condition .gl-chip-cond').forEach(el => {
+    el.classList.toggle('active', _glConditionSel.has(el.dataset.cond));
+  });
+  applyGameLogFilters();
+}
+
+function resetGameLogFilters() {
+  const fromEl = document.getElementById('gl-date-from');
+  const toEl = document.getElementById('gl-date-to');
+  const dates = _glRows.map(r => r.date).sort();
+  if (dates.length) {
+    fromEl.value = dates[0];
+    toEl.value = dates[dates.length - 1];
+  }
+  ['gl-temp-min','gl-temp-max','gl-wind-min','gl-wind-max','gl-s1-min','gl-s2-min','gl-s3-min','gl-s4-min'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  // park: clear selection
+  const parkSel = document.getElementById('gl-park');
+  Array.from(parkSel.options).forEach(o => o.selected = false);
+  // outcome → all
+  _glOutcomeSel = new Set(['all']);
+  document.querySelectorAll('#gl-filters .gl-chip-outcome').forEach(el => {
+    el.classList.toggle('active', el.dataset.outcome === 'all');
+  });
+  // wind dir → all
+  _glWindDirSel = new Set(['out','in','cross','none','dome']);
+  document.querySelectorAll('#gl-wind-dir .gl-chip-wind').forEach(el => el.classList.add('active'));
+  // condition → all
+  _glConditionSel = new Set(Array.from(new Set(_glRows.map(r => r.condition).filter(Boolean))));
+  document.querySelectorAll('#gl-condition .gl-chip-cond').forEach(el => el.classList.add('active'));
+
+  applyGameLogFilters();
+}
+
+function applyGameLogFilters() {
+  if (!_glLoaded) return;
+  const from = document.getElementById('gl-date-from').value || '';
+  const to   = document.getElementById('gl-date-to').value   || '';
+  const tMin = document.getElementById('gl-temp-min').value !== '' ? parseFloat(document.getElementById('gl-temp-min').value) : null;
+  const tMax = document.getElementById('gl-temp-max').value !== '' ? parseFloat(document.getElementById('gl-temp-max').value) : null;
+  const wMin = document.getElementById('gl-wind-min').value !== '' ? parseFloat(document.getElementById('gl-wind-min').value) : null;
+  const wMax = document.getElementById('gl-wind-max').value !== '' ? parseFloat(document.getElementById('gl-wind-max').value) : null;
+  const s1Min = document.getElementById('gl-s1-min').value !== '' ? parseFloat(document.getElementById('gl-s1-min').value) : null;
+  const s2Min = document.getElementById('gl-s2-min').value !== '' ? parseFloat(document.getElementById('gl-s2-min').value) : null;
+  const s3Min = document.getElementById('gl-s3-min').value !== '' ? parseFloat(document.getElementById('gl-s3-min').value) : null;
+  const s4Min = document.getElementById('gl-s4-min').value !== '' ? parseFloat(document.getElementById('gl-s4-min').value) : null;
+  const parkSel = document.getElementById('gl-park');
+  const selectedParks = new Set(Array.from(parkSel.selectedOptions).map(o => o.value));
+  const outcome = Array.from(_glOutcomeSel)[0] || 'all';
+
+  _glFiltered = _glRows.filter(r => {
+    if (from && r.date < from) return false;
+    if (to && r.date > to) return false;
+    if (outcome !== 'all' && _glOutcomeLabel(r) !== outcome) return false;
+    if (selectedParks.size && !selectedParks.has(r.park)) return false;
+    if (tMin != null && (r.temp == null || r.temp < tMin)) return false;
+    if (tMax != null && (r.temp == null || r.temp > tMax)) return false;
+    if (wMin != null && (r.windSpeed == null || r.windSpeed < wMin)) return false;
+    if (wMax != null && (r.windSpeed == null || r.windSpeed > wMax)) return false;
+    // Wind dir: if all 5 are selected, no-op; otherwise must match.
+    if (_glWindDirSel.size < 5) {
+      if (!r.windDir || !_glWindDirSel.has(r.windDir)) return false;
+    }
+    // Condition: if no conditions selected, keep everything (defensive); else must be in set.
+    if (_glConditionSel.size > 0 && _glConditionSel.size < Array.from(new Set(_glRows.map(x => x.condition).filter(Boolean))).length) {
+      if (!_glConditionSel.has(r.condition)) return false;
+    }
+    // GST component floors — only filter when the row actually has a prediction
+    if (s1Min != null) { if (r.s1 == null || r.s1 < s1Min) return false; }
+    if (s2Min != null) { if (r.s2 == null || r.s2 < s2Min) return false; }
+    if (s3Min != null) { if (r.s3 == null || r.s3 < s3Min) return false; }
+    if (s4Min != null) { if (r.s4 == null || r.s4 < s4Min) return false; }
+    return true;
+  });
+
+  renderGameLogSummary();
+  renderGameLogList();
+}
+
+function renderGameLogSummary() {
+  const n = _glFiltered.length;
+  const summEl = document.getElementById('gl-summary');
+  if (n === 0) {
+    summEl.innerHTML = '<span>No games match current filters.</span>';
+    return;
+  }
+  let ceilN = 0, floorN = 0, totalSum = 0, hrSum = 0, withTemp = 0, tempSum = 0;
+  for (const r of _glFiltered) {
+    if (r.ceiling) ceilN++;
+    else if (r.floor) floorN++;
+    if (r.total != null) totalSum += r.total;
+    hrSum += r.hrTotal;
+    if (r.temp != null) { tempSum += r.temp; withTemp++; }
+  }
+  const neutralN = n - ceilN - floorN;
+  const pct = (v) => Math.round((v / n) * 100);
+  const meanTotal = (totalSum / n).toFixed(2);
+  const meanHr = (hrSum / n).toFixed(2);
+  const meanTemp = withTemp ? Math.round(tempSum / withTemp) : '—';
+  summEl.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+      <div style="text-align:center;">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.4px;color:var(--muted);">N</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:var(--text);">${n}</div>
+        <div style="font-size:9px;color:var(--muted);">games</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.4px;color:var(--green);">🔥 Ceiling</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:var(--green);">${pct(ceilN)}%</div>
+        <div style="font-size:9px;color:var(--muted);">${ceilN}/${n}</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.4px;color:var(--blue);">❄️ Floor</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:var(--blue);">${pct(floorN)}%</div>
+        <div style="font-size:9px;color:var(--muted);">${floorN}/${n}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:14px;justify-content:center;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;">
+      <span>Neutral: <strong style="color:var(--text);">${pct(neutralN)}%</strong></span>
+      <span>Mean total: <strong style="color:var(--text);">${meanTotal}</strong></span>
+      <span>Mean HR: <strong style="color:var(--text);">${meanHr}</strong></span>
+      <span>Mean temp: <strong style="color:var(--text);">${meanTemp}${withTemp?'°':''}</strong></span>
+    </div>
+  `;
+}
+
+function renderGameLogList() {
+  const listEl = document.getElementById('gl-list');
+  if (!_glFiltered.length) {
+    listEl.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:16px;">No games match current filters.</div>';
+    return;
+  }
+  // Cap render at 400 rows to keep DOM manageable; show a hint if truncated.
+  const MAX = 400;
+  const toRender = _glFiltered.slice(0, MAX);
+  const truncated = _glFiltered.length > MAX;
+  listEl.innerHTML = toRender.map((r, idx) => {
+    const cls = r.ceiling ? 'ceil' : r.floor ? 'floor' : '';
+    const emoji = r.ceiling ? '🔥' : r.floor ? '❄️' : '';
+    const dateShort = r.date.slice(5).replace('-', '/');
+    const gstStr = r.gstTotal != null ? (r.gstTotal >= 0 ? '+' : '') + r.gstTotal : '—';
+    const gstColor = r.gstTotal > 0 ? 'var(--green)' : r.gstTotal < 0 ? 'var(--blue)' : 'var(--muted)';
+    return `
+      <div class="gl-row ${cls}" onclick="_glToggleExp(${idx})">
+        <div class="gl-row-head">
+          <div style="color:var(--muted);">${dateShort}</div>
+          <div style="font-weight:700;">${r.away} @ ${r.home}</div>
+          <div style="font-size:10px;color:var(--muted);">${r.park || '—'}</div>
+          <div style="text-align:center;">${emoji}</div>
+          <div style="text-align:center;font-size:15px;font-weight:900;">${r.total != null ? r.total : '—'}</div>
+          <div style="text-align:center;color:${gstColor};font-weight:700;">${gstStr}</div>
+          <div style="text-align:center;color:var(--muted);">›</div>
+        </div>
+        <div class="gl-exp" id="gl-exp-${idx}">
+          ${_glRenderExp(r)}
+        </div>
+      </div>
+    `;
+  }).join('') + (truncated ? `<div style="color:var(--muted);font-size:11px;text-align:center;padding:8px;">Showing first ${MAX} of ${_glFiltered.length} games. Tighten filters or use Export CSV for the full set.</div>` : '');
+}
+
+function _glToggleExp(idx) {
+  const el = document.getElementById(`gl-exp-${idx}`);
+  if (el) el.classList.toggle('open');
+}
+
+function _glRenderExp(r) {
+  const cell = (label, val, color) => {
+    const c = color || (val > 0 ? 'var(--green)' : val < 0 ? 'var(--blue)' : 'var(--text)');
+    const sign = (typeof val === 'number' && val > 0) ? '+' : '';
+    return `<div><div class="gl-comp-lbl">${label}</div><div class="gl-comp-val" style="color:${c};">${val == null ? '—' : sign + val}</div></div>`;
+  };
+  const fmtBool = b => b ? 'yes' : 'no';
+  const fmtMP = v => v === true ? 'yes' : v === false ? 'no' : '—';
+  const hasBeta = r.gstTotal != null;
+  const betaSection = hasBeta ? `
+    <div style="margin-bottom:10px;">
+      <div class="gl-exp-label" style="margin-bottom:4px;">GST Components</div>
+      <div class="gl-comp">
+        ${cell('Park/Wx', r.s1)}
+        ${cell('Starters', r.s2)}
+        ${cell('Bullpen', r.s3)}
+        ${cell('Lineups', r.s4)}
+        ${cell('Total', r.gstTotal)}
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;">
+        Tiers: away ${r.awayTier || '—'} · home ${r.homeTier || '—'} · bp ${r.bpTier || '—'} · lineup ${r.awayLineup || '—'}/${r.homeLineup || '—'} · O/U ${r.ou || '—'}
+      </div>
+    </div>
+  ` : '<div style="font-size:10px;color:var(--muted);margin-bottom:10px;">No GST prediction saved for this game.</div>';
+
+  return `
+    ${betaSection}
+    <div class="gl-exp-grid">
+      <div>
+        <div class="gl-exp-label">Pitching — ${r.away}</div>
+        <div class="gl-exp-val">
+          ${r.awayStarterName || '—'} · ${r.awayStarterIp ?? '—'} IP · ${r.awayStarterR ?? '—'} R / ${r.awayStarterER ?? '—'} ER · ${r.awayStarterHR ?? 0} HR
+          <span style="color:var(--muted);font-size:10px;">[${r.awayStarterPulledEarly?'pulled early':(r.awayStarterWentDeep?'went deep':'normal')}, probable: ${fmtMP(r.awayStarterMatchedProbable)}]</span>
+          <br>Bullpen: ${r.awayBullpenIp ?? '—'} IP · ${r.awayBullpenR ?? '—'} R / ${r.awayBullpenER ?? '—'} ER · ${r.awayBullpenHR ?? 0} HR
+        </div>
+      </div>
+      <div>
+        <div class="gl-exp-label">Pitching — ${r.home}</div>
+        <div class="gl-exp-val">
+          ${r.homeStarterName || '—'} · ${r.homeStarterIp ?? '—'} IP · ${r.homeStarterR ?? '—'} R / ${r.homeStarterER ?? '—'} ER · ${r.homeStarterHR ?? 0} HR
+          <span style="color:var(--muted);font-size:10px;">[${r.homeStarterPulledEarly?'pulled early':(r.homeStarterWentDeep?'went deep':'normal')}, probable: ${fmtMP(r.homeStarterMatchedProbable)}]</span>
+          <br>Bullpen: ${r.homeBullpenIp ?? '—'} IP · ${r.homeBullpenR ?? '—'} R / ${r.homeBullpenER ?? '—'} ER · ${r.homeBullpenHR ?? 0} HR
+        </div>
+      </div>
+      <div>
+        <div class="gl-exp-label">Score &amp; HR</div>
+        <div class="gl-exp-val">
+          ${r.away} ${r.awayRuns ?? '—'} · ${r.home} ${r.homeRuns ?? '—'} &nbsp;(total ${r.total ?? '—'})<br>
+          HR ${r.hrTotal} total · ${r.hrSolo} solo · ${r.hr2} 2R · ${r.hr3} 3R · ${r.hrGS} GS · ${r.runsViaHr} runs via HR<br>
+          by team: ${r.away} ${r.hrAway} · ${r.home} ${r.hrHome}
+        </div>
+      </div>
+      <div>
+        <div class="gl-exp-label">Weather &amp; Defense</div>
+        <div class="gl-exp-val">
+          ${r.temp != null ? r.temp + '°F' : '—'} · ${r.condition || '—'} · ${r.windRaw || '—'}
+          <span style="color:var(--muted);font-size:10px;">[${r.windDir || '—'}, ${r.windSpeed != null ? r.windSpeed : '—'} mph]</span>
+          <br>Errors: ${r.away} ${r.awayErrors} (${r.awayUnearnedAllowed} UER allowed) · ${r.home} ${r.homeErrors} (${r.homeUnearnedAllowed} UER allowed)
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// CSV export of the currently filtered set. Flatten every field.
+function exportGameLogCsv() {
+  if (!_glFiltered.length) { showToast('No games to export', 'err'); return; }
+  const headers = [
+    'date','matchup','away','home','park','gamePk',
+    'total','awayRuns','homeRuns','ceiling','floor',
+    'hrTotal','hrSolo','hrTwoRun','hrThreeRun','hrGrandSlam','runsViaHr','hrByAway','hrByHome',
+    'awayStarterName','awayStarterIp','awayStarterR','awayStarterER','awayStarterHR','awayStarterPulledEarly','awayStarterWentDeep','awayStarterMatchedProbable',
+    'awayBullpenIp','awayBullpenR','awayBullpenER','awayBullpenHR',
+    'homeStarterName','homeStarterIp','homeStarterR','homeStarterER','homeStarterHR','homeStarterPulledEarly','homeStarterWentDeep','homeStarterMatchedProbable',
+    'homeBullpenIp','homeBullpenR','homeBullpenER','homeBullpenHR',
+    'awayErrors','awayUnearnedAllowed','homeErrors','homeUnearnedAllowed',
+    'temp','condition','windRaw','windSpeed','windDir',
+    'ou','bpAdj','p12','awayTier','homeTier','bpTier','awayLineup','homeLineup',
+    's1','s2','s3','s4','gstTotal','gstLabel',
+  ];
+  const map = {
+    hrTwoRun:'hr2', hrThreeRun:'hr3', hrGrandSlam:'hrGS', hrByAway:'hrAway', hrByHome:'hrHome',
+  };
+  const esc = v => {
+    if (v == null) return '';
+    const s = String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+  };
+  const lines = [headers.join(',')];
+  for (const r of _glFiltered) {
+    lines.push(headers.map(h => esc(r[map[h] || h])).join(','));
+  }
+  const csv = lines.join('\n');
+  const today = getTodayPDT();
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `game-log-${today}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(`Exported ${_glFiltered.length} games`, 'ok');
 }
 
 // ═════════════════════ GAME OUTCOMES BACKFILL ═════════════════════
