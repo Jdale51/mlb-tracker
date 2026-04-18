@@ -538,6 +538,25 @@
       <textarea id="claude-output" rows="6" readonly></textarea>
       <button class="btn" id="copy-btn" onclick="copyOutput()">📋 COPY TO CLIPBOARD</button>
     </div>
+
+    <div class="card" style="margin-top:12px;">
+      <div class="card-title">🗂️ Game Outcomes Backfill</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">
+        One-time backfill of post-game outcomes (HR splits, starter vs bullpen, defense, weather actual) into <code style="font-size:11px;">game-outcomes-{date}.json</code> for every date in the range. Safe to re-run — overwrites per-date blobs.
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        <label style="font-size:11px;color:var(--muted);">Start date
+          <input type="date" id="bf-start" value="2026-03-26" style="width:100%;padding:6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);margin-top:4px;">
+        </label>
+        <label style="font-size:11px;color:var(--muted);">End date
+          <input type="date" id="bf-end" style="width:100%;padding:6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);margin-top:4px;">
+        </label>
+      </div>
+      <button class="btn btn-primary" id="bf-btn" style="width:100%;" onclick="runBackfill()">▶ Run Backfill</button>
+      <button class="btn" id="bf-test-btn" style="width:100%;margin-top:6px;background:transparent;border:1px solid var(--border);color:var(--text);" onclick="runBackfillTest()">🧪 Test with 1 date (start date only)</button>
+      <div id="bf-progress" style="font-size:11px;color:var(--muted);margin-top:10px;min-height:14px;"></div>
+      <div id="bf-log" style="font-family:ui-monospace,monospace;font-size:10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px;margin-top:6px;max-height:200px;overflow-y:auto;display:none;"></div>
+    </div>
   </div>
 
 </div>
@@ -2401,9 +2420,119 @@ function exportOutlierHistoryCsv() {
   showToast(`Exported ${sorted.length} games`, 'ok');
 }
 
+// ═════════════════════ GAME OUTCOMES BACKFILL ═════════════════════
+function _bfLog(msg, color) {
+  const el = document.getElementById('bf-log');
+  el.style.display = 'block';
+  const line = document.createElement('div');
+  line.textContent = msg;
+  if (color) line.style.color = color;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function _bfStatus(msg, color) {
+  const el = document.getElementById('bf-progress');
+  el.textContent = msg;
+  el.style.color = color || 'var(--muted)';
+}
+
+function _bfDateRange(start, end) {
+  const out = [];
+  const s = new Date(start + 'T00:00:00Z');
+  const e = new Date(end + 'T00:00:00Z');
+  for (let d = new Date(s); d <= e; d.setUTCDate(d.getUTCDate() + 1)) {
+    out.push(d.toISOString().split('T')[0]);
+  }
+  return out;
+}
+
+async function _bfFetchOne(date) {
+  const res = await fetch(`/api/cron-outcomes?date=${date}`);
+  if (!res.ok) {
+    let errMsg = `HTTP ${res.status}`;
+    try { const j = await res.json(); errMsg = j.error || errMsg; } catch {}
+    throw new Error(errMsg);
+  }
+  return res.json();
+}
+
+async function runBackfillTest() {
+  const start = document.getElementById('bf-start').value;
+  if (!start) { showToast('Set a start date first', 'err'); return; }
+  const btn = document.getElementById('bf-test-btn');
+  btn.disabled = true;
+  document.getElementById('bf-log').innerHTML = '';
+  _bfStatus(`Testing ${start}...`, 'var(--accent)');
+  _bfLog(`→ Test: ${start}`);
+  try {
+    const result = await _bfFetchOne(start);
+    if (result.ok) {
+      _bfLog(`✓ ${start}: ${result.games} games written${result.errors ? ` (${result.errors.length} errors)` : ''}`, 'var(--green)');
+      if (result.errors) {
+        for (const e of result.errors) _bfLog(`    ⚠ gamePk ${e.gamePk}: ${e.error}`, 'var(--orange)');
+      }
+      _bfStatus(`Test complete: ${result.games} games saved. Check blob storage, then run full backfill.`, 'var(--green)');
+    } else {
+      _bfLog(`✗ ${start}: ${result.error}`, 'var(--red)');
+      _bfStatus('Test failed — see log', 'var(--red)');
+    }
+  } catch (e) {
+    _bfLog(`✗ ${start}: ${e.message}`, 'var(--red)');
+    _bfStatus('Test failed — see log', 'var(--red)');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function runBackfill() {
+  const start = document.getElementById('bf-start').value;
+  const end = document.getElementById('bf-end').value;
+  if (!start || !end) { showToast('Set both start and end dates', 'err'); return; }
+  if (end < start) { showToast('End date must be >= start date', 'err'); return; }
+  if (!confirm(`Run backfill from ${start} through ${end}?\n\nThis will make one API call per date sequentially. Keep this tab open until complete.`)) return;
+
+  const dates = _bfDateRange(start, end);
+  const btn = document.getElementById('bf-btn');
+  btn.disabled = true;
+  document.getElementById('bf-log').innerHTML = '';
+  _bfLog(`Starting backfill: ${dates.length} dates`);
+
+  let totalGames = 0, totalErrors = 0, dateSuccess = 0, dateFail = 0;
+  for (let i = 0; i < dates.length; i++) {
+    const date = dates[i];
+    _bfStatus(`[${i+1}/${dates.length}] ${date}...`, 'var(--accent)');
+    try {
+      const result = await _bfFetchOne(date);
+      if (result.ok) {
+        dateSuccess++;
+        totalGames += result.games || 0;
+        const errN = result.errors?.length || 0;
+        totalErrors += errN;
+        _bfLog(`✓ ${date}: ${result.games} games${errN ? ` (${errN} errors)` : ''}${result.note ? ' · ' + result.note : ''}`, 'var(--green)');
+      } else {
+        dateFail++;
+        _bfLog(`✗ ${date}: ${result.error}`, 'var(--red)');
+      }
+    } catch (e) {
+      dateFail++;
+      _bfLog(`✗ ${date}: ${e.message}`, 'var(--red)');
+    }
+    // Small pause between dates to keep MLB + Vercel happy
+    await new Promise(r => setTimeout(r, 300));
+  }
+  _bfStatus(`Done: ${dateSuccess}/${dates.length} dates · ${totalGames} games · ${totalErrors} game-level errors · ${dateFail} date failures`,
+    dateFail === 0 ? 'var(--green)' : 'var(--orange)');
+  _bfLog(`── Complete ──`);
+  btn.disabled = false;
+}
+
 function initAdmin() {
   document.getElementById('today-date').textContent = getTodayPDT();
   document.getElementById('result-date-display').textContent = `Saving for: ${resultDate}`;
+  // Default backfill end date to yesterday PT
+  const bfEndEl = document.getElementById('bf-end');
+  if (bfEndEl && !bfEndEl.value) bfEndEl.value = getYesterdayPDT();
   loadHistory();
   const dayOfWeek = new Date(Date.now() + -7*60*60*1000).getDay();
   const dowEl = document.getElementById('m-dow');
