@@ -32,13 +32,29 @@ function exportAbbr(name) {
 }
 
 function getYesterdayPT() {
-  // Apply -7h offset, then drop one day
   const d = new Date(Date.now() + -7 * 60 * 60 * 1000 - 86400000);
   return d.toISOString().split('T')[0];
 }
 
-// MLB reports IP as a float where .1 = 1/3 inning, .2 = 2/3. Keep native format.
-function parseIP(s) {
+// ── IP helpers — baseball IP is NOT a decimal. .1 = 1/3 inning, .2 = 2/3. ──
+// Convert an IP string like "5.2" → 17 outs. Convert 17 outs → "5.2".
+function ipToOuts(s) {
+  if (s == null || s === '') return 0;
+  const str = String(s);
+  const [whole, frac] = str.split('.');
+  const w = parseInt(whole) || 0;
+  const f = frac ? parseInt(frac) : 0;
+  const fracOuts = (f === 1 || f === 2) ? f : 0;
+  return w * 3 + fracOuts;
+}
+function outsToIp(outs) {
+  if (!outs || outs < 0) return 0;
+  const whole = Math.floor(outs / 3);
+  const frac = outs % 3;
+  return parseFloat(`${whole}.${frac}`);
+}
+// For display on individual pitcher lines we keep MLB's native format verbatim.
+function parseIPDisplay(s) {
   if (s == null || s === '') return 0;
   const n = parseFloat(s);
   return isNaN(n) ? 0 : n;
@@ -50,8 +66,6 @@ async function fetchJson(url) {
   return res.json();
 }
 
-// Pull the live feed for a gamePk and extract everything we need.
-// Live feed has both boxscore-equivalent data and full play-by-play for HR breakdown.
 async function fetchGameOutcome(game) {
   const gamePk = game.gamePk;
   const feed = await fetchJson(`https://statsapi.mlb.com/api/v1.1/game/${gamePk}/feed/live`);
@@ -71,11 +85,17 @@ async function fetchGameOutcome(game) {
   const homeR = game.teams?.home?.score ?? boxscore.teams?.home?.teamStats?.batting?.runs ?? 0;
   const total = awayR + homeR;
 
-  // ── HR breakdown: walk all plays, filter home_run events, count by RBI ──
+  // ── Pitcher-to-team lookup from the boxscore pitchers arrays ──
+  // Canonical structural signal: if a pitcher id is in home.pitchers, they pitched
+  // for the home team. We use this to determine which team HIT each HR
+  // (opposite of the pitcher's team).
+  const awayPitcherSet = new Set(boxscore.teams?.away?.pitchers || []);
+  const homePitcherSet = new Set(boxscore.teams?.home?.pitchers || []);
+
+  // ── HR breakdown ──
   let hrTotal = 0, hrSolo = 0, hr2 = 0, hr3 = 0, hrGS = 0;
   let runsViaHr = 0, hrAway = 0, hrHome = 0;
-  // We also need starter HR allowed / bullpen HR allowed per team — track by pitcher id.
-  const hrByPitcher = {}; // { pitcherId: count }
+  const hrByPitcher = {};
 
   for (const p of plays) {
     if (p.result?.eventType !== 'home_run') continue;
@@ -87,14 +107,19 @@ async function fetchGameOutcome(game) {
     else if (rbi === 3) hr3++;
     else if (rbi === 4) hrGS++;
 
-    // which team hit it? matchup.batter.parent team — easier: halfInning + home/away
-    const halfInning = p.about?.halfInning; // 'top' = away batting, 'bottom' = home batting
-    if (halfInning === 'top') hrAway++;
-    else if (halfInning === 'bottom') hrHome++;
-
-    // which pitcher allowed it?
     const pitcherId = p.matchup?.pitcher?.id;
-    if (pitcherId) hrByPitcher[pitcherId] = (hrByPitcher[pitcherId] || 0) + 1;
+    if (pitcherId) {
+      hrByPitcher[pitcherId] = (hrByPitcher[pitcherId] || 0) + 1;
+      // Team that hit it = opposite of the team the pitcher plays for.
+      if (homePitcherSet.has(pitcherId)) hrAway++;
+      else if (awayPitcherSet.has(pitcherId)) hrHome++;
+      else {
+        // Fallback if pitcher id isn't in either set (shouldn't happen)
+        const half = p.about?.halfInning;
+        if (half === 'top') hrAway++;
+        else if (half === 'bottom') hrHome++;
+      }
+    }
   }
 
   // ── Pitching split: starter vs bullpen per team ──
@@ -102,49 +127,56 @@ async function fetchGameOutcome(game) {
     const teamBox = boxscore.teams?.[side];
     if (!teamBox) return { starter: null, bullpen: { ip: 0, runsAllowed: 0, earnedRuns: 0, hrAllowed: 0 } };
     const pitcherIds = teamBox.pitchers || [];
-    // Starter = first pitcher in the pitchers array (MLB's convention)
     const starterId = pitcherIds[0];
     let starter = null;
-    let bpIp = 0, bpR = 0, bpER = 0, bpHR = 0;
+    // Sum bullpen in OUTS, not raw float IP, then convert back.
+    let bpOuts = 0, bpR = 0, bpER = 0, bpHR = 0;
     for (const pid of pitcherIds) {
       const pData = teamBox.players?.[`ID${pid}`];
       if (!pData) continue;
       const ps = pData.stats?.pitching || {};
-      const ip = parseIP(ps.inningsPitched);
+      const rawIp = ps.inningsPitched;
       const r = ps.runs || 0;
       const er = ps.earnedRuns || 0;
       const hr = hrByPitcher[pid] || 0;
       if (pid === starterId) {
+        const displayIp = parseIPDisplay(rawIp);
+        const starterOuts = ipToOuts(rawIp);
         starter = {
           name: pData.person?.fullName || `ID${pid}`,
           id: pid,
-          ip,
+          ip: displayIp,
           runsAllowed: r,
           earnedRuns: er,
           hrAllowed: hr,
-          pulledEarly: ip < 5,
-          wentDeep: ip >= 7,
-          matchedProbable: null, // fill below
+          pulledEarly: starterOuts < 15,   // < 5 IP
+          wentDeep: starterOuts >= 21,     // >= 7 IP
+          matchedProbable: null,
         };
       } else {
-        bpIp += ip; bpR += r; bpER += er; bpHR += hr;
+        bpOuts += ipToOuts(rawIp);
+        bpR += r; bpER += er; bpHR += hr;
       }
     }
-    // matchedProbable: compare starter id to gameData.probablePitchers[side].id
     if (starter) {
       const probId = probables[side]?.id;
       starter.matchedProbable = probId != null ? (starter.id === probId) : null;
     }
     return {
       starter,
-      bullpen: { ip: Math.round(bpIp * 10) / 10, runsAllowed: bpR, earnedRuns: bpER, hrAllowed: bpHR },
+      bullpen: {
+        ip: outsToIp(bpOuts),
+        runsAllowed: bpR,
+        earnedRuns: bpER,
+        hrAllowed: bpHR,
+      },
     };
   }
 
   const awayPitching = pitchingSplit('away');
   const homePitching = pitchingSplit('home');
 
-  // ── Defense: errors and unearned runs ──
+  // ── Defense ──
   function defenseStats(side) {
     const teamBox = boxscore.teams?.[side];
     if (!teamBox) return { errors: 0, unearnedRunsAllowed: 0 };
@@ -215,7 +247,6 @@ module.exports = async function handler(req, res) {
   const date = req.query?.date || getYesterdayPT();
 
   try {
-    // Pull schedule for the date
     const schedUrl = `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${date}`;
     const sched = await fetchJson(schedUrl);
     const allGames = sched?.dates?.[0]?.games || [];
@@ -228,9 +259,6 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // Fetch outcomes in parallel, but cap concurrency so we don't hammer the API.
-    // MLB Stats API is free but ~15 games × ~200ms each in serial = 3s, acceptable.
-    // Parallel with modest concurrency is safer.
     const CONCURRENCY = 5;
     const outcomes = [];
     const errors = [];
