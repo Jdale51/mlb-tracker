@@ -123,6 +123,34 @@ async function fetchAltForEvent(eventId) {
   return res.json();
 }
 
+// Fetch main totals for ALL games in a single batched call (1 credit total)
+// Returns a map keyed by event id -> { point, overPrice, underPrice, lastUpdate }
+async function fetchMainLinesMap() {
+  const key = nextKey();
+  const url = `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${key}&regions=us&markets=totals&oddsFormat=american&bookmakers=${BOOK}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Main totals API ${res.status}`);
+  const data = await res.json();
+  const map = {};
+  for (const g of (data || [])) {
+    const bk = (g.bookmakers || []).find(b => b.key === BOOK);
+    if (!bk) continue;
+    const mkt = (bk.markets || []).find(m => m.key === 'totals');
+    if (!mkt) continue;
+    const ov = (mkt.outcomes || []).find(o => o.name === 'Over');
+    const un = (mkt.outcomes || []).find(o => o.name === 'Under');
+    if (ov && un && ov.point != null) {
+      map[g.id] = {
+        point: ov.point,
+        overPrice: ov.price,
+        underPrice: un.price,
+        lastUpdate: mkt.last_update || bk.last_update || null,
+      };
+    }
+  }
+  return map;
+}
+
 // Extract DK alt ladder from event response
 function extractLadder(eventData) {
   const bk = (eventData.bookmakers || []).find(b => b.key === BOOK);
@@ -198,11 +226,24 @@ function computeOutlierFlag(ladder) {
   };
 }
 
-// Main pull: events → per-game alts → structured payload
+// Main pull: events → per-game alts + main line → structured payload
 async function pullAltLines(targetDate) {
   const startedAt = Date.now();
   const allEvents = await fetchEvents();
   const todayEvents = filterForDate(allEvents, targetDate);
+
+  // Batch main lines in a single call (1 credit total). Don't fail the whole
+  // pull if this errors — we can still render alts without main lines.
+  let mainLinesMap = {};
+  let mainLineCredits = 0;
+  let mainLineError = null;
+  try {
+    mainLinesMap = await fetchMainLinesMap();
+    mainLineCredits = 1;
+  } catch (e) {
+    mainLineError = e.message;
+    console.error('[alt-lines] main lines fetch failed:', e.message);
+  }
 
   const games = [];
   const errors = [];
@@ -214,6 +255,20 @@ async function pullAltLines(targetDate) {
       const awayAbbr = exportAbbr(ev.away_team);
       const homeAbbr = exportAbbr(ev.home_team);
       const outlier = computeOutlierFlag(alts?.ladder);
+      const mainRaw = mainLinesMap[ev.id] || null;
+      const mainLine = mainRaw ? (() => {
+        const { overFair, underFair } = devig(mainRaw.overPrice, mainRaw.underPrice);
+        return {
+          point: mainRaw.point,
+          overPrice: mainRaw.overPrice,
+          underPrice: mainRaw.underPrice,
+          overImplied: americanToImplied(mainRaw.overPrice),
+          underImplied: americanToImplied(mainRaw.underPrice),
+          overFair,
+          underFair,
+          lastUpdate: mainRaw.lastUpdate,
+        };
+      })() : null;
       games.push({
         eventId: ev.id,
         away: ev.away_team,
@@ -223,6 +278,7 @@ async function pullAltLines(targetDate) {
         matchup: `${awayAbbr}@${homeAbbr}`,
         commenceTime: ev.commence_time,
         outlier, // { isOutlier, outlierType, overProb, underProb }
+        mainLine, // { point, overPrice, underPrice, overFair, underFair, ... } or null
         alts,    // { book, lastUpdate, ladder } or null
       });
     } catch (e) {
@@ -239,8 +295,9 @@ async function pullAltLines(targetDate) {
     fetchedAt: new Date().toISOString(),
     fetchMs: Date.now() - startedAt,
     gameCount: games.length,
-    creditsUsed: games.length + errors.length, // 1 credit per per-event call attempted
+    creditsUsed: games.length + errors.length + mainLineCredits,
     errorCount: errors.length,
+    mainLineError,
     outlierSummary: {
       threshold: OUTLIER_PROB_THRESHOLD,
       overPoint: OVER_TAIL_POINT,
