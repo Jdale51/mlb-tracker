@@ -1,6 +1,6 @@
 const { put, list } = require('@vercel/blob');
 
-const ODDS_KEY = 'aef1c06336685a4a20c89a57d3f56262';
+const ODDS_KEY = '5171b7947460f7f15abb11c465180901';
 
 function getOddsUrl() {
   return `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${ODDS_KEY}&regions=us&markets=totals&oddsFormat=american`;
