@@ -7,9 +7,9 @@ function getOddsUrl() {
 }
 
 let cache = { data: null, grandSalami: null, fetchedAt: 0 };
-// In-memory history cache — avoids repeated blob reads
+// In-memory history cache — short TTL so admin saves propagate quickly across warm instances
 let historyCache = { data: null, loadedAt: 0 };
-const HISTORY_CACHE_MS = 24 * 60 * 60 * 1000; // cache all day — only changes on explicit POST
+const HISTORY_CACHE_MS = 30 * 1000; // 30 seconds — fast propagation of admin writes
 
 function getCacheTTL() {
   const pstHour = ((new Date().getUTCHours() - 7) + 24) % 24;
