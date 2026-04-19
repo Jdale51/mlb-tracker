@@ -74,6 +74,8 @@
   .admin-tab.active{background:var(--surface2);color:var(--text);}
   .admin-tab-panel{display:none;}
   .admin-tab-panel.active{display:block;}
+  /* Alt Lines date toggle */
+  .al-date-btn.active{background:var(--purple)!important;color:#fff!important;}
   /* Game Log tab */
   .gl-chip{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.4px;padding:5px 9px;border-radius:14px;border:1px solid var(--border);background:var(--surface);color:var(--muted);cursor:pointer;transition:all 0.15s;}
   .gl-chip.active{background:var(--surface2);color:var(--text);border-color:var(--accent);}
@@ -541,6 +543,11 @@
         </div>
         <button id="al-fetch-btn" class="btn btn-sm" style="background:var(--purple);color:#fff;" onclick="fetchAltLinesNow()">⬇ Fetch Now</button>
       </div>
+      <!-- Date toggle -->
+      <div style="display:flex;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:3px;margin-bottom:10px;">
+        <button id="al-date-today" class="al-date-btn active" onclick="setAltLineDate('today')" style="flex:1;padding:7px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:0.5px;border:none;background:transparent;color:var(--muted);border-radius:6px;cursor:pointer;">TODAY</button>
+        <button id="al-date-tomorrow" class="al-date-btn" onclick="setAltLineDate('tomorrow')" style="flex:1;padding:7px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:0.5px;border:none;background:transparent;color:var(--muted);border-radius:6px;cursor:pointer;">TOMORROW</button>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;">
         <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center;">
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Games</div>
@@ -555,7 +562,7 @@
           <div id="al-stat-errors" style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:var(--red);">—</div>
         </div>
       </div>
-      <div id="al-meta" style="font-size:11px;color:var(--muted);margin-top:10px;text-align:center;">Tap ⬇ Fetch Now to pull alt ladder for today.</div>
+      <div id="al-meta" style="font-size:11px;color:var(--muted);margin-top:10px;text-align:center;">Tap ⬇ Fetch Now to pull alt ladder.</div>
     </div>
 
     <!-- Key Tails Legend -->
@@ -2240,6 +2247,28 @@ async function loadBetaResults() {
 
 // ═════════════════════ ALT LINES TAB ═════════════════════
 let altLinesData = null;
+let altLineDateMode = 'today'; // 'today' | 'tomorrow'
+
+function getAltLineTargetDate() {
+  const offset = altLineDateMode === 'tomorrow' ? 1 : 0;
+  const pst = new Date(Date.now() + -7 * 60 * 60000 + offset * 86400000);
+  return pst.toISOString().split('T')[0];
+}
+
+function setAltLineDate(mode) {
+  if (mode !== 'today' && mode !== 'tomorrow') return;
+  altLineDateMode = mode;
+  document.getElementById('al-date-today').classList.toggle('active', mode === 'today');
+  document.getElementById('al-date-tomorrow').classList.toggle('active', mode === 'tomorrow');
+  // Clear display and reload for new date
+  document.getElementById('al-stat-games').textContent = '—';
+  document.getElementById('al-stat-credits').textContent = '—';
+  document.getElementById('al-stat-errors').textContent = '—';
+  document.getElementById('al-meta').textContent = `Loading ${mode}...`;
+  document.getElementById('al-games-list').innerHTML =
+    '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px;">Loading...</div>';
+  loadAltLines();
+}
 
 function fmtPct(x) {
   if (x == null || isNaN(x)) return '—';
@@ -2263,9 +2292,10 @@ function fmtAge(iso) {
 }
 
 async function loadAltLines() {
+  const targetDate = getAltLineTargetDate();
   // Load from cache/blob without forcing a credit burn
   try {
-    const res = await fetch('/api/alt-lines');
+    const res = await fetch(`/api/alt-lines?date=${targetDate}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     altLinesData = data;
@@ -2277,12 +2307,14 @@ async function loadAltLines() {
 }
 
 async function fetchAltLinesNow() {
+  const targetDate = getAltLineTargetDate();
+  const label = altLineDateMode === 'tomorrow' ? "tomorrow's" : "today's";
   const btn = document.getElementById('al-fetch-btn');
   btn.disabled = true;
   btn.innerHTML = '⏳ Fetching...';
-  document.getElementById('al-meta').textContent = 'Pulling alt ladders from DraftKings — this may take 15-30 seconds...';
+  document.getElementById('al-meta').textContent = `Pulling ${label} alt ladders from DraftKings — this may take 15-30 seconds...`;
   try {
-    const res = await fetch('/api/alt-lines?refresh=true');
+    const res = await fetch(`/api/alt-lines?refresh=true&date=${targetDate}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     altLinesData = data;
@@ -2301,7 +2333,11 @@ async function fetchAltLinesNow() {
 function renderAltLines(data) {
   if (!data || !data.games) {
     document.getElementById('al-games-list').innerHTML =
-      '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px;">No data.</div>';
+      '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px;">No data for this date. Tap ⬇ Fetch Now.</div>';
+    document.getElementById('al-stat-games').textContent = '—';
+    document.getElementById('al-stat-credits').textContent = '—';
+    document.getElementById('al-stat-errors').textContent = '—';
+    document.getElementById('al-meta').textContent = `No ${altLineDateMode} data cached.`;
     return;
   }
   document.getElementById('al-stat-games').textContent = data.gameCount || 0;
