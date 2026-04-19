@@ -1,16 +1,9 @@
 const { put, list } = require('@vercel/blob');
 
-const ODDS_KEYS = [
-  'aef1c06336685a4a20c89a57d3f56262', // key 1
-  'bfe46983fa21466f8f89042dcc9b77d9', // key 2
-  'e7dce86e70cf94b32d45eb9c1f2847fb', // key 3
-];
-let keyIndex = 0; // persists within same server instance, alternates each fetch
+const ODDS_KEY = 'aef1c06336685a4a20c89a57d3f56262';
 
 function getOddsUrl() {
-  const key = ODDS_KEYS[keyIndex % ODDS_KEYS.length];
-  keyIndex++;
-  return `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${key}&regions=us&markets=totals&oddsFormat=american`;
+  return `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${ODDS_KEY}&regions=us&markets=totals&oddsFormat=american`;
 }
 
 let cache = { data: null, grandSalami: null, fetchedAt: 0 };
