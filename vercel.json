@@ -11,6 +11,10 @@
     {
       "path": "/api/cron-outcomes",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron-alt-lines",
+      "schedule": "0 10 * * *"
     }
   ]
 }
