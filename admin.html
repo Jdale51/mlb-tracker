@@ -565,6 +565,32 @@
       <div id="al-meta" style="font-size:11px;color:var(--muted);margin-top:10px;text-align:center;">Tap ⬇ Fetch Now to pull alt ladder.</div>
     </div>
 
+    <!-- Outlier Summary Card -->
+    <div id="al-outliers-card" class="card" style="display:none;padding:14px;border:1px solid rgba(245,197,24,0.3);background:linear-gradient(135deg,rgba(245,197,24,0.06),rgba(176,106,255,0.04));">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div>
+          <div class="card-title" style="margin-bottom:2px;color:var(--accent);">🎯 Vegas-Flagged Outliers</div>
+          <div style="font-size:10px;color:var(--muted);">Games with ≥30% fair prob on Over 11.5 or Under 5.5</div>
+        </div>
+        <div id="al-outlier-badge" style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:var(--accent);">0</div>
+      </div>
+      <div id="al-outliers-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+
+    <!-- Model vs Vegas Comparison -->
+    <div id="al-compare-card" class="card" style="display:none;padding:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div>
+          <div class="card-title" style="margin-bottom:2px;">⚖️ Model vs Vegas — Outlier Hit Rate</div>
+          <div style="font-size:10px;color:var(--muted);">Graded on completed slates only — early samples are noisy</div>
+        </div>
+        <button class="btn btn-sm" style="background:var(--surface2);color:var(--muted);border:1px solid var(--border);" onclick="altCompareCache=null;loadAltComparison()">↻</button>
+      </div>
+      <div id="al-compare-content">
+        <div style="color:var(--muted);font-size:12px;text-align:center;padding:12px;">Loading comparison...</div>
+      </div>
+    </div>
+
     <!-- Key Tails Legend -->
     <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px;padding:0 4px;">Implied probabilities per game (de-vigged)</div>
 
@@ -2280,6 +2306,9 @@ function fmtOdds(p) {
 }
 function fmtAbbr(name) {
   if (!name) return '';
+  // Use the canonical EXPORT_ABBR map defined earlier in the file so team codes
+  // match the other tabs (e.g. Yankees → NYY, Brewers → MIL, Pirates → PIT).
+  if (typeof EXPORT_ABBR !== 'undefined' && EXPORT_ABBR[name]) return EXPORT_ABBR[name];
   return name.split(' ').pop().slice(0, 3).toUpperCase();
 }
 function fmtAge(iso) {
@@ -2338,6 +2367,7 @@ function renderAltLines(data) {
     document.getElementById('al-stat-credits').textContent = '—';
     document.getElementById('al-stat-errors').textContent = '—';
     document.getElementById('al-meta').textContent = `No ${altLineDateMode} data cached.`;
+    document.getElementById('al-outliers-card').style.display = 'none';
     return;
   }
   document.getElementById('al-stat-games').textContent = data.gameCount || 0;
@@ -2347,6 +2377,12 @@ function renderAltLines(data) {
   const warn = data.warning ? `<span style="color:var(--red);">⚠️ ${data.warning}</span><br>` : '';
   document.getElementById('al-meta').innerHTML =
     `${warn}Date: <strong>${data.date}</strong> · Fetched ${fmtAge(data.fetchedAt)} · ${data.fetchMs ? Math.round(data.fetchMs/1000)+'s' : '—'}`;
+
+  // Render outlier summary card (new blobs have outlier flags; older ones compute client-side)
+  renderOutlierSummary(data);
+
+  // Kick off async comparison load if we haven't yet (doesn't block the ladder render)
+  if (!altCompareCache) loadAltComparison();
 
   // Key tails to always show (rows still rendered with — if DK didn't post them)
   const KEY_POINTS = [4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5, 13.5, 14.5, 15.5];
@@ -2363,9 +2399,82 @@ function renderAltLines(data) {
   container.innerHTML = games.map(g => renderAltCard(g, KEY_POINTS)).join('');
 }
 
+// Thresholds for outlier detection (match server alt-lines.js)
+const AL_OUTLIER_THRESHOLD = 0.30;
+const AL_OVER_POINT = 11.5;
+const AL_UNDER_POINT = 5.5;
+
+// Compute outlier for a single game (client-side fallback for older blobs)
+function computeGameOutlier(g) {
+  // Prefer server-computed flag
+  if (g.outlier && typeof g.outlier.isOutlier === 'boolean') return g.outlier;
+  if (!g.alts || !g.alts.ladder) return { isOutlier: false, outlierType: null, overProb: null, underProb: null };
+  const over = g.alts.ladder.find(r => r.point === AL_OVER_POINT);
+  const under = g.alts.ladder.find(r => r.point === AL_UNDER_POINT);
+  const overProb = over?.overFair ?? null;
+  const underProb = under?.underFair ?? null;
+  const hitsCeiling = overProb != null && overProb >= AL_OUTLIER_THRESHOLD;
+  const hitsFloor = underProb != null && underProb >= AL_OUTLIER_THRESHOLD;
+  let outlierType = null;
+  if (hitsCeiling && hitsFloor) outlierType = overProb >= underProb ? 'ceiling' : 'floor';
+  else if (hitsCeiling) outlierType = 'ceiling';
+  else if (hitsFloor) outlierType = 'floor';
+  return { isOutlier: outlierType != null, outlierType, overProb, underProb };
+}
+
+function renderOutlierSummary(data) {
+  const card = document.getElementById('al-outliers-card');
+  const list = document.getElementById('al-outliers-list');
+  const badge = document.getElementById('al-outlier-badge');
+
+  // Compute outliers (prefer server-computed, fallback to client)
+  const outlierGames = (data.games || [])
+    .map(g => ({ g, o: computeGameOutlier(g) }))
+    .filter(x => x.o.isOutlier);
+
+  if (!outlierGames.length) {
+    card.style.display = 'block';
+    badge.textContent = '0';
+    list.innerHTML = `<div style="color:var(--muted);font-size:12px;text-align:center;padding:8px;">No games clear the ≥${Math.round(AL_OUTLIER_THRESHOLD*100)}% threshold today.</div>`;
+    return;
+  }
+
+  card.style.display = 'block';
+  badge.textContent = outlierGames.length;
+
+  // Sort: ceiling first (descending overProb), then floor (descending underProb)
+  outlierGames.sort((a, b) => {
+    if (a.o.outlierType !== b.o.outlierType) return a.o.outlierType === 'ceiling' ? -1 : 1;
+    const ap = a.o.outlierType === 'ceiling' ? a.o.overProb : a.o.underProb;
+    const bp = b.o.outlierType === 'ceiling' ? b.o.overProb : b.o.underProb;
+    return (bp || 0) - (ap || 0);
+  });
+
+  list.innerHTML = outlierGames.map(({ g, o }) => {
+    const away = g.awayAbbr || fmtAbbr(g.away);
+    const home = g.homeAbbr || fmtAbbr(g.home);
+    const isCeiling = o.outlierType === 'ceiling';
+    const emoji = isCeiling ? '🔥' : '❄️';
+    const label = isCeiling ? `Over ${AL_OVER_POINT}` : `Under ${AL_UNDER_POINT}`;
+    const pct = isCeiling ? o.overProb : o.underProb;
+    const color = isCeiling ? 'var(--green)' : 'var(--blue)';
+    return `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:16px;">${emoji}</span>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;">${away} @ ${home}</span>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">${label}</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:900;color:${color};">${(pct*100).toFixed(1)}%</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
 function renderAltCard(g, keyPoints) {
-  const away = fmtAbbr(g.away);
-  const home = fmtAbbr(g.home);
+  const away = g.awayAbbr || fmtAbbr(g.away);
+  const home = g.homeAbbr || fmtAbbr(g.home);
   const time = g.commenceTime
     ? new Date(g.commenceTime).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})
     : '';
@@ -2447,6 +2556,202 @@ function renderAltCard(g, keyPoints) {
         <tbody>${rows}</tbody>
       </table>
     </div>`;
+}
+
+// ─── Model vs Vegas Comparison ───────────────────────────────────────────────
+// For each recent completed date, join:
+//   - alt-lines-{date}.json (Vegas outlier flag per game)
+//   - game-outcomes-{date}.json (actual total per game)
+//   - beta-results-{date}.json (Beta model ceiling/floor label per game)
+// Then compute hit rates for each system on the same outlier definition:
+//   actual total < 5.5 or > 11.5
+
+let altCompareCache = null;
+let altCompareLoading = false;
+
+async function loadAltComparison() {
+  if (altCompareLoading) return;
+  altCompareLoading = true;
+
+  const el = document.getElementById('al-compare-content');
+  document.getElementById('al-compare-card').style.display = 'block';
+  if (!altCompareCache) el.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:12px;">Loading comparison...</div>';
+
+  try {
+    // Walk backward up to 30 days from yesterday. Stop if we hit 5 consecutive misses
+    // on alt-lines (avoids infinite loops in early/offseason).
+    const LOOKBACK = 30;
+    const MAX_MISSES = 5;
+    const dates = [];
+    const today = getTodayPDT();
+    const base = new Date(today + 'T12:00:00Z');
+    for (let i = 1; i <= LOOKBACK; i++) {
+      const d = new Date(base.getTime() - i * 86400000);
+      dates.push(d.toISOString().split('T')[0]);
+    }
+
+    const results = [];
+    let consecutiveMisses = 0;
+    for (const date of dates) {
+      const slate = await gradeOneSlate(date);
+      if (!slate) {
+        consecutiveMisses++;
+        if (consecutiveMisses >= MAX_MISSES) break;
+        continue;
+      }
+      consecutiveMisses = 0;
+      results.push(slate);
+    }
+
+    altCompareCache = { results, loadedAt: Date.now() };
+    renderAltComparison(results);
+  } catch(e) {
+    console.error('loadAltComparison:', e);
+    el.innerHTML = `<div style="color:var(--red);font-size:12px;text-align:center;padding:12px;">Comparison failed: ${e.message}</div>`;
+  } finally {
+    altCompareLoading = false;
+  }
+}
+
+async function gradeOneSlate(date) {
+  // Fetch all three sources in parallel; skip this date if alt-lines is missing.
+  const [alt, outcomes, beta] = await Promise.all([
+    fetch(`/api/alt-lines?date=${date}`).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(`/api/game-outcomes?date=${date}`).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(`/api/park-weather?type=beta&date=${date}`).then(r => r.ok ? r.json() : null).catch(() => null),
+  ]);
+
+  // No alt-lines data for this date → skip entirely (not graded).
+  if (!alt || !alt.games || !alt.games.length) return null;
+  // No outcomes yet → treat as ungradable.
+  if (!outcomes || !outcomes.games || !outcomes.games.length) return null;
+
+  // Build matchup → outcome index
+  const outcomeByMatchup = {};
+  for (const og of outcomes.games) {
+    if (og.matchup) outcomeByMatchup[og.matchup] = og;
+  }
+
+  // Build matchup → beta label index
+  const betaByMatchup = {};
+  const betaGames = beta?.betaResults?.games || [];
+  for (const bg of betaGames) {
+    if (bg.matchup) {
+      betaByMatchup[bg.matchup] = bg.label || bg.scored?.label || null;
+    }
+  }
+
+  // Grade each alt-lines game
+  const graded = [];
+  for (const ag of alt.games) {
+    const matchup = ag.matchup || `${ag.awayAbbr || ''}@${ag.homeAbbr || ''}`;
+    const outcome = outcomeByMatchup[matchup];
+    if (!outcome || outcome.status !== 'final') continue;
+
+    const total = outcome.totals?.total;
+    if (total == null) continue;
+
+    // Truth: did the game actually hit an outlier tail?
+    const actualCeiling = total > AL_OVER_POINT;    // > 11.5 → any total >= 12
+    const actualFloor = total < AL_UNDER_POINT;     // < 5.5 → any total <= 5
+    const actualOutlier = actualCeiling || actualFloor;
+    const actualLabel = actualCeiling ? 'ceiling' : actualFloor ? 'floor' : 'neutral';
+
+    // Vegas flag
+    const vegasFlag = (ag.outlier && ag.outlier.isOutlier) ? ag.outlier.outlierType : null;
+
+    // Beta model flag
+    const betaLabel = betaByMatchup[matchup];
+    const modelFlag = (betaLabel === 'ceiling' || betaLabel === 'floor') ? betaLabel : null;
+
+    graded.push({
+      matchup, total, actualLabel, actualOutlier,
+      vegasFlag, modelFlag,
+    });
+  }
+
+  if (!graded.length) return null;
+
+  return { date, graded };
+}
+
+function renderAltComparison(results) {
+  const el = document.getElementById('al-compare-content');
+
+  if (!results.length) {
+    el.innerHTML = `
+      <div style="color:var(--muted);font-size:12px;text-align:center;padding:16px;">
+        No graded slates yet.<br>
+        <span style="font-size:11px;">Comparison becomes meaningful after several days of scored outcomes.</span>
+      </div>`;
+    return;
+  }
+
+  // Aggregate across all graded games
+  const all = results.flatMap(r => r.graded);
+  const totalGames = all.length;
+  const actualOutliers = all.filter(g => g.actualOutlier).length;
+
+  // For each system, tally:
+  //   flagged: total flagged by system
+  //   correct: flagged AND actual hit the SAME tail (ceiling-ceiling or floor-floor)
+  //   missed: actual outlier NOT flagged by system
+  function tally(flagKey) {
+    let flagged = 0, correct = 0, missed = 0;
+    for (const g of all) {
+      const flag = g[flagKey]; // 'ceiling' | 'floor' | null
+      if (flag) flagged++;
+      if (flag && flag === g.actualLabel) correct++;
+      if (g.actualOutlier && flag !== g.actualLabel) missed++;
+    }
+    const precision = flagged > 0 ? correct / flagged : null;        // when flagged, % correct
+    const recall = actualOutliers > 0 ? correct / actualOutliers : null; // of actual outliers, % caught
+    return { flagged, correct, missed, precision, recall };
+  }
+
+  const vegas = tally('vegasFlag');
+  const model = tally('modelFlag');
+
+  // Display date range
+  const dates = results.map(r => r.date).sort();
+  const range = dates.length === 1 ? dates[0] : `${dates[0]} → ${dates[dates.length-1]}`;
+
+  const pct = v => v == null ? '—' : (v*100).toFixed(1) + '%';
+  const winnerColor = (a, b) => (a != null && b != null && a > b) ? 'var(--green)' : 'var(--text)';
+
+  const sampleWarning = totalGames < 60
+    ? `<div style="background:rgba(245,197,24,0.08);border:1px solid rgba(245,197,24,0.25);border-radius:6px;padding:8px;font-size:10px;color:var(--accent);margin-bottom:10px;text-align:center;">
+         ⚠️ Small sample (${totalGames} games) — wait for 60+ before drawing conclusions.
+       </div>`
+    : '';
+
+  el.innerHTML = `
+    ${sampleWarning}
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--muted);margin-bottom:10px;">
+      <span>${results.length} slate${results.length === 1 ? '' : 's'} · ${totalGames} games</span>
+      <span>${range}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:6px;">🎯 Vegas Alt</div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);"><span>Flagged</span><span style="color:var(--text);font-weight:700;">${vegas.flagged}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);"><span>Correct</span><span style="color:var(--text);font-weight:700;">${vegas.correct}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:6px;padding-top:6px;border-top:1px solid var(--border);"><span>Precision</span><span style="color:${winnerColor(vegas.precision, model.precision)};font-weight:900;font-family:'Barlow Condensed',sans-serif;font-size:15px;">${pct(vegas.precision)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);"><span>Recall</span><span style="color:${winnerColor(vegas.recall, model.recall)};font-weight:900;font-family:'Barlow Condensed',sans-serif;font-size:15px;">${pct(vegas.recall)}</span></div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:6px;">⚡ Beta Model</div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);"><span>Flagged</span><span style="color:var(--text);font-weight:700;">${model.flagged}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);"><span>Correct</span><span style="color:var(--text);font-weight:700;">${model.correct}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:6px;padding-top:6px;border-top:1px solid var(--border);"><span>Precision</span><span style="color:${winnerColor(model.precision, vegas.precision)};font-weight:900;font-family:'Barlow Condensed',sans-serif;font-size:15px;">${pct(model.precision)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);"><span>Recall</span><span style="color:${winnerColor(model.recall, vegas.recall)};font-weight:900;font-family:'Barlow Condensed',sans-serif;font-size:15px;">${pct(model.recall)}</span></div>
+      </div>
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin-top:10px;padding:6px 8px;background:var(--surface2);border-radius:6px;line-height:1.4;">
+      <strong>Precision</strong>: when flagged as outlier, % correct.<br>
+      <strong>Recall</strong>: of all actual outliers (${actualOutliers} total), % caught.
+    </div>
+  `;
 }
 
 // ═════════════════════ OUTLIER HISTORY TAB ═════════════════════
