@@ -2407,9 +2407,15 @@ const AL_UNDER_POINT = 5.5;
 function computeGameOutlier(g) {
   // Prefer server-computed flag
   if (g.outlier && typeof g.outlier.isOutlier === 'boolean') return g.outlier;
-  if (!g.alts || !g.alts.ladder) return { isOutlier: false, outlierType: null, overProb: null, underProb: null };
-  const over = g.alts.ladder.find(r => r.point === AL_OVER_POINT);
-  const under = g.alts.ladder.find(r => r.point === AL_UNDER_POINT);
+  if ((!g.alts || !g.alts.ladder) && !g.mainLine) return { isOutlier: false, outlierType: null, overProb: null, underProb: null };
+  // Build combined lookup (alt ladder + main line, main takes precedence at its point)
+  const byPoint = {};
+  for (const r of (g.alts?.ladder || [])) byPoint[r.point] = r;
+  if (g.mainLine && g.mainLine.point != null) {
+    byPoint[g.mainLine.point] = { point: g.mainLine.point, overFair: g.mainLine.overFair, underFair: g.mainLine.underFair };
+  }
+  const over = byPoint[AL_OVER_POINT];
+  const under = byPoint[AL_UNDER_POINT];
   const overProb = over?.overFair ?? null;
   const underProb = under?.underFair ?? null;
   const hitsCeiling = overProb != null && overProb >= AL_OUTLIER_THRESHOLD;
