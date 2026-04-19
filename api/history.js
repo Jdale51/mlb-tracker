@@ -1,7 +1,7 @@
 const { list } = require('@vercel/blob');
 
 let historyCache = { data: null, loadedAt: 0 };
-const CACHE_MS = 5 * 60 * 1000; // 5 min — short enough to pick up admin saves
+const CACHE_MS = 30 * 1000; // 30 seconds — fast propagation of admin writes
 let blobUrl = null;
 
 module.exports = async function handler(req, res) {
