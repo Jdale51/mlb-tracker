@@ -566,16 +566,17 @@ function renderSlateTotal(){
       total+=g.awayR+g.homeR;
       breakdown.final++;
     } else if(g.status==='live'&&odds){
-      total+=odds.ft;
+      // Round .5 lines up to the next whole run (tracks actual bet resolution)
+      total+=Math.ceil(odds.ft);
       breakdown.live++;
     } else if(g.status==='scheduled'&&odds){
-      total+=odds.ft;
+      total+=Math.ceil(odds.ft);
       breakdown.upcoming++;
     }
   }
   document.getElementById('slate-num').textContent=total.toFixed(1);
   document.getElementById('slate-meta').innerHTML=
-    `${breakdown.final} final · ${breakdown.live} live · ${breakdown.upcoming} upcoming<br>Sum of lines · DK`;
+    `${breakdown.final} final · ${breakdown.live} live · ${breakdown.upcoming} upcoming<br>Sum of lines (rounded up) · DK`;
 }
 
 function renderGrandSalami(){
