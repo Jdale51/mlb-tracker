@@ -1,25 +1,46 @@
 const { put, list } = require('@vercel/blob');
 
-// Reuse the same rotating keys as odds.js
-const ODDS_KEYS = [
-  'aef1c06336685a4a20c89a57d3f56262',
-  'bfe46983fa21466f8f89042dcc9b77d9',
-  'e7dce86e70cf94b32d45eb9c1f2847fb',
-];
-let keyIndex = 0;
+// Single API key (rotation disabled)
+const ODDS_KEY = 'aef1c06336685a4a20c89a57d3f56262';
 
 function nextKey() {
-  const k = ODDS_KEYS[keyIndex % ODDS_KEYS.length];
-  keyIndex++;
-  return k;
+  return ODDS_KEY;
 }
 
-const BOOK = 'draftkings';
-const BLOB_NAME = 'alt-lines.json';
+// Canonical team abbreviations — mirrors admin.html EXPORT_ABBR
+const EXPORT_ABBR = {
+  'New York Yankees': 'NYY', 'San Francisco Giants': 'SF', 'Athletics': 'ATH',
+  'Oakland Athletics': 'ATH', 'Toronto Blue Jays': 'TOR', 'Colorado Rockies': 'COL',
+  'Miami Marlins': 'MIA', 'Kansas City Royals': 'KC', 'Atlanta Braves': 'ATL',
+  'Los Angeles Angels': 'LAA', 'Houston Astros': 'HOU', 'Detroit Tigers': 'DET',
+  'San Diego Padres': 'SD', 'Cleveland Guardians': 'CLE', 'Seattle Mariners': 'SEA',
+  'Arizona Diamondbacks': 'AZ', 'Los Angeles Dodgers': 'LAD', 'New York Mets': 'NYM',
+  'Chicago Cubs': 'CHC', 'Milwaukee Brewers': 'MIL', 'St. Louis Cardinals': 'STL',
+  'Pittsburgh Pirates': 'PIT', 'Chicago White Sox': 'CWS',
+  'Washington Nationals': 'WSH', 'Minnesota Twins': 'MIN', 'Baltimore Orioles': 'BAL',
+  'Boston Red Sox': 'BOS', 'Cincinnati Reds': 'CIN', 'Philadelphia Phillies': 'PHI',
+  'Texas Rangers': 'TEX', 'Tampa Bay Rays': 'TB',
+};
+function exportAbbr(name) {
+  return EXPORT_ABBR[name] || (name || '').split(' ').pop().slice(0, 3).toUpperCase();
+}
 
-// In-memory cache
-let cache = { data: null, loadedAt: 0 };
-let blobUrl = null;
+// Outlier thresholds: flag a game if DK implied (de-vigged) fair probability
+// clears this bar on either tail.
+const OUTLIER_PROB_THRESHOLD = 0.30;
+const OVER_TAIL_POINT = 11.5;
+const UNDER_TAIL_POINT = 5.5;
+
+const BOOK = 'draftkings';
+const BLOB_PREFIX = 'alt-lines-';
+
+function blobNameFor(date) {
+  return `${BLOB_PREFIX}${date}.json`;
+}
+
+// In-memory cache, keyed by date
+let cacheByDate = {}; // { '2026-04-18': { data, loadedAt }, ... }
+let blobUrlByDate = {}; // { '2026-04-18': url, ... }
 const CACHE_MS = 30 * 60 * 1000; // 30 min
 
 function getTodayPDT(offsetDays = 0) {
@@ -50,17 +71,18 @@ function devig(overPrice, underPrice) {
   return { overFair: po / sum, underFair: pu / sum };
 }
 
-async function getBlobUrl() {
-  if (blobUrl) return blobUrl;
+async function getBlobUrl(date) {
+  if (blobUrlByDate[date]) return blobUrlByDate[date];
   const { blobs } = await list();
-  const blob = blobs.find(b => b.pathname === BLOB_NAME);
-  if (blob) blobUrl = blob.url;
-  return blobUrl;
+  const target = blobNameFor(date);
+  const blob = blobs.find(b => b.pathname === target);
+  if (blob) blobUrlByDate[date] = blob.url;
+  return blobUrlByDate[date];
 }
 
-async function readStored() {
+async function readStored(date) {
   try {
-    const url = await getBlobUrl();
+    const url = await getBlobUrl(date);
     if (!url) return null;
     const res = await fetch(`${url}?t=${Date.now()}`);
     if (!res.ok) return null;
@@ -71,13 +93,13 @@ async function readStored() {
   }
 }
 
-async function writeStored(payload) {
-  const result = await put(BLOB_NAME, JSON.stringify(payload), {
+async function writeStored(date, payload) {
+  const result = await put(blobNameFor(date), JSON.stringify(payload), {
     access: 'public',
     addRandomSuffix: false,
     contentType: 'application/json',
   });
-  if (result && result.url) blobUrl = result.url;
+  if (result && result.url) blobUrlByDate[date] = result.url;
 }
 
 // Fetch event IDs (free - does NOT cost credits)
@@ -142,6 +164,40 @@ function extractLadder(eventData) {
   };
 }
 
+// Compute Vegas outlier flag given a ladder
+// Returns: { isOutlier, outlierType, overProb, underProb }
+// outlierType: 'ceiling' | 'floor' | null
+function computeOutlierFlag(ladder) {
+  if (!ladder || !ladder.length) {
+    return { isOutlier: false, outlierType: null, overProb: null, underProb: null };
+  }
+  const overRow = ladder.find(r => r.point === OVER_TAIL_POINT);
+  const underRow = ladder.find(r => r.point === UNDER_TAIL_POINT);
+
+  const overProb = overRow?.overFair ?? null;
+  const underProb = underRow?.underFair ?? null;
+
+  const hitsCeiling = overProb != null && overProb >= OUTLIER_PROB_THRESHOLD;
+  const hitsFloor = underProb != null && underProb >= OUTLIER_PROB_THRESHOLD;
+
+  // If somehow both flag, pick the stronger one
+  let outlierType = null;
+  if (hitsCeiling && hitsFloor) {
+    outlierType = overProb >= underProb ? 'ceiling' : 'floor';
+  } else if (hitsCeiling) {
+    outlierType = 'ceiling';
+  } else if (hitsFloor) {
+    outlierType = 'floor';
+  }
+
+  return {
+    isOutlier: outlierType != null,
+    outlierType,
+    overProb,
+    underProb,
+  };
+}
+
 // Main pull: events → per-game alts → structured payload
 async function pullAltLines(targetDate) {
   const startedAt = Date.now();
@@ -155,17 +211,28 @@ async function pullAltLines(targetDate) {
     try {
       const eventData = await fetchAltForEvent(ev.id);
       const alts = extractLadder(eventData);
+      const awayAbbr = exportAbbr(ev.away_team);
+      const homeAbbr = exportAbbr(ev.home_team);
+      const outlier = computeOutlierFlag(alts?.ladder);
       games.push({
         eventId: ev.id,
         away: ev.away_team,
         home: ev.home_team,
+        awayAbbr,
+        homeAbbr,
+        matchup: `${awayAbbr}@${homeAbbr}`,
         commenceTime: ev.commence_time,
-        alts, // { book, lastUpdate, ladder } or null
+        outlier, // { isOutlier, outlierType, overProb, underProb }
+        alts,    // { book, lastUpdate, ladder } or null
       });
     } catch (e) {
       errors.push({ eventId: ev.id, away: ev.away_team, home: ev.home_team, error: e.message });
     }
   }
+
+  const outliers = games.filter(g => g.outlier?.isOutlier);
+  const ceilingCount = outliers.filter(g => g.outlier.outlierType === 'ceiling').length;
+  const floorCount = outliers.filter(g => g.outlier.outlierType === 'floor').length;
 
   return {
     date: targetDate,
@@ -174,6 +241,14 @@ async function pullAltLines(targetDate) {
     gameCount: games.length,
     creditsUsed: games.length + errors.length, // 1 credit per per-event call attempted
     errorCount: errors.length,
+    outlierSummary: {
+      threshold: OUTLIER_PROB_THRESHOLD,
+      overPoint: OVER_TAIL_POINT,
+      underPoint: UNDER_TAIL_POINT,
+      totalOutliers: outliers.length,
+      ceilingCount,
+      floorCount,
+    },
     errors,
     games,
   };
@@ -188,18 +263,17 @@ module.exports = async function handler(req, res) {
   const target = (req.query && req.query.date) || getTodayPDT();
 
   // If cache is fresh and not a forced refresh, return it
-  if (!isRefresh && cache.data && (Date.now() - cache.loadedAt) < CACHE_MS) {
-    if (cache.data.date === target) {
-      res.setHeader('X-Cache', `HIT - ${Math.round((Date.now() - cache.loadedAt) / 60000)}m`);
-      return res.status(200).json(cache.data);
-    }
+  const cached = cacheByDate[target];
+  if (!isRefresh && cached && cached.data && (Date.now() - cached.loadedAt) < CACHE_MS) {
+    res.setHeader('X-Cache', `HIT - ${Math.round((Date.now() - cached.loadedAt) / 60000)}m`);
+    return res.status(200).json(cached.data);
   }
 
   // If not refresh, try stored blob first
   if (!isRefresh) {
-    const stored = await readStored();
+    const stored = await readStored(target);
     if (stored && stored.date === target) {
-      cache = { data: stored, loadedAt: Date.now() };
+      cacheByDate[target] = { data: stored, loadedAt: Date.now() };
       res.setHeader('X-Cache', 'BLOB');
       return res.status(200).json(stored);
     }
@@ -208,14 +282,14 @@ module.exports = async function handler(req, res) {
   // Pull fresh
   try {
     const payload = await pullAltLines(target);
-    await writeStored(payload);
-    cache = { data: payload, loadedAt: Date.now() };
+    await writeStored(target, payload);
+    cacheByDate[target] = { data: payload, loadedAt: Date.now() };
     res.setHeader('X-Cache', 'MISS');
     return res.status(200).json(payload);
   } catch (e) {
     console.error('[alt-lines] pull error:', e.message);
     // Fall back to stored if pull failed
-    const stored = await readStored();
+    const stored = await readStored(target);
     if (stored) {
       return res.status(200).json({ ...stored, warning: `Fresh pull failed: ${e.message}` });
     }
