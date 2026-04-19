@@ -1,7 +1,7 @@
 const { list } = require('@vercel/blob');
 
 let linesCache = { data: null, loadedAt: 0 };
-const CACHE_MS = 24 * 60 * 60 * 1000; // cache all day — lines only saved once in morning
+const CACHE_MS = 30 * 1000; // 30 seconds — fast propagation of admin writes
 let blobUrl = null;
 
 module.exports = async function handler(req, res) {
