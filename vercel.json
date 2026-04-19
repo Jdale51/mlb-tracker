@@ -13,6 +13,10 @@
       "schedule": "0 9 * * *"
     },
     {
+      "path": "/api/cron-resolve-yesterday",
+      "schedule": "15 9 * * *"
+    },
+    {
       "path": "/api/cron-alt-lines",
       "schedule": "0 10 * * *"
     }
