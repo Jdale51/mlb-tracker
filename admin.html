@@ -2475,7 +2475,7 @@ function renderAltCard(g, keyPoints) {
   const away = g.awayAbbr || fmtAbbr(g.away);
   const home = g.homeAbbr || fmtAbbr(g.home);
   const time = g.commenceTime
-    ? new Date(g.commenceTime).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})
+    ? new Date(g.commenceTime).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', timeZone:'America/Los_Angeles'}) + ' PT'
     : '';
 
   if (!g.alts || !g.alts.ladder || !g.alts.ladder.length) {
@@ -2493,8 +2493,25 @@ function renderAltCard(g, keyPoints) {
   const byPoint = {};
   for (const r of g.alts.ladder) byPoint[r.point] = r;
 
-  // Union of key points (always shown) + any points DK actually returned (e.g. 16.5, 3.5)
-  const returnedPoints = g.alts.ladder.map(r => r.point);
+  // Merge main line into the ladder. If DK's alt feed already has a row at
+  // the main point, prefer the main-line feed's prices (they're the book's
+  // posted main) but fall back to the alt row if main is missing.
+  const mainPoint = g.mainLine?.point ?? null;
+  if (g.mainLine && mainPoint != null) {
+    byPoint[mainPoint] = {
+      point: mainPoint,
+      overPrice: g.mainLine.overPrice,
+      underPrice: g.mainLine.underPrice,
+      overImplied: g.mainLine.overImplied,
+      underImplied: g.mainLine.underImplied,
+      overFair: g.mainLine.overFair,
+      underFair: g.mainLine.underFair,
+      isMain: true,
+    };
+  }
+
+  // Union of key points (always shown) + any points DK actually returned + main line
+  const returnedPoints = Object.keys(byPoint).map(p => parseFloat(p));
   const allPoints = Array.from(new Set([...keyPoints, ...returnedPoints]))
     .sort((a, b) => a - b);
 
@@ -2508,15 +2525,16 @@ function renderAltCard(g, keyPoints) {
           <td colspan="4" style="padding:4px 6px;color:var(--muted);font-size:11px;">—</td>
         </tr>`;
     }
-    // Color tail probabilities
     const overFairPct = r.overFair;
     const underFairPct = r.underFair;
-    // Highlight extreme tails (>70% or <30%)
     const overColor = overFairPct > 0.7 ? 'var(--green)' : overFairPct < 0.3 ? 'var(--muted)' : 'var(--text)';
     const underColor = underFairPct > 0.7 ? 'var(--blue)' : underFairPct < 0.3 ? 'var(--muted)' : 'var(--text)';
+    // Highlight the main line row
+    const rowBg = r.isMain ? 'background:rgba(245,197,24,0.08);' : '';
+    const mainTag = r.isMain ? '<span style="color:var(--accent);font-size:9px;margin-left:4px;letter-spacing:0.5px;">MAIN</span>' : '';
     return `
-      <tr style="border-top:1px solid var(--border);">
-        <td style="padding:5px 6px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;">${p}</td>
+      <tr style="border-top:1px solid var(--border);${rowBg}">
+        <td style="padding:5px 6px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;">${p}${mainTag}</td>
         <td style="padding:5px 6px;font-size:11px;color:var(--muted);text-align:right;">${fmtOdds(r.overPrice)}</td>
         <td style="padding:5px 6px;font-size:12px;color:${overColor};text-align:right;font-weight:600;">${fmtPct(overFairPct)}</td>
         <td style="padding:5px 6px;font-size:11px;color:var(--muted);text-align:right;">${fmtOdds(r.underPrice)}</td>
@@ -2524,12 +2542,19 @@ function renderAltCard(g, keyPoints) {
       </tr>`;
   }).join('');
 
-  // Find the point closest to 50/50 as a reference
-  let atmPoint = null, atmDelta = 99;
-  for (const r of g.alts.ladder) {
-    if (r.overFair != null) {
-      const d = Math.abs(r.overFair - 0.5);
-      if (d < atmDelta) { atmDelta = d; atmPoint = r; }
+  // Prefer the actual main line for the 50/50 reference; fall back to scanning
+  // the ladder if we don't have a main line (e.g. main-line fetch failed).
+  let atmPoint = null;
+  if (g.mainLine && g.mainLine.point != null) {
+    atmPoint = { point: g.mainLine.point };
+  } else {
+    let atmDelta = 99;
+    for (const p of allPoints) {
+      const r = byPoint[p];
+      if (r && r.overFair != null) {
+        const d = Math.abs(r.overFair - 0.5);
+        if (d < atmDelta) { atmDelta = d; atmPoint = r; }
+      }
     }
   }
   const atmNote = atmPoint
