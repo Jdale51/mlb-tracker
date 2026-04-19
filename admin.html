@@ -212,6 +212,7 @@
     <button class="admin-tab active" onclick="switchAdminTab('manage')">Manage</button>
     <button class="admin-tab" onclick="switchAdminTab('model')">Model</button>
     <button class="admin-tab" onclick="switchAdminTab('beta')">⚡ Beta</button>
+    <button class="admin-tab" onclick="switchAdminTab('altlines')">📊 Alt Lines</button>
     <button class="admin-tab" onclick="switchAdminTab('tiers')">Tiers</button>
     <button class="admin-tab" onclick="switchAdminTab('outliers')">Outlier Hist</button>
     <button class="admin-tab" onclick="switchAdminTab('gamelog')">Game Log</button>
@@ -528,6 +529,44 @@
     </div>
   </div>
 
+  <!-- ═════════════════════ ALT LINES TAB ═════════════════════ -->
+  <div id="tab-altlines" class="admin-tab-panel">
+
+    <!-- Header / fetch controls -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div>
+          <div class="card-title" style="margin-bottom:2px;">📊 Per-Game Alt Totals (DK)</div>
+          <div style="font-size:11px;color:var(--muted);">Vegas implied variance — pulled 3am daily</div>
+        </div>
+        <button id="al-fetch-btn" class="btn btn-sm" style="background:var(--purple);color:#fff;" onclick="fetchAltLinesNow()">⬇ Fetch Now</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;">
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Games</div>
+          <div id="al-stat-games" style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:var(--text);">—</div>
+        </div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Credits</div>
+          <div id="al-stat-credits" style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:var(--accent);">—</div>
+        </div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Errors</div>
+          <div id="al-stat-errors" style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:var(--red);">—</div>
+        </div>
+      </div>
+      <div id="al-meta" style="font-size:11px;color:var(--muted);margin-top:10px;text-align:center;">Tap ⬇ Fetch Now to pull alt ladder for today.</div>
+    </div>
+
+    <!-- Key Tails Legend -->
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px;padding:0 4px;">Implied probabilities per game (de-vigged)</div>
+
+    <!-- Per-game results -->
+    <div id="al-games-list">
+      <div style="color:var(--muted);font-size:12px;text-align:center;padding:20px;">No alt line data loaded yet.</div>
+    </div>
+  </div>
+
   <!-- ═════════════════════ OUTLIER HISTORY TAB ═════════════════════ -->
   <div id="tab-outliers" class="admin-tab-panel">
     <div class="card">
@@ -702,7 +741,7 @@ function checkPin() {
 document.getElementById('pin-input').addEventListener('input', checkPin);
 
 function switchAdminTab(tab) {
-  const tabs = ['manage','model','beta','tiers','outliers','gamelog','export'];
+  const tabs = ['manage','model','beta','altlines','tiers','outliers','gamelog','export'];
   document.querySelectorAll('.admin-tab').forEach((el, i) => {
     el.classList.toggle('active', tabs[i] === tab);
   });
@@ -710,6 +749,7 @@ function switchAdminTab(tab) {
   document.getElementById('tab-'+tab).classList.add('active');
   if (tab === 'outliers') loadOutlierHistory();
   if (tab === 'gamelog') loadGameLog();
+  if (tab === 'altlines') loadAltLines();
 }
 
 function getTodayPDT() {
@@ -1914,15 +1954,16 @@ function bpAdjScore(adj) {
 }
 
 function starterBlowupScore(whip, tierName) {
-  // tier: tier1=-2, tier2=0, default(tier3)=check whip (no negative scores)
+  // tier: tier1=-1, tier2=0, default=check whip
   let base = 0;
-  if (tierName === 'tier1') base = -2;
+  if (tierName === 'tier1') base = -1;
   else if (tierName === 'tier2') base = 0;
   else {
-    // Default (Tier 3): WHIP-driven, capped at 0 on the low end
+    // Default: use whip + hr9 proxy
     const w = parseFloat(whip) || 1.35;
     if (w >= 1.60) base = 2;
     else if (w >= 1.45) base = 1;
+    else if (w < 1.15) base = -1;
   }
   return base;
 }
@@ -1947,7 +1988,7 @@ function scoreGame(g) {
   const s1 = bpAdjScore(g.bpAdj);
   const awayStarter = starterBlowupScore(g.awayWhip, g.awayTier);
   const homeStarter = starterBlowupScore(g.homeWhip, g.homeTier);
-  const s2 = Math.max(-4, Math.min(4, awayStarter + homeStarter)); // cap at ±4
+  const s2 = Math.max(-2, Math.min(2, awayStarter + homeStarter)); // cap at ±2
   const s3 = bullpenScore(g.bpTier, g.awayWhip, g.homeWhip);
   const s4 = Math.max(-1, Math.min(1, lineupScore(g.awayLineup) + lineupScore(g.homeLineup)));
   const total = s1 + s2 + s3 + s4;
@@ -2195,6 +2236,176 @@ async function loadBetaResults() {
     const savedTime = r.savedAt ? new Date(r.savedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}) : '';
     showToast(`Beta results restored${savedTime ? ' · saved ' + savedTime : ''}`, 'ok');
   } catch(e) { console.error('loadBetaResults:', e); }
+}
+
+// ═════════════════════ ALT LINES TAB ═════════════════════
+let altLinesData = null;
+
+function fmtPct(x) {
+  if (x == null || isNaN(x)) return '—';
+  return (x * 100).toFixed(1) + '%';
+}
+function fmtOdds(p) {
+  if (p == null) return '—';
+  return p > 0 ? '+' + p : String(p);
+}
+function fmtAbbr(name) {
+  if (!name) return '';
+  return name.split(' ').pop().slice(0, 3).toUpperCase();
+}
+function fmtAge(iso) {
+  if (!iso) return '';
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ${mins % 60}m ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+async function loadAltLines() {
+  // Load from cache/blob without forcing a credit burn
+  try {
+    const res = await fetch('/api/alt-lines');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    altLinesData = data;
+    renderAltLines(data);
+  } catch(e) {
+    console.error('loadAltLines:', e);
+    document.getElementById('al-meta').textContent = 'Failed to load: ' + e.message;
+  }
+}
+
+async function fetchAltLinesNow() {
+  const btn = document.getElementById('al-fetch-btn');
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Fetching...';
+  document.getElementById('al-meta').textContent = 'Pulling alt ladders from DraftKings — this may take 15-30 seconds...';
+  try {
+    const res = await fetch('/api/alt-lines?refresh=true');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    altLinesData = data;
+    renderAltLines(data);
+    showToast(`Pulled ${data.gameCount} games · ${data.creditsUsed} credits`, 'ok');
+  } catch(e) {
+    console.error('fetchAltLinesNow:', e);
+    showToast('Fetch failed: ' + e.message, 'err');
+    document.getElementById('al-meta').textContent = 'Error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '⬇ Fetch Now';
+  }
+}
+
+function renderAltLines(data) {
+  if (!data || !data.games) {
+    document.getElementById('al-games-list').innerHTML =
+      '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px;">No data.</div>';
+    return;
+  }
+  document.getElementById('al-stat-games').textContent = data.gameCount || 0;
+  document.getElementById('al-stat-credits').textContent = data.creditsUsed || 0;
+  document.getElementById('al-stat-errors').textContent = data.errorCount || 0;
+
+  const warn = data.warning ? `<span style="color:var(--red);">⚠️ ${data.warning}</span><br>` : '';
+  document.getElementById('al-meta').innerHTML =
+    `${warn}Date: <strong>${data.date}</strong> · Fetched ${fmtAge(data.fetchedAt)} · ${data.fetchMs ? Math.round(data.fetchMs/1000)+'s' : '—'}`;
+
+  // Key tails to highlight
+  const KEY_POINTS = [5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5];
+
+  const container = document.getElementById('al-games-list');
+  if (!data.games.length) {
+    container.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px;">No games in slate.</div>';
+    return;
+  }
+
+  // Sort games by commence time
+  const games = [...data.games].sort((a,b) => new Date(a.commenceTime) - new Date(b.commenceTime));
+
+  container.innerHTML = games.map(g => renderAltCard(g, KEY_POINTS)).join('');
+}
+
+function renderAltCard(g, keyPoints) {
+  const away = fmtAbbr(g.away);
+  const home = fmtAbbr(g.home);
+  const time = g.commenceTime
+    ? new Date(g.commenceTime).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})
+    : '';
+
+  if (!g.alts || !g.alts.ladder || !g.alts.ladder.length) {
+    return `
+      <div class="card" style="padding:12px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;">${away} @ ${home}</div>
+          <div style="font-size:11px;color:var(--muted);">${time}</div>
+        </div>
+        <div style="color:var(--red);font-size:11px;margin-top:6px;">No DK alt ladder available</div>
+      </div>`;
+  }
+
+  // Build a map of point -> ladder row
+  const byPoint = {};
+  for (const r of g.alts.ladder) byPoint[r.point] = r;
+
+  // Show key points rows
+  const rows = keyPoints.map(p => {
+    const r = byPoint[p];
+    if (!r) {
+      return `
+        <tr>
+          <td style="padding:4px 6px;font-family:'Barlow Condensed',sans-serif;font-weight:700;color:var(--muted);">${p}</td>
+          <td colspan="4" style="padding:4px 6px;color:var(--muted);font-size:11px;">—</td>
+        </tr>`;
+    }
+    // Color tail probabilities
+    const overFairPct = r.overFair;
+    const underFairPct = r.underFair;
+    // Highlight extreme tails (>70% or <30%)
+    const overColor = overFairPct > 0.7 ? 'var(--green)' : overFairPct < 0.3 ? 'var(--muted)' : 'var(--text)';
+    const underColor = underFairPct > 0.7 ? 'var(--blue)' : underFairPct < 0.3 ? 'var(--muted)' : 'var(--text)';
+    return `
+      <tr style="border-top:1px solid var(--border);">
+        <td style="padding:5px 6px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;">${p}</td>
+        <td style="padding:5px 6px;font-size:11px;color:var(--muted);text-align:right;">${fmtOdds(r.overPrice)}</td>
+        <td style="padding:5px 6px;font-size:12px;color:${overColor};text-align:right;font-weight:600;">${fmtPct(overFairPct)}</td>
+        <td style="padding:5px 6px;font-size:11px;color:var(--muted);text-align:right;">${fmtOdds(r.underPrice)}</td>
+        <td style="padding:5px 6px;font-size:12px;color:${underColor};text-align:right;font-weight:600;">${fmtPct(underFairPct)}</td>
+      </tr>`;
+  }).join('');
+
+  // Find the point closest to 50/50 as a reference
+  let atmPoint = null, atmDelta = 99;
+  for (const r of g.alts.ladder) {
+    if (r.overFair != null) {
+      const d = Math.abs(r.overFair - 0.5);
+      if (d < atmDelta) { atmDelta = d; atmPoint = r; }
+    }
+  }
+  const atmNote = atmPoint
+    ? `<span style="color:var(--accent);">≈50/50 at ${atmPoint.point}</span>`
+    : '';
+
+  return `
+    <div class="card" style="padding:12px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;">${away} @ ${home}</div>
+        <div style="font-size:11px;color:var(--muted);">${time} · ${atmNote}</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-family:'Barlow',sans-serif;">
+        <thead>
+          <tr>
+            <th style="padding:3px 6px;font-size:10px;color:var(--muted);text-align:left;font-weight:600;letter-spacing:0.5px;">TOT</th>
+            <th style="padding:3px 6px;font-size:10px;color:var(--muted);text-align:right;font-weight:600;letter-spacing:0.5px;">O Px</th>
+            <th style="padding:3px 6px;font-size:10px;color:var(--muted);text-align:right;font-weight:600;letter-spacing:0.5px;">O Fair%</th>
+            <th style="padding:3px 6px;font-size:10px;color:var(--muted);text-align:right;font-weight:600;letter-spacing:0.5px;">U Px</th>
+            <th style="padding:3px 6px;font-size:10px;color:var(--muted);text-align:right;font-weight:600;letter-spacing:0.5px;">U Fair%</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 }
 
 // ═════════════════════ OUTLIER HISTORY TAB ═════════════════════
