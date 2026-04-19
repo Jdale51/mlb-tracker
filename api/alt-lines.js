@@ -195,12 +195,28 @@ function extractLadder(eventData) {
 // Compute Vegas outlier flag given a ladder
 // Returns: { isOutlier, outlierType, overProb, underProb }
 // outlierType: 'ceiling' | 'floor' | null
-function computeOutlierFlag(ladder) {
-  if (!ladder || !ladder.length) {
+function computeOutlierFlag(ladder, mainLine) {
+  if ((!ladder || !ladder.length) && !mainLine) {
     return { isOutlier: false, outlierType: null, overProb: null, underProb: null };
   }
-  const overRow = ladder.find(r => r.point === OVER_TAIL_POINT);
-  const underRow = ladder.find(r => r.point === UNDER_TAIL_POINT);
+
+  // Build a lookup that includes both alt ladder rows AND the main line.
+  // Main line takes precedence if its point matches the tail point we're
+  // checking, since main-line prices are the book's canonical posting.
+  const byPoint = {};
+  for (const r of (ladder || [])) {
+    byPoint[r.point] = r;
+  }
+  if (mainLine && mainLine.point != null) {
+    byPoint[mainLine.point] = {
+      point: mainLine.point,
+      overFair: mainLine.overFair,
+      underFair: mainLine.underFair,
+    };
+  }
+
+  const overRow = byPoint[OVER_TAIL_POINT];
+  const underRow = byPoint[UNDER_TAIL_POINT];
 
   const overProb = overRow?.overFair ?? null;
   const underProb = underRow?.underFair ?? null;
@@ -254,7 +270,6 @@ async function pullAltLines(targetDate) {
       const alts = extractLadder(eventData);
       const awayAbbr = exportAbbr(ev.away_team);
       const homeAbbr = exportAbbr(ev.home_team);
-      const outlier = computeOutlierFlag(alts?.ladder);
       const mainRaw = mainLinesMap[ev.id] || null;
       const mainLine = mainRaw ? (() => {
         const { overFair, underFair } = devig(mainRaw.overPrice, mainRaw.underPrice);
@@ -269,6 +284,9 @@ async function pullAltLines(targetDate) {
           lastUpdate: mainRaw.lastUpdate,
         };
       })() : null;
+      // Outlier scan considers both alt ladder AND main line (main line takes
+      // precedence if its point matches a tail point like 11.5 or 5.5)
+      const outlier = computeOutlierFlag(alts?.ladder, mainLine);
       games.push({
         eventId: ev.id,
         away: ev.away_team,
