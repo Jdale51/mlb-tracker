@@ -1,0 +1,109 @@
+/**
+ * Resolve Yesterday's Slate — Vercel Serverless Function (cron)
+ *
+ * Reads the per-game outcomes blob written earlier by cron-outcomes,
+ * sums total runs, grades over/under/push against the saved grandSalamLine,
+ * and writes actualRuns + result back to history.json.
+ *
+ * Runs AFTER cron-outcomes has written game-outcomes-{date}.json for yesterday.
+ *
+ * Skip conditions (preserves manual overrides and avoids partial writes):
+ *   - history.json already has actualRuns set for yesterday → skip
+ *   - outcomes blob missing → skip (outcomes cron hasn't run yet or had no final games)
+ *   - no grandSalamLine saved for yesterday → write actualRuns but leave result null
+ *
+ * Usage:
+ *   GET /api/cron-resolve-yesterday                  → defaults to yesterday PT
+ *   GET /api/cron-resolve-yesterday?date=YYYY-MM-DD  → backfill a specific date
+ */
+
+const { put, list } = require('@vercel/blob');
+
+function getYesterdayPT() {
+  const d = new Date(Date.now() + -7 * 60 * 60 * 1000 - 86400000);
+  return d.toISOString().split('T')[0];
+}
+
+async function readHistory() {
+  const { blobs } = await list();
+  const blob = blobs.find(b => b.pathname === 'history.json');
+  if (!blob) return [];
+  const res = await fetch(`${blob.url}?t=${Date.now()}`);
+  return res.json();
+}
+
+async function writeHistory(history) {
+  await put('history.json', JSON.stringify(history), {
+    access: 'public', addRandomSuffix: false, contentType: 'application/json',
+  });
+}
+
+async function readOutcomes(date) {
+  const { blobs } = await list({ prefix: `game-outcomes-${date}` });
+  const blob = blobs.find(b => b.pathname === `game-outcomes-${date}.json`);
+  if (!blob) return null;
+  const res = await fetch(`${blob.url}?t=${Date.now()}`);
+  return res.json();
+}
+
+module.exports = async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Content-Type', 'application/json');
+
+  const date = req.query?.date || getYesterdayPT();
+
+  try {
+    // 1. Read outcomes blob — skip if missing
+    const outcomes = await readOutcomes(date);
+    if (!outcomes || !Array.isArray(outcomes.games) || outcomes.games.length === 0) {
+      return res.status(200).json({
+        date, ok: true, skipped: true,
+        reason: 'no outcomes blob for date (cron-outcomes may not have run yet)',
+      });
+    }
+
+    // 2. Sum total runs across all games
+    const actualRuns = outcomes.games.reduce((sum, g) => sum + (g.totals?.total || 0), 0);
+
+    // 3. Read history, find yesterday's record
+    const history = await readHistory();
+    const existing = history.find(r => r.date === date);
+
+    // 4. Skip if already resolved (preserves manual overrides)
+    if (existing && existing.actualRuns != null) {
+      return res.status(200).json({
+        date, ok: true, skipped: true,
+        reason: 'actualRuns already set',
+        existing: { actualRuns: existing.actualRuns, result: existing.result },
+      });
+    }
+
+    // 5. Grade against saved GS line
+    const gsLine = existing?.grandSalamLine ?? null;
+    let result = null;
+    if (gsLine != null) {
+      if (actualRuns > gsLine) result = 'over';
+      else if (actualRuns < gsLine) result = 'under';
+      else result = 'push';
+    }
+
+    // 6. Write merged record back
+    const updated = {
+      ...(existing || { date }),
+      date,
+      actualRuns,
+      result,
+    };
+    const newHistory = history.filter(r => r.date !== date);
+    newHistory.push(updated);
+    await writeHistory(newHistory);
+
+    return res.status(200).json({
+      date, ok: true,
+      actualRuns, result, gsLine,
+      gamesCounted: outcomes.games.length,
+    });
+  } catch (e) {
+    return res.status(500).json({ date, ok: false, error: e.message });
+  }
+};
