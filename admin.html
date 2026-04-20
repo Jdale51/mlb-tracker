@@ -2415,15 +2415,41 @@ const AL_OUTLIER_THRESHOLD = 0.30;
 const AL_OVER_POINT = 11.5;
 const AL_UNDER_POINT = 5.5;
 
-// Compute outlier for a single game (client-side fallback for older blobs)
+// Compute outlier for a single game (client-side fallback).
+// Also includes main-line check so blobs written before server-side main-line
+// outlier support get the right flag at tab load time.
 function computeGameOutlier(g) {
-  // Prefer server-computed flag
-  if (g.outlier && typeof g.outlier.isOutlier === 'boolean') return g.outlier;
-  if (!g.alts || !g.alts.ladder) return { isOutlier: false, outlierType: null, overProb: null, underProb: null };
-  const over = g.alts.ladder.find(r => r.point === AL_OVER_POINT);
-  const under = g.alts.ladder.find(r => r.point === AL_UNDER_POINT);
-  const overProb = over?.overFair ?? null;
-  const underProb = under?.underFair ?? null;
+  const hasMain = g.mainLine && g.mainLine.point != null;
+  const mainAtTail = hasMain && (g.mainLine.point === AL_OVER_POINT || g.mainLine.point === AL_UNDER_POINT);
+
+  // If server already flagged this as an outlier, trust it. Otherwise, if the
+  // main line sits on a tail point, we must recompute client-side because
+  // blobs written before the main-line-aware server change don't reflect it.
+  if (g.outlier && typeof g.outlier.isOutlier === 'boolean') {
+    if (g.outlier.isOutlier) return g.outlier;
+    if (!mainAtTail) return g.outlier; // no main-line override possible
+    // else fall through and recompute
+  }
+
+  if ((!g.alts || !g.alts.ladder) && !hasMain) {
+    return { isOutlier: false, outlierType: null, overProb: null, underProb: null };
+  }
+
+  // Pull probabilities from alt ladder at tail points (if present)
+  const ladder = g.alts?.ladder || [];
+  const over = ladder.find(r => r.point === AL_OVER_POINT);
+  const under = ladder.find(r => r.point === AL_UNDER_POINT);
+  let overProb = over?.overFair ?? null;
+  let underProb = under?.underFair ?? null;
+
+  // Main line overrides at matching tail points
+  if (hasMain && g.mainLine.point === AL_OVER_POINT && g.mainLine.overFair != null) {
+    overProb = g.mainLine.overFair;
+  }
+  if (hasMain && g.mainLine.point === AL_UNDER_POINT && g.mainLine.underFair != null) {
+    underProb = g.mainLine.underFair;
+  }
+
   const hitsCeiling = overProb != null && overProb >= AL_OUTLIER_THRESHOLD;
   const hitsFloor = underProb != null && underProb >= AL_OUTLIER_THRESHOLD;
   let outlierType = null;
