@@ -228,18 +228,32 @@ function extractLadder(eventData) {
   return null;
 }
 
-// Compute Vegas outlier flag given a ladder
+// Compute Vegas outlier flag given a ladder AND the main line.
+// If the main line sits exactly at 11.5 (or 5.5), it takes precedence over any
+// alt-ladder row at the same point — main-line prices are what the book posts
+// as the current live number, and alt rows at that same point may lag slightly.
 // Returns: { isOutlier, outlierType, overProb, underProb }
 // outlierType: 'ceiling' | 'floor' | null
-function computeOutlierFlag(ladder) {
-  if (!ladder || !ladder.length) {
+function computeOutlierFlag(ladder, mainLine) {
+  const hasLadder = ladder && ladder.length;
+  const hasMain = mainLine && mainLine.point != null;
+  if (!hasLadder && !hasMain) {
     return { isOutlier: false, outlierType: null, overProb: null, underProb: null };
   }
-  const overRow = ladder.find(r => r.point === OVER_TAIL_POINT);
-  const underRow = ladder.find(r => r.point === UNDER_TAIL_POINT);
 
-  const overProb = overRow?.overFair ?? null;
-  const underProb = underRow?.underFair ?? null;
+  // Start from alt ladder probabilities at the tail points, if present
+  const overRow = hasLadder ? ladder.find(r => r.point === OVER_TAIL_POINT) : null;
+  const underRow = hasLadder ? ladder.find(r => r.point === UNDER_TAIL_POINT) : null;
+  let overProb = overRow?.overFair ?? null;
+  let underProb = underRow?.underFair ?? null;
+
+  // Main line overrides if it sits exactly on a tail point
+  if (hasMain && mainLine.point === OVER_TAIL_POINT && mainLine.overFair != null) {
+    overProb = mainLine.overFair;
+  }
+  if (hasMain && mainLine.point === UNDER_TAIL_POINT && mainLine.underFair != null) {
+    underProb = mainLine.underFair;
+  }
 
   const hitsCeiling = overProb != null && overProb >= OUTLIER_PROB_THRESHOLD;
   const hitsFloor = underProb != null && underProb >= OUTLIER_PROB_THRESHOLD;
@@ -309,7 +323,7 @@ async function pullAltLines(targetDate) {
           bookKey: picked.bookKey,
         };
       })() : null;
-      const outlier = computeOutlierFlag(alts?.ladder);
+      const outlier = computeOutlierFlag(alts?.ladder, mainLine);
       games.push({
         eventId: ev.id,
         away: ev.away_team,
