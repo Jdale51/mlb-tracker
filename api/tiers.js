@@ -3,13 +3,16 @@ const { put, list } = require('@vercel/blob');
 // In-memory caches — rebuild on write, short TTL on read
 let acesCache = { data: null, loadedAt: 0 };
 let lineupCache = { data: null, loadedAt: 0 };
+let bullpenCache = { data: null, loadedAt: 0 };
 const CACHE_MS = 5 * 60 * 1000; // 5 min
 
 let acesBlobUrl = null;
 let lineupBlobUrl = null;
+let bullpenBlobUrl = null;
 
 const EMPTY_ACES = { updated: null, pitchers: {} }; // { "Pitcher Name": "tier1" | "tier2" | "default" }
 const EMPTY_LINEUPS = { updated: null, profiles: {} }; // { "NYY": "power_boom_bust" | "balanced" | "contact" }
+const EMPTY_BULLPENS = { updated: null, tiers: {} }; // { "NYY": "tier1" | "tier2" | "tier3" }
 
 async function readBlob(filename, cache, setUrl, getUrl, empty) {
   const age = Date.now() - cache.loadedAt;
@@ -50,10 +53,14 @@ const readAces   = () => readBlob('aces.json', acesCache,
   (u) => { acesBlobUrl = u; }, () => acesBlobUrl, EMPTY_ACES);
 const readLineups = () => readBlob('lineup-profiles.json', lineupCache,
   (u) => { lineupBlobUrl = u; }, () => lineupBlobUrl, EMPTY_LINEUPS);
+const readBullpens = () => readBlob('bullpen-strength.json', bullpenCache,
+  (u) => { bullpenBlobUrl = u; }, () => bullpenBlobUrl, EMPTY_BULLPENS);
 const writeAces   = (d) => writeBlob('aces.json', d, acesCache,
   (u) => { acesBlobUrl = u; });
 const writeLineups = (d) => writeBlob('lineup-profiles.json', d, lineupCache,
   (u) => { lineupBlobUrl = u; });
+const writeBullpens = (d) => writeBlob('bullpen-strength.json', d, bullpenCache,
+  (u) => { bullpenBlobUrl = u; });
 
 // Fetch all pitchers with games started this season from MLB Stats API
 async function fetchAllStarters(season) {
@@ -116,9 +123,9 @@ module.exports = async function handler(req, res) {
         return res.status(200).json({ ok: true, added, total: starters.length, starters: enriched });
       }
 
-      // Default GET: return both lists
-      const [aces, lineups] = await Promise.all([readAces(), readLineups()]);
-      return res.status(200).json({ aces, lineups });
+      // Default GET: return all three lists
+      const [aces, lineups, bullpens] = await Promise.all([readAces(), readLineups(), readBullpens()]);
+      return res.status(200).json({ aces, lineups, bullpens });
     } catch(e) {
       return res.status(500).json({ error: e.message });
     }
@@ -164,6 +171,25 @@ module.exports = async function handler(req, res) {
       if (type === 'bulkLineups' && bulkLineups) {
         const updated = { updated: new Date().toISOString().split('T')[0], profiles: bulkLineups };
         await writeLineups(updated);
+        return res.status(200).json({ ok: true });
+      }
+
+      if (type === 'bullpen') {
+        if (!teamAbbr || !tier) return res.status(400).json({ error: 'Missing teamAbbr or tier' });
+        if (!['tier1', 'tier2', 'tier3'].includes(tier)) {
+          return res.status(400).json({ error: 'Invalid bullpen tier' });
+        }
+        const bullpens = await readBullpens();
+        const tiers = { ...(bullpens.tiers || {}) };
+        tiers[teamAbbr] = tier;
+        const updated = { updated: new Date().toISOString().split('T')[0], tiers };
+        await writeBullpens(updated);
+        return res.status(200).json({ ok: true });
+      }
+
+      if (type === 'bulkBullpens' && body.bulkBullpens) {
+        const updated = { updated: new Date().toISOString().split('T')[0], tiers: body.bulkBullpens };
+        await writeBullpens(updated);
         return res.status(200).json({ ok: true });
       }
 
