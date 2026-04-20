@@ -538,8 +538,8 @@
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <div>
-          <div class="card-title" style="margin-bottom:2px;">📊 Per-Game Alt Totals (DK)</div>
-          <div style="font-size:11px;color:var(--muted);">Vegas implied variance — pulled 3am daily</div>
+          <div class="card-title" style="margin-bottom:2px;">📊 Per-Game Alt Totals</div>
+          <div style="font-size:11px;color:var(--muted);">DK preferred · FD fallback · 3am daily pull</div>
         </div>
         <button id="al-fetch-btn" class="btn btn-sm" style="background:var(--purple);color:#fff;" onclick="fetchAltLinesNow()">⬇ Fetch Now</button>
       </div>
@@ -2341,7 +2341,7 @@ async function fetchAltLinesNow() {
   const btn = document.getElementById('al-fetch-btn');
   btn.disabled = true;
   btn.innerHTML = '⏳ Fetching...';
-  document.getElementById('al-meta').textContent = `Pulling ${label} alt ladders from DraftKings — this may take 15-30 seconds...`;
+  document.getElementById('al-meta').textContent = `Pulling ${label} alt ladders — this may take 15-30 seconds...`;
   try {
     const res = await fetch(`/api/alt-lines?refresh=true&date=${targetDate}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -2375,8 +2375,19 @@ function renderAltLines(data) {
   document.getElementById('al-stat-errors').textContent = data.errorCount || 0;
 
   const warn = data.warning ? `<span style="color:var(--red);">⚠️ ${data.warning}</span><br>` : '';
+
+  // Count games by book source so we can show DK coverage at a glance
+  const bookCounts = {};
+  for (const g of (data.games || [])) {
+    const bk = g.alts?.book;
+    if (bk) bookCounts[bk] = (bookCounts[bk] || 0) + 1;
+  }
+  const bookSummary = Object.keys(bookCounts).length
+    ? ' · ' + Object.entries(bookCounts).map(([b, c]) => `${c} ${b}`).join(', ')
+    : '';
+
   document.getElementById('al-meta').innerHTML =
-    `${warn}Date: <strong>${data.date}</strong> · Fetched ${fmtAge(data.fetchedAt)} · ${data.fetchMs ? Math.round(data.fetchMs/1000)+'s' : '—'}`;
+    `${warn}Date: <strong>${data.date}</strong> · Fetched ${fmtAge(data.fetchedAt)} · ${data.fetchMs ? Math.round(data.fetchMs/1000)+'s' : '—'}${bookSummary}`;
 
   // Render outlier summary card (new blobs have outlier flags; older ones compute client-side)
   renderOutlierSummary(data);
@@ -2486,7 +2497,7 @@ function renderAltCard(g, keyPoints) {
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;">${away} @ ${home}</div>
           <div style="font-size:11px;color:var(--muted);">${time}</div>
         </div>
-        <div style="color:var(--red);font-size:11px;margin-top:6px;">No DK alt ladder available</div>
+        <div style="color:var(--red);font-size:11px;margin-top:6px;">No alt ladder available from any book</div>
       </div>`;
   }
 
@@ -2537,10 +2548,20 @@ function renderAltCard(g, keyPoints) {
     ? `<span style="color:var(--accent);">≈50/50 at ${atmPoint.point}</span>`
     : '';
 
+  // Show which book the ladder came from — faded chip so it doesn't compete
+  // with the game info but is visible for auditing when fallback kicked in.
+  const bookKey = g.alts.bookKey || '';
+  const bookName = g.alts.book || '';
+  const isDK = bookKey === 'draftkings';
+  const bookChipColor = isDK ? 'var(--muted)' : 'var(--accent)'; // highlight fallbacks
+  const bookChip = bookName
+    ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.5px;color:${bookChipColor};border:1px solid ${bookChipColor};border-radius:4px;padding:1px 5px;margin-left:6px;opacity:0.85;">${bookName}</span>`
+    : '';
+
   return `
     <div class="card" style="padding:12px;margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;">${away} @ ${home}</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;">${away} @ ${home}${bookChip}</div>
         <div style="font-size:11px;color:var(--muted);">${time} · ${atmNote}</div>
       </div>
       <table style="width:100%;border-collapse:collapse;font-family:'Barlow',sans-serif;">
