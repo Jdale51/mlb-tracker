@@ -31,7 +31,12 @@ const OUTLIER_PROB_THRESHOLD = 0.30;
 const OVER_TAIL_POINT = 11.5;
 const UNDER_TAIL_POINT = 5.5;
 
-const BOOK = 'draftkings';
+// Preferred book order — API returns all that have data; we extract the first
+// one in this list that actually has an alt ladder populated. Including
+// multiple books in one request does NOT increase credit cost (up to 10 books
+// still counts as 1 region per the Odds API pricing rules).
+const BOOKS = ['draftkings', 'fanduel', 'betmgm', 'caesars'];
+const BOOK_PARAM = BOOKS.join(',');
 const BLOB_PREFIX = 'alt-lines-';
 
 function blobNameFor(date) {
@@ -111,10 +116,10 @@ async function fetchEvents() {
   return res.json();
 }
 
-// Fetch alt totals for a single event (1 credit each)
+// Fetch alt totals for a single event (1 credit each — multi-book still 1 credit)
 async function fetchAltForEvent(eventId) {
   const key = nextKey();
-  const url = `https://api.the-odds-api.com/v4/sports/baseball_mlb/events/${eventId}/odds?apiKey=${key}&regions=us&markets=alternate_totals&oddsFormat=american&bookmakers=${BOOK}`;
+  const url = `https://api.the-odds-api.com/v4/sports/baseball_mlb/events/${eventId}/odds?apiKey=${key}&regions=us&markets=alternate_totals&oddsFormat=american&bookmakers=${BOOK_PARAM}`;
   const res = await fetch(url);
   if (!res.ok) {
     const txt = await res.text().catch(() => '');
@@ -123,100 +128,67 @@ async function fetchAltForEvent(eventId) {
   return res.json();
 }
 
-// Fetch main totals for ALL games in a single batched call (1 credit total)
-// Returns a map keyed by event id -> { point, overPrice, underPrice, lastUpdate }
-async function fetchMainLinesMap() {
-  const key = nextKey();
-  const url = `https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey=${key}&regions=us&markets=totals&oddsFormat=american&bookmakers=${BOOK}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Main totals API ${res.status}`);
-  const data = await res.json();
-  const map = {};
-  for (const g of (data || [])) {
-    const bk = (g.bookmakers || []).find(b => b.key === BOOK);
-    if (!bk) continue;
-    const mkt = (bk.markets || []).find(m => m.key === 'totals');
-    if (!mkt) continue;
-    const ov = (mkt.outcomes || []).find(o => o.name === 'Over');
-    const un = (mkt.outcomes || []).find(o => o.name === 'Under');
-    if (ov && un && ov.point != null) {
-      map[g.id] = {
-        point: ov.point,
-        overPrice: ov.price,
-        underPrice: un.price,
-        lastUpdate: mkt.last_update || bk.last_update || null,
-      };
-    }
-  }
-  return map;
-}
-
-// Extract DK alt ladder from event response
+// Extract alt ladder from event response, preferring DK but falling back to
+// FanDuel (and further) if DK hasn't posted the market yet. Returns the first
+// book in BOOKS order that has a non-empty ladder.
 function extractLadder(eventData) {
-  const bk = (eventData.bookmakers || []).find(b => b.key === BOOK);
-  if (!bk) return null;
-  const mkt = (bk.markets || []).find(m => m.key === 'alternate_totals');
-  if (!mkt) return null;
+  const bookmakers = eventData.bookmakers || [];
 
-  // Group outcomes by point
-  const byPoint = {};
-  for (const o of mkt.outcomes || []) {
-    const p = o.point;
-    if (p == null) continue;
-    if (!byPoint[p]) byPoint[p] = {};
-    if (o.name === 'Over') byPoint[p].over = o.price;
-    if (o.name === 'Under') byPoint[p].under = o.price;
+  for (const bookKey of BOOKS) {
+    const bk = bookmakers.find(b => b.key === bookKey);
+    if (!bk) continue;
+    const mkt = (bk.markets || []).find(m => m.key === 'alternate_totals');
+    if (!mkt || !mkt.outcomes || !mkt.outcomes.length) continue;
+
+    // Group outcomes by point
+    const byPoint = {};
+    for (const o of mkt.outcomes) {
+      const p = o.point;
+      if (p == null) continue;
+      if (!byPoint[p]) byPoint[p] = {};
+      if (o.name === 'Over') byPoint[p].over = o.price;
+      if (o.name === 'Under') byPoint[p].under = o.price;
+    }
+
+    const ladder = Object.keys(byPoint)
+      .map(p => parseFloat(p))
+      .sort((a, b) => a - b)
+      .map(p => {
+        const row = byPoint[p];
+        const { overFair, underFair } = devig(row.over, row.under);
+        return {
+          point: p,
+          overPrice: row.over ?? null,
+          underPrice: row.under ?? null,
+          overImplied: americanToImplied(row.over),
+          underImplied: americanToImplied(row.under),
+          overFair,
+          underFair,
+        };
+      });
+
+    if (!ladder.length) continue;
+
+    return {
+      book: bk.title,
+      bookKey: bk.key,
+      lastUpdate: mkt.last_update || bk.last_update || null,
+      ladder,
+    };
   }
 
-  const ladder = Object.keys(byPoint)
-    .map(p => parseFloat(p))
-    .sort((a, b) => a - b)
-    .map(p => {
-      const row = byPoint[p];
-      const { overFair, underFair } = devig(row.over, row.under);
-      return {
-        point: p,
-        overPrice: row.over ?? null,
-        underPrice: row.under ?? null,
-        overImplied: americanToImplied(row.over),
-        underImplied: americanToImplied(row.under),
-        overFair,
-        underFair,
-      };
-    });
-
-  return {
-    book: bk.title,
-    lastUpdate: mkt.last_update || bk.last_update || null,
-    ladder,
-  };
+  return null;
 }
 
 // Compute Vegas outlier flag given a ladder
 // Returns: { isOutlier, outlierType, overProb, underProb }
 // outlierType: 'ceiling' | 'floor' | null
-function computeOutlierFlag(ladder, mainLine) {
-  if ((!ladder || !ladder.length) && !mainLine) {
+function computeOutlierFlag(ladder) {
+  if (!ladder || !ladder.length) {
     return { isOutlier: false, outlierType: null, overProb: null, underProb: null };
   }
-
-  // Build a lookup that includes both alt ladder rows AND the main line.
-  // Main line takes precedence if its point matches the tail point we're
-  // checking, since main-line prices are the book's canonical posting.
-  const byPoint = {};
-  for (const r of (ladder || [])) {
-    byPoint[r.point] = r;
-  }
-  if (mainLine && mainLine.point != null) {
-    byPoint[mainLine.point] = {
-      point: mainLine.point,
-      overFair: mainLine.overFair,
-      underFair: mainLine.underFair,
-    };
-  }
-
-  const overRow = byPoint[OVER_TAIL_POINT];
-  const underRow = byPoint[UNDER_TAIL_POINT];
+  const overRow = ladder.find(r => r.point === OVER_TAIL_POINT);
+  const underRow = ladder.find(r => r.point === UNDER_TAIL_POINT);
 
   const overProb = overRow?.overFair ?? null;
   const underProb = underRow?.underFair ?? null;
@@ -242,24 +214,11 @@ function computeOutlierFlag(ladder, mainLine) {
   };
 }
 
-// Main pull: events → per-game alts + main line → structured payload
+// Main pull: events → per-game alts → structured payload
 async function pullAltLines(targetDate) {
   const startedAt = Date.now();
   const allEvents = await fetchEvents();
   const todayEvents = filterForDate(allEvents, targetDate);
-
-  // Batch main lines in a single call (1 credit total). Don't fail the whole
-  // pull if this errors — we can still render alts without main lines.
-  let mainLinesMap = {};
-  let mainLineCredits = 0;
-  let mainLineError = null;
-  try {
-    mainLinesMap = await fetchMainLinesMap();
-    mainLineCredits = 1;
-  } catch (e) {
-    mainLineError = e.message;
-    console.error('[alt-lines] main lines fetch failed:', e.message);
-  }
 
   const games = [];
   const errors = [];
@@ -270,23 +229,7 @@ async function pullAltLines(targetDate) {
       const alts = extractLadder(eventData);
       const awayAbbr = exportAbbr(ev.away_team);
       const homeAbbr = exportAbbr(ev.home_team);
-      const mainRaw = mainLinesMap[ev.id] || null;
-      const mainLine = mainRaw ? (() => {
-        const { overFair, underFair } = devig(mainRaw.overPrice, mainRaw.underPrice);
-        return {
-          point: mainRaw.point,
-          overPrice: mainRaw.overPrice,
-          underPrice: mainRaw.underPrice,
-          overImplied: americanToImplied(mainRaw.overPrice),
-          underImplied: americanToImplied(mainRaw.underPrice),
-          overFair,
-          underFair,
-          lastUpdate: mainRaw.lastUpdate,
-        };
-      })() : null;
-      // Outlier scan considers both alt ladder AND main line (main line takes
-      // precedence if its point matches a tail point like 11.5 or 5.5)
-      const outlier = computeOutlierFlag(alts?.ladder, mainLine);
+      const outlier = computeOutlierFlag(alts?.ladder);
       games.push({
         eventId: ev.id,
         away: ev.away_team,
@@ -296,7 +239,6 @@ async function pullAltLines(targetDate) {
         matchup: `${awayAbbr}@${homeAbbr}`,
         commenceTime: ev.commence_time,
         outlier, // { isOutlier, outlierType, overProb, underProb }
-        mainLine, // { point, overPrice, underPrice, overFair, underFair, ... } or null
         alts,    // { book, lastUpdate, ladder } or null
       });
     } catch (e) {
@@ -313,9 +255,8 @@ async function pullAltLines(targetDate) {
     fetchedAt: new Date().toISOString(),
     fetchMs: Date.now() - startedAt,
     gameCount: games.length,
-    creditsUsed: games.length + errors.length + mainLineCredits,
+    creditsUsed: games.length + errors.length, // 1 credit per per-event call attempted
     errorCount: errors.length,
-    mainLineError,
     outlierSummary: {
       threshold: OUTLIER_PROB_THRESHOLD,
       overPoint: OVER_TAIL_POINT,
