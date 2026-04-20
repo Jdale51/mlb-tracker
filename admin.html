@@ -2026,14 +2026,28 @@ function lineupScore(profile) {
 // go 6, so even a gassed pen survives the last 3 innings → no impact.
 // Taxed washes entirely; we only move on the extremes.
 //
+// ASYMMETRIC: gassed pulls stronger than fresh suppresses. Reasoning — a
+// gassed pen paired with a soft starter can turn a 5-run game into a blowout
+// (no ceiling on runs scored), while a fresh pen with a soft starter just
+// means a quicker hook (4-5 run games don't become 2-run games; opposing
+// offense still hits).
+//
+// Magnitudes:
+//   Tier 1: 0 regardless (goes 6 innings)
+//   Tier 2: gassed = +1, fresh = -0.5, taxed = 0
+//   Tier 3: gassed = +2, fresh = -1,   taxed = 0
+//
 // Returns per-team contribution (signed, positive = more runs expected).
 // Combined total capped at ±2 after summing both teams in bullpenScore.
 function bullpenContribution(starterTier, bpTier) {
   if (starterTier === 'tier1') return 0; // T1 goes 6, pen doesn't matter
   if (bpTier === 'taxed') return 0;      // Middle state washes
-  const mag = starterTier === 'tier2' ? 1 : 2; // tier2 = ±1, default/T3 = ±2
-  if (bpTier === 'gassed') return +mag;
-  if (bpTier === 'fresh')  return -mag;
+  if (bpTier === 'gassed') {
+    return starterTier === 'tier2' ? 1 : 2; // +1 for T2, +2 for T3/default
+  }
+  if (bpTier === 'fresh') {
+    return starterTier === 'tier2' ? -0.5 : -1; // halved — suppression is weaker than blowup
+  }
   return 0;
 }
 
@@ -2184,7 +2198,13 @@ function renderBetaGameRow(g) {
 
   // Score color per factor (matches Game Breakdown styling)
   const sColor = v => v > 0 ? 'var(--green)' : v < 0 ? 'var(--blue)' : 'var(--text)';
-  const sFmt = v => (v >= 0 ? '+' : '') + v;
+  // Format score so fractional values (e.g. -0.5 from half-strength fresh pen)
+  // render cleanly. Whole ints stay as +1 / -1; halves stay as +0.5 / -1.5.
+  const sFmt = v => {
+    const n = Math.round(v * 10) / 10; // clean up float noise, keep 1 decimal
+    const s = Number.isInteger(n) ? n.toString() : n.toFixed(1);
+    return (n >= 0 ? '+' : '') + s;
+  };
 
   const div = document.createElement('div');
   div.className = 'game-card beta-game-row';
@@ -2199,7 +2219,7 @@ function renderBetaGameRow(g) {
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:900;">
         <span class="beta-game-expand-icon"></span>${g.away} @ ${g.home} <span style="color:var(--muted);font-size:12px;">O/U ${g.ou||'—'}</span>
       </div>
-      <div class="beta-score-badge ${label}" data-matchup="${g.matchup}">${total >= 0 ? '+' : ''}${total}</div>
+      <div class="beta-score-badge ${label}" data-matchup="${g.matchup}">${sFmt(total)}</div>
     </div>
     <div class="beta-game-breakdown">
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;font-size:10px;color:var(--muted);text-align:center;">
@@ -2289,6 +2309,12 @@ function runBetaModel() {
 }
 
 function renderBetaBreakdown(gameResults) {
+  // Same clean fractional formatter used in the per-game row (handles -0.5 / +1.5 cleanly)
+  const sFmt = v => {
+    const n = Math.round(v * 10) / 10;
+    const s = Number.isInteger(n) ? n.toString() : n.toFixed(1);
+    return (n >= 0 ? '+' : '') + s;
+  };
   document.getElementById('beta-game-results').innerHTML = gameResults.map(g => {
     const s = g.scored;
     const cls = s.label === 'ceiling' ? 'outlier-over' : s.label === 'floor' ? 'outlier-under' : 'outlier-neutral';
@@ -2300,13 +2326,13 @@ function renderBetaBreakdown(gameResults) {
     return `<div class="outlier-card ${cls}" style="flex-direction:column;align-items:stretch;gap:6px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <div class="outlier-matchup">${emoji} ${g.away} @ ${g.home} <span style="color:var(--muted);font-size:12px;">O/U ${g.ou||'—'}</span></div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:${scoreColor};">${s.total >= 0 ? '+' : ''}${s.total}</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:${scoreColor};">${sFmt(s.total)}</div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;font-size:10px;color:var(--muted);text-align:center;">
-        <div>Park/Weather<br><span style="color:${s.s1>0?'var(--green)':s.s1<0?'var(--blue)':'var(--text)'};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${s.s1>=0?'+':''}${s.s1}</span></div>
-        <div>Starters<br><span style="color:${s.s2>0?'var(--green)':s.s2<0?'var(--blue)':'var(--text)'};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${s.s2>=0?'+':''}${s.s2}</span></div>
-        <div>Bullpen<br><span style="color:${s.s3>0?'var(--green)':s.s3<0?'var(--blue)':'var(--text)'};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${s.s3>=0?'+':''}${s.s3}</span></div>
-        <div>Lineups<br><span style="color:${s.s4>0?'var(--green)':s.s4<0?'var(--blue)':'var(--text)'};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${s.s4>=0?'+':''}${s.s4}</span></div>
+        <div>Park/Weather<br><span style="color:${s.s1>0?'var(--green)':s.s1<0?'var(--blue)':'var(--text)'};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${sFmt(s.s1)}</span></div>
+        <div>Starters<br><span style="color:${s.s2>0?'var(--green)':s.s2<0?'var(--blue)':'var(--text)'};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${sFmt(s.s2)}</span></div>
+        <div>Bullpen<br><span style="color:${s.s3>0?'var(--green)':s.s3<0?'var(--blue)':'var(--text)'};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${sFmt(s.s3)}</span></div>
+        <div>Lineups<br><span style="color:${s.s4>0?'var(--green)':s.s4<0?'var(--blue)':'var(--text)'};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${sFmt(s.s4)}</span></div>
       </div>
       ${p12ctx}
     </div>`;
