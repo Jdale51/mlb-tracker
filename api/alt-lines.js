@@ -1,7 +1,7 @@
 const { put, list } = require('@vercel/blob');
 
 // Single API key (rotation disabled)
-const ODDS_KEY = 'aef1c06336685a4a20c89a57d3f56262';
+const ODDS_KEY = '5171b7947460f7f15abb11c465180901';
 
 function nextKey() {
   return ODDS_KEY;
