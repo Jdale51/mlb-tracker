@@ -76,6 +76,15 @@
   .admin-tab-panel.active{display:block;}
   /* Alt Lines date toggle */
   .al-date-btn.active{background:var(--purple)!important;color:#fff!important;}
+  /* Collapsible details rotation */
+  details summary::-webkit-details-marker{display:none;}
+  details[open] > summary #beta-games-summary-icon{transform:rotate(90deg);}
+  /* Per-game row expand/collapse */
+  .beta-game-row{cursor:pointer;}
+  .beta-game-breakdown{display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+  .beta-game-row.expanded .beta-game-breakdown{display:block;}
+  .beta-game-expand-icon{display:inline-block;transition:transform 0.2s;color:var(--muted);font-size:10px;margin-right:6px;}
+  .beta-game-row.expanded .beta-game-expand-icon{transform:rotate(90deg);}
   /* Game Log tab */
   .gl-chip{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.4px;padding:5px 9px;border-radius:14px;border:1px solid var(--border);background:var(--surface);color:var(--muted);cursor:pointer;transition:all 0.15s;}
   .gl-chip.active{background:var(--surface2);color:var(--text);border-color:var(--accent);}
@@ -476,23 +485,25 @@
 
     <!-- Per-Game Tail Counter Inputs -->
     <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <div class="card-title" style="margin-bottom:0;">Per-Game Tail Scoring</div>
-        <div style="display:flex;gap:6px;">
-          <button class="btn btn-sm" style="background:rgba(43,127,255,0.15);color:var(--blue);border:1px solid rgba(43,127,255,0.3);" onclick="autoLoadBetaGames()">⬇ Auto-Load</button>
-          <button class="btn btn-sm" style="background:var(--surface2);color:var(--muted);border:1px solid var(--border);" onclick="clearBetaGames()">Clear</button>
-        </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <button class="btn" style="flex:1;background:rgba(43,127,255,0.15);color:var(--blue);border:1px solid rgba(43,127,255,0.3);padding:11px;font-size:14px;" onclick="autoLoadBetaGames()">⬇ Auto-Load Inputs</button>
+        <button class="btn" style="flex:1;background:var(--surface2);color:var(--muted);border:1px solid var(--border);padding:11px;font-size:14px;" onclick="clearBetaGames()">Clear</button>
       </div>
-      <div id="beta-games-list">
-        <div style="color:var(--muted);font-size:12px;text-align:center;padding:12px;">
-          Tap <strong>Auto-Load</strong> to pull today's games, or wait for BP data to be pasted above.
+      <details id="beta-games-details" style="margin-top:4px;">
+        <summary style="cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:12px;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);padding:6px 0;outline:none;list-style:none;user-select:none;">
+          <span id="beta-games-summary-icon" style="display:inline-block;transition:transform 0.2s;margin-right:6px;">▸</span><span id="beta-games-summary-text">Loaded inputs</span>
+        </summary>
+        <div id="beta-games-list" style="margin-top:8px;">
+          <div style="color:var(--muted);font-size:12px;text-align:center;padding:12px;">
+            Tap <strong>Auto-Load Inputs</strong> to pull today's games, or wait for BP data to be pasted above.
+          </div>
         </div>
-      </div>
+      </details>
     </div>
 
     <!-- Run Beta Model -->
     <button class="btn" style="background:linear-gradient(135deg,#1a3a3a,#00C46A);color:#fff;border:1px solid rgba(0,196,106,0.4);margin-bottom:16px;font-size:16px;padding:15px;letter-spacing:2px;" onclick="runBetaModel()">
-      ⚡ RUN TAIL COUNTER
+      ⚡ RUN OUTLIER COUNTER
     </button>
 
     <!-- Beta Results -->
@@ -2112,7 +2123,7 @@ async function autoLoadBetaGames() {
   } catch(e) {
     showToast('Load error: ' + e.message, 'err');
   } finally {
-    btn.disabled = false; btn.innerHTML = '⬇ Auto-Load';
+    btn.disabled = false; btn.innerHTML = '⬇ Auto-Load Inputs';
   }
 }
 
@@ -2123,29 +2134,63 @@ function renderBetaGameRow(g) {
   const scored = scoreGame(g);
   const tierLabel = t => t === 'tier1' ? '<span class="gold">T1</span>' : t === 'tier2' ? '<span class="silver">T2</span>' : '<span style="color:var(--muted)">T3</span>';
   const bpLabel = g.bpAdj != null ? `${g.bpAdj >= 0 ? '+' : ''}${g.bpAdj}` : '—';
-  const p12Label = g.p12 != null ? `<span style="font-size:9px;color:var(--muted);margin-left:3px;">P12+: ${g.p12}%</span>` : '';
+  const p12Label = g.p12 != null ? ` · P12+: ${g.p12}%` : '';
+
+  // Score color per factor (matches Game Breakdown styling)
+  const sColor = v => v > 0 ? 'var(--green)' : v < 0 ? 'var(--blue)' : 'var(--text)';
+  const sFmt = v => (v >= 0 ? '+' : '') + v;
+
   const div = document.createElement('div');
   div.className = 'game-card beta-game-row';
   div.dataset.matchup = g.matchup;
+  div.onclick = function(e) {
+    // Don't toggle if an inner control was clicked (future-proofing)
+    if (e.target.closest('input,select,button')) return;
+    this.classList.toggle('expanded');
+  };
   div.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:900;">${g.away} @ ${g.home} <span style="color:var(--muted);font-size:12px;">O/U ${g.ou||'—'}</span></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:900;">
+        <span class="beta-game-expand-icon">▸</span>${g.away} @ ${g.home} <span style="color:var(--muted);font-size:12px;">O/U ${g.ou||'—'}</span>
+      </div>
       <div class="beta-score-badge ${scored.label}" data-matchup="${g.matchup}">${scored.total >= 0 ? '+' : ''}${scored.total}</div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;font-size:10px;color:var(--muted);text-align:center;">
-      <div>BP<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:13px;">${bpLabel}</span>${p12Label}</div>
-      <div>Starters<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:13px;">${tierLabel(g.awayTier)}/${tierLabel(g.homeTier)}</span></div>
-      <div>Bullpen<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:13px;">${g.bpTier}</span></div>
-      <div>Lineups<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:11px;">${(g.awayLineup||'—').replace('power_boom_bust','⚡')}/${(g.homeLineup||'—').replace('power_boom_bust','⚡')}</span></div>
+    <div class="beta-game-breakdown">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;font-size:10px;color:var(--muted);text-align:center;">
+        <div>Park/Weather<br><span style="color:${sColor(scored.s1)};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${sFmt(scored.s1)}</span></div>
+        <div>Starters<br><span style="color:${sColor(scored.s2)};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${sFmt(scored.s2)}</span></div>
+        <div>Bullpen<br><span style="color:${sColor(scored.s3)};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${sFmt(scored.s3)}</span></div>
+        <div>Lineups<br><span style="color:${sColor(scored.s4)};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${sFmt(scored.s4)}</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;font-size:10px;color:var(--muted);text-align:center;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">
+        <div>BP adj<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:12px;">${bpLabel}</span></div>
+        <div>Tiers<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:12px;">${tierLabel(g.awayTier)}/${tierLabel(g.homeTier)}</span></div>
+        <div>BP Tier<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:12px;">${g.bpTier}</span></div>
+        <div>Lineups<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:10px;">${(g.awayLineup||'—').replace('power_boom_bust','⚡')}/${(g.homeLineup||'—').replace('power_boom_bust','⚡')}</span></div>
+      </div>
+      ${p12Label ? `<div style="font-size:10px;color:var(--muted);text-align:right;margin-top:6px;">${p12Label}</div>` : ''}
     </div>
   `;
   container.appendChild(div);
+  updateBetaGamesSummary();
+}
+
+// Update the collapsible summary label to reflect how many games are loaded
+function updateBetaGamesSummary() {
+  const listEl = document.getElementById('beta-games-list');
+  const textEl = document.getElementById('beta-games-summary-text');
+  if (!listEl || !textEl) return;
+  const count = listEl.querySelectorAll('.beta-game-row').length;
+  textEl.textContent = count > 0
+    ? `${count} game${count === 1 ? '' : 's'} loaded — tap to ${document.getElementById('beta-games-details')?.open ? 'hide' : 'view'}`
+    : 'No games loaded yet';
 }
 
 function clearBetaGames() {
   betaGames = [];
-  document.getElementById('beta-games-list').innerHTML = `<div style="color:var(--muted);font-size:12px;text-align:center;padding:12px;">Tap <strong>Auto-Load</strong> to pull today's games.</div>`;
+  document.getElementById('beta-games-list').innerHTML = `<div style="color:var(--muted);font-size:12px;text-align:center;padding:12px;">Tap <strong>Auto-Load Inputs</strong> to pull today's games.</div>`;
   document.getElementById('beta-results').style.display = 'none';
+  updateBetaGamesSummary();
 }
 
 function runBetaModel() {
@@ -2415,41 +2460,15 @@ const AL_OUTLIER_THRESHOLD = 0.30;
 const AL_OVER_POINT = 11.5;
 const AL_UNDER_POINT = 5.5;
 
-// Compute outlier for a single game (client-side fallback).
-// Also includes main-line check so blobs written before server-side main-line
-// outlier support get the right flag at tab load time.
+// Compute outlier for a single game (client-side fallback for older blobs)
 function computeGameOutlier(g) {
-  const hasMain = g.mainLine && g.mainLine.point != null;
-  const mainAtTail = hasMain && (g.mainLine.point === AL_OVER_POINT || g.mainLine.point === AL_UNDER_POINT);
-
-  // If server already flagged this as an outlier, trust it. Otherwise, if the
-  // main line sits on a tail point, we must recompute client-side because
-  // blobs written before the main-line-aware server change don't reflect it.
-  if (g.outlier && typeof g.outlier.isOutlier === 'boolean') {
-    if (g.outlier.isOutlier) return g.outlier;
-    if (!mainAtTail) return g.outlier; // no main-line override possible
-    // else fall through and recompute
-  }
-
-  if ((!g.alts || !g.alts.ladder) && !hasMain) {
-    return { isOutlier: false, outlierType: null, overProb: null, underProb: null };
-  }
-
-  // Pull probabilities from alt ladder at tail points (if present)
-  const ladder = g.alts?.ladder || [];
-  const over = ladder.find(r => r.point === AL_OVER_POINT);
-  const under = ladder.find(r => r.point === AL_UNDER_POINT);
-  let overProb = over?.overFair ?? null;
-  let underProb = under?.underFair ?? null;
-
-  // Main line overrides at matching tail points
-  if (hasMain && g.mainLine.point === AL_OVER_POINT && g.mainLine.overFair != null) {
-    overProb = g.mainLine.overFair;
-  }
-  if (hasMain && g.mainLine.point === AL_UNDER_POINT && g.mainLine.underFair != null) {
-    underProb = g.mainLine.underFair;
-  }
-
+  // Prefer server-computed flag
+  if (g.outlier && typeof g.outlier.isOutlier === 'boolean') return g.outlier;
+  if (!g.alts || !g.alts.ladder) return { isOutlier: false, outlierType: null, overProb: null, underProb: null };
+  const over = g.alts.ladder.find(r => r.point === AL_OVER_POINT);
+  const under = g.alts.ladder.find(r => r.point === AL_UNDER_POINT);
+  const overProb = over?.overFair ?? null;
+  const underProb = under?.underFair ?? null;
   const hitsCeiling = overProb != null && overProb >= AL_OUTLIER_THRESHOLD;
   const hitsFloor = underProb != null && underProb >= AL_OUTLIER_THRESHOLD;
   let outlierType = null;
@@ -2531,28 +2550,8 @@ function renderAltCard(g, keyPoints) {
   const byPoint = {};
   for (const r of g.alts.ladder) byPoint[r.point] = r;
 
-  // Merge main line into the ladder. DK's alt feed omits the current main
-  // point (e.g. 7.5) since it's served from the `totals` market instead. If
-  // we have a main line, splice it in so the ladder shows continuous points.
-  // If a row already exists at that point in the alt ladder, main takes
-  // precedence because those are the book's actual posted main prices.
-  const mainPoint = g.mainLine?.point ?? null;
-  if (g.mainLine && mainPoint != null) {
-    byPoint[mainPoint] = {
-      point: mainPoint,
-      overPrice: g.mainLine.overPrice,
-      underPrice: g.mainLine.underPrice,
-      overImplied: g.mainLine.overImplied,
-      underImplied: g.mainLine.underImplied,
-      overFair: g.mainLine.overFair,
-      underFair: g.mainLine.underFair,
-      isMain: true,
-    };
-  }
-
-  // Union of key points (always shown) + any points the book actually returned
-  // (e.g. 16.5, 3.5 on Coors, and the main line spliced in above).
-  const returnedPoints = Object.keys(byPoint).map(p => parseFloat(p));
+  // Union of key points (always shown) + any points DK actually returned (e.g. 16.5, 3.5)
+  const returnedPoints = g.alts.ladder.map(r => r.point);
   const allPoints = Array.from(new Set([...keyPoints, ...returnedPoints]))
     .sort((a, b) => a - b);
 
@@ -2572,12 +2571,9 @@ function renderAltCard(g, keyPoints) {
     // Highlight extreme tails (>70% or <30%)
     const overColor = overFairPct > 0.7 ? 'var(--green)' : overFairPct < 0.3 ? 'var(--muted)' : 'var(--text)';
     const underColor = underFairPct > 0.7 ? 'var(--blue)' : underFairPct < 0.3 ? 'var(--muted)' : 'var(--text)';
-    // Highlight the main-line row so it stands out from the alt ladder
-    const rowBg = r.isMain ? 'background:rgba(245,197,24,0.08);' : '';
-    const mainTag = r.isMain ? '<span style="color:var(--accent);font-size:9px;margin-left:4px;letter-spacing:0.5px;">MAIN</span>' : '';
     return `
-      <tr style="border-top:1px solid var(--border);${rowBg}">
-        <td style="padding:5px 6px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;">${p}${mainTag}</td>
+      <tr style="border-top:1px solid var(--border);">
+        <td style="padding:5px 6px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;">${p}</td>
         <td style="padding:5px 6px;font-size:11px;color:var(--muted);text-align:right;">${fmtOdds(r.overPrice)}</td>
         <td style="padding:5px 6px;font-size:12px;color:${overColor};text-align:right;font-weight:600;">${fmtPct(overFairPct)}</td>
         <td style="padding:5px 6px;font-size:11px;color:var(--muted);text-align:right;">${fmtOdds(r.underPrice)}</td>
@@ -2585,18 +2581,12 @@ function renderAltCard(g, keyPoints) {
       </tr>`;
   }).join('');
 
-  // Prefer the actual main line for the 50/50 reference; fall back to scanning
-  // the ladder if we don't have a main line (e.g. main-line fetch failed).
-  let atmPoint = null;
-  if (g.mainLine && g.mainLine.point != null) {
-    atmPoint = { point: g.mainLine.point };
-  } else {
-    let atmDelta = 99;
-    for (const r of g.alts.ladder) {
-      if (r.overFair != null) {
-        const d = Math.abs(r.overFair - 0.5);
-        if (d < atmDelta) { atmDelta = d; atmPoint = r; }
-      }
+  // Find the point closest to 50/50 as a reference
+  let atmPoint = null, atmDelta = 99;
+  for (const r of g.alts.ladder) {
+    if (r.overFair != null) {
+      const d = Math.abs(r.overFair - 0.5);
+      if (d < atmDelta) { atmDelta = d; atmPoint = r; }
     }
   }
   const atmNote = atmPoint
@@ -3790,6 +3780,12 @@ function initAdmin() {
   loadTiers();
   loadBPData();
   loadBetaResults();
+
+  // Refresh the Beta games summary label whenever the collapsible opens/closes
+  const betaDetails = document.getElementById('beta-games-details');
+  if (betaDetails) {
+    betaDetails.addEventListener('toggle', updateBetaGamesSummary);
+  }
 
   // Auto-refresh the outlier history tab when the browser tab regains focus,
   // but only if the outlier panel is currently active. Debounced so it won't
