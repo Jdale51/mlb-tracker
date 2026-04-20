@@ -447,6 +447,35 @@
         <div id="bucket-unassigned" style="min-height:30px;"></div>
       </div>
     </div>
+
+    <div class="card">
+      <div class="card-title">Bullpen Strength</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">
+        Drag teams into tiers. Drop to Unranked to remove. Based on season bullpen ERA / power rankings.<br>
+        <span style="color:var(--accent);">Tier 1</span> = top ~10 · <span style="color:var(--accent);">Tier 2</span> = middle ~10 · <span style="color:var(--accent);">Tier 3</span> = bottom ~10.
+      </div>
+      <div style="margin-bottom:10px;">
+        <button class="btn" style="padding:5px 10px;font-size:11px;background:transparent;color:var(--muted);border:1px solid var(--border);" onclick="seedBullpenTiersFromRankings()">↻ Apply Apr 20 power rankings</button>
+      </div>
+      <div class="lineup-buckets">
+        <div class="lineup-bucket" style="min-height:110px;">
+          <div class="lineup-bucket-title" style="color:var(--green);">Tier 1 · Elite</div>
+          <div id="bucket-bp-tier1" style="min-height:70px;padding:4px;"></div>
+        </div>
+        <div class="lineup-bucket" style="min-height:110px;">
+          <div class="lineup-bucket-title bal">Tier 2 · Average</div>
+          <div id="bucket-bp-tier2" style="min-height:70px;padding:4px;"></div>
+        </div>
+        <div class="lineup-bucket" style="min-height:110px;">
+          <div class="lineup-bucket-title" style="color:var(--red);">Tier 3 · Poor</div>
+          <div id="bucket-bp-tier3" style="min-height:70px;padding:4px;"></div>
+        </div>
+      </div>
+      <div class="lineup-unassigned" style="min-height:56px;padding:10px;">
+        <div class="lineup-unassigned-title">Unranked</div>
+        <div id="bucket-bp-unassigned" style="min-height:30px;"></div>
+      </div>
+    </div>
   </div>
 
   <!-- ═════════════════════ BETA MODEL TAB ═════════════════════ -->
@@ -855,14 +884,57 @@ function rotAdj(rot) {
   const map = { '1': -0.2, '2': -0.1, '3': 0, '4': 0.1, '5': 0.2 };
   return map[String(rot)] || 0;
 }
-function bullpenCombined(bpTier, awayWhip, homeWhip) {
-  const avgWhip = ((parseFloat(awayWhip)||1.35) + (parseFloat(homeWhip)||1.35)) / 2;
-  const isSoft = avgWhip >= 1.45;
-  if (!isSoft) return { adj: 0, note: 'Bullpen neutral (starters avg)' };
-  if (bpTier === 'gassed') return { adj: 0.4, note: 'Fire hazard: gassed pen + soft starters' };
-  if (bpTier === 'taxed')  return { adj: 0.15, note: 'Slight over lean: taxed pen + soft starters' };
-  if (bpTier === 'fresh')  return { adj: -0.15, note: 'Fresh pen suppresses: early reliever use likely' };
-  return { adj: 0, note: '' };
+// Starter tier from the assigned aces list (set in Tiers tab).
+//   'tier1'   -> tier 1 (elite / ace) — bullpen impact muted
+//   'tier2'   -> tier 2 (above avg)
+//   anything else (including 'default', unassigned, or blank) -> tier 3
+// Per Jordan's spec: every unranked starter is treated as tier 3 so the model
+// assumes bullpen exposure unless the pitcher has been explicitly promoted.
+function starterTierForPitcher(pitcherName) {
+  if (!pitcherName) return 'tier3';
+  const t = (acesData && acesData.pitchers) ? acesData.pitchers[pitcherName] : null;
+  if (t === 'tier1') return 'tier1';
+  if (t === 'tier2') return 'tier2';
+  return 'tier3';
+}
+
+// Per-team bullpen run delta, indexed by (starterTier, bullpenTier).
+// Derived from Jordan's matrix spec: T1 starter muffles bullpen tier entirely;
+// T2/T3 starters expose the bullpen asymmetrically. Per-team values; SUM both sides.
+// Game range: -1.0 (T2 starters + T1 pens both sides) to +3.0 (T3 starters + T3 pens both sides).
+const BP_STRENGTH_MATRIX = {
+  tier1: { tier1:  0.0, tier2: 0.0, tier3:  0.0 },
+  tier2: { tier1: -0.5, tier2: 0.0, tier3: +1.0 },
+  tier3: { tier1: -0.5, tier2: 0.0, tier3: +1.5 },
+};
+
+function bpCellAdj(starterTier, bpTier) {
+  const row = BP_STRENGTH_MATRIX[starterTier] || BP_STRENGTH_MATRIX.tier2;
+  const val = row[bpTier];
+  return typeof val === 'number' ? val : 0;
+}
+
+// Strength-based bullpen adjustment. Per-team (starter tier, bullpen tier) lookup, summed.
+// `awayPitcher` / `homePitcher` are the probable starter names (resolved against acesData).
+// The old `_bpTierFatigue` and WHIP args are accepted but ignored; kept for call-site
+// compatibility during the transition. Drop them once the fatigue dropdown is removed.
+function bullpenCombined(_bpTierFatigue, _awayWhip, _homeWhip, awayTeam, homeTeam, awayPitcher, homePitcher) {
+  const awayBp = (bullpenTierData && bullpenTierData.tiers && bullpenTierData.tiers[awayTeam]) || null;
+  const homeBp = (bullpenTierData && bullpenTierData.tiers && bullpenTierData.tiers[homeTeam]) || null;
+  if (!awayBp || !homeBp) {
+    const missing = [!awayBp && (awayTeam || 'away'), !homeBp && (homeTeam || 'home')].filter(Boolean).join(' + ');
+    return { adj: 0, note: `Bullpen strength unset (${missing}) — tier in admin` };
+  }
+  const awaySTier = starterTierForPitcher(awayPitcher);
+  const homeSTier = starterTierForPitcher(homePitcher);
+  const awayAdj = bpCellAdj(awaySTier, awayBp);
+  const homeAdj = bpCellAdj(homeSTier, homeBp);
+  const adj = awayAdj + homeAdj;
+  const fmt = (n) => (n >= 0 ? '+' : '') + n.toFixed(2);
+  const shortS = (t) => t === 'tier1' ? 'T1s' : t === 'tier2' ? 'T2s' : 'T3s';
+  const shortB = (t) => t === 'tier1' ? 'T1p' : t === 'tier2' ? 'T2p' : 'T3p';
+  const note = `${awayTeam||'AWY'} ${shortS(awaySTier)}+${shortB(awayBp)} ${fmt(awayAdj)} · ${homeTeam||'HOM'} ${shortS(homeSTier)}+${shortB(homeBp)} ${fmt(homeAdj)}`;
+  return { adj, note };
 }
 function dowAdj(dowVal) {
   const v = parseFloat(dowVal);
@@ -889,6 +961,8 @@ function getModelGames() {
     awayRot:   row.querySelector('.mg-away-rot')?.value || '3',
     homeRot:   row.querySelector('.mg-home-rot')?.value || '3',
     bpTier:    row.querySelector('.mg-bp')?.value || 'fresh',
+    awayPitcher: row.dataset.awayPitcher || '',
+    homePitcher: row.dataset.homePitcher || '',
   }));
 }
 
@@ -900,6 +974,8 @@ function addManualGame(data) {
   const idx = container.querySelectorAll('.model-game-row').length;
   const div = document.createElement('div');
   div.className = 'game-card model-game-row';
+  if (d.awayPitcher) div.dataset.awayPitcher = d.awayPitcher;
+  if (d.homePitcher) div.dataset.homePitcher = d.homePitcher;
   div.innerHTML = `
     <div class="game-card-header">
       <div style="display:flex;gap:6px;align-items:center;flex:1;">
@@ -972,12 +1048,16 @@ function updateGameAdj(row) {
   const awayRot  = row.querySelector('.mg-away-rot')?.value || '3';
   const homeRot  = row.querySelector('.mg-home-rot')?.value || '3';
   const bpTier   = row.querySelector('.mg-bp')?.value || 'fresh';
+  const awayTeam = row.querySelector('.mg-away')?.value?.trim().toUpperCase() || '';
+  const homeTeam = row.querySelector('.mg-home')?.value?.trim().toUpperCase() || '';
+  const awayPitcher = row.dataset.awayPitcher || '';
+  const homePitcher = row.dataset.homePitcher || '';
   const adjEl    = row.querySelector('.game-adj-val');
   const aWhipAdj = awayWhip ? whipAdj(awayWhip) : 0;
   const hWhipAdj = homeWhip ? whipAdj(homeWhip) : 0;
   const aRotAdj  = rotAdj(awayRot);
   const hRotAdj  = rotAdj(homeRot);
-  const bpObj    = bullpenCombined(bpTier, awayWhip ? String(awayWhip) : '1.35', homeWhip ? String(homeWhip) : '1.35');
+  const bpObj    = bullpenCombined(bpTier, awayWhip ? String(awayWhip) : '1.35', homeWhip ? String(homeWhip) : '1.35', awayTeam, homeTeam, awayPitcher, homePitcher);
   const total = aWhipAdj + hWhipAdj + aRotAdj + hRotAdj + bpObj.adj;
   adjEl.textContent = (total >= 0 ? '+' : '') + total.toFixed(2);
   adjEl.className = 'game-adj-val ' + (total > 0 ? 'adj-pos' : total < 0 ? 'adj-neg' : 'adj-neu');
@@ -1056,6 +1136,8 @@ async function autoLoadGameData() {
         awayWhip: awayStats.whip || '', homeWhip: homeStats.whip || '',
         awayRot: '3', homeRot: '3',
         bpTier,
+        awayPitcher: awayP?.fullName || '',
+        homePitcher: homeP?.fullName || '',
       });
     }
     if (oddsData?.games?.length) {
@@ -1166,7 +1248,7 @@ function runModel() {
     const homeWA = whipAdj(g.homeWhip);
     const awayRA = rotAdj(g.awayRot);
     const homeRA = rotAdj(g.homeRot);
-    const bpObj  = bullpenCombined(g.bpTier, g.awayWhip || '1.35', g.homeWhip || '1.35');
+    const bpObj  = bullpenCombined(g.bpTier, g.awayWhip || '1.35', g.homeWhip || '1.35', (g.away||'').toUpperCase(), (g.home||'').toUpperCase(), g.awayPitcher || '', g.homePitcher || '');
     const gameStarterAdj = awayWA + homeWA + awayRA + homeRA;
     const gameBullpenAdj = bpObj.adj;
     starterAdj += gameStarterAdj;
@@ -1260,6 +1342,7 @@ let acesData = { pitchers: {} };
 let allStartersCache = [];
 let todayStartersCache = [];
 let lineupData = { profiles: {} };
+let bullpenTierData = { tiers: {} };
 
 async function loadTiers() {
   try {
@@ -1268,12 +1351,14 @@ async function loadTiers() {
       const data = await res.json();
       acesData = data.aces || { pitchers: {} };
       lineupData = data.lineups || { profiles: {} };
+      bullpenTierData = data.bullpens || { tiers: {} };
     }
   } catch(e) {
     console.error('loadTiers fetch error:', e);
   }
-  // Always render lineup buckets — ALL_TEAMS is hardcoded, doesn't depend on API
+  // Always render tier buckets — ALL_TEAMS is hardcoded, doesn't depend on API
   renderLineupBuckets();
+  renderBullpenTierBuckets();
   // Load today's starters (needs acesData for tier lookup)
   await loadTodaysStarters();
   // Render all starters list (only if synced before)
@@ -1449,6 +1534,7 @@ function renderTodaysStarters() {
 }
 
 let draggedTeam = null;
+let draggedSource = null; // 'lineup' | 'bullpen'
 
 function renderLineupBuckets() {
   const buckets = { power_boom_bust: [], balanced: [], contact: [], unassigned: [] };
@@ -1460,7 +1546,7 @@ function renderLineupBuckets() {
 
   function chipHtml(team) {
     return `<span class="team-chip" draggable="true" data-team="${team}"
-      ondragstart="onChipDragStart(event,'${team}')"
+      ondragstart="onChipDragStart(event,'${team}','lineup')"
       ondragend="onChipDragEnd(event)">${team}</span>`;
   }
 
@@ -1481,14 +1567,53 @@ function renderLineupBuckets() {
   // Attach drop zone listeners to all buckets + unassigned
   for (const elId of Object.values(bucketIds)) {
     const el = document.getElementById(elId);
-    el.ondragover  = e => { e.preventDefault(); el.classList.add('drag-over'); };
+    el.ondragover  = e => { if (draggedSource === 'lineup') { e.preventDefault(); el.classList.add('drag-over'); } };
     el.ondragleave = e => el.classList.remove('drag-over');
-    el.ondrop      = e => { e.preventDefault(); el.classList.remove('drag-over'); onBucketDrop(elId); };
+    el.ondrop      = e => { if (draggedSource !== 'lineup') return; e.preventDefault(); el.classList.remove('drag-over'); onBucketDrop(elId); };
   }
 }
 
-function onChipDragStart(e, team) {
+function renderBullpenTierBuckets() {
+  const buckets = { tier1: [], tier2: [], tier3: [], unassigned: [] };
+  for (const team of ALL_TEAMS) {
+    const t = bullpenTierData.tiers[team];
+    if (t && buckets[t]) buckets[t].push(team);
+    else buckets.unassigned.push(team);
+  }
+
+  function chipHtml(team) {
+    return `<span class="team-chip" draggable="true" data-team="${team}"
+      ondragstart="onChipDragStart(event,'${team}','bullpen')"
+      ondragend="onChipDragEnd(event)">${team}</span>`;
+  }
+
+  const bucketIds = {
+    tier1: 'bucket-bp-tier1',
+    tier2: 'bucket-bp-tier2',
+    tier3: 'bucket-bp-tier3',
+    unassigned: 'bucket-bp-unassigned',
+  };
+
+  for (const [tier, elId] of Object.entries(bucketIds)) {
+    const el = document.getElementById(elId);
+    if (!el) continue;
+    const teams = buckets[tier];
+    el.innerHTML = teams.sort().map(chipHtml).join('') ||
+      (tier !== 'unassigned' ? `<span style="font-size:11px;color:var(--muted);">Drop teams here</span>` : '');
+  }
+
+  for (const elId of Object.values(bucketIds)) {
+    const el = document.getElementById(elId);
+    if (!el) continue;
+    el.ondragover  = e => { if (draggedSource === 'bullpen') { e.preventDefault(); el.classList.add('drag-over'); } };
+    el.ondragleave = e => el.classList.remove('drag-over');
+    el.ondrop      = e => { if (draggedSource !== 'bullpen') return; e.preventDefault(); el.classList.remove('drag-over'); onBullpenBucketDrop(elId); };
+  }
+}
+
+function onChipDragStart(e, team, source) {
   draggedTeam = team;
+  draggedSource = source || 'lineup';
   e.dataTransfer.effectAllowed = 'move';
   setTimeout(() => { if (e.target) e.target.classList.add('dragging'); }, 0);
 }
@@ -1496,6 +1621,7 @@ function onChipDragStart(e, team) {
 function onChipDragEnd(e) {
   if (e.target) e.target.classList.remove('dragging');
   draggedTeam = null;
+  draggedSource = null;
 }
 
 function onBucketDrop(elId) {
@@ -1529,6 +1655,63 @@ async function saveLineupBulk() {
   } catch(e) {
     showToast('Error: ' + e.message, 'err');
   }
+}
+
+function onBullpenBucketDrop(elId) {
+  if (!draggedTeam) return;
+  const tierMap = {
+    'bucket-bp-tier1': 'tier1',
+    'bucket-bp-tier2': 'tier2',
+    'bucket-bp-tier3': 'tier3',
+    'bucket-bp-unassigned': null,
+  };
+  const newTier = tierMap[elId];
+  if (newTier === null) {
+    delete bullpenTierData.tiers[draggedTeam];
+  } else if (newTier) {
+    bullpenTierData.tiers[draggedTeam] = newTier;
+  } else {
+    return;
+  }
+  renderBullpenTierBuckets();
+  saveBullpenTiersBulk();
+  const label = newTier === 'tier1' ? 'Tier 1 · Elite'
+              : newTier === 'tier2' ? 'Tier 2 · Average'
+              : newTier === 'tier3' ? 'Tier 3 · Poor'
+              : 'Unranked';
+  showToast(`${draggedTeam} bullpen → ${label}`, 'ok');
+}
+
+async function saveBullpenTiersBulk() {
+  try {
+    const res = await fetch('/api/tiers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'bulkBullpens', bulkBullpens: bullpenTierData.tiers })
+    });
+    const data = await res.json();
+    if (!data.ok) showToast('Save failed', 'err');
+  } catch(e) {
+    showToast('Error: ' + e.message, 'err');
+  }
+}
+
+// One-shot seed from the April 20, 2026 bullpen power rankings snapshot.
+// Overwrites any existing bullpen tier assignments. Used to bootstrap the blob.
+function seedBullpenTiersFromRankings() {
+  if (!confirm('Overwrite existing bullpen tiers with the Apr 20 power rankings snapshot?')) return;
+  const seed = {
+    ATL: 'tier1', SD: 'tier1', SEA: 'tier1', LAD: 'tier1', BAL: 'tier1',
+    MIL: 'tier1', CIN: 'tier1', MIA: 'tier1', NYY: 'tier1', PIT: 'tier1',
+    TEX: 'tier2', SF: 'tier2', CLE: 'tier2', PHI: 'tier2', TOR: 'tier2',
+    NYM: 'tier2', BOS: 'tier2', DET: 'tier2', COL: 'tier2', AZ: 'tier2',
+    LAA: 'tier3', CHC: 'tier3', HOU: 'tier3', STL: 'tier3', ATH: 'tier3',
+    TB: 'tier3', MIN: 'tier3', WSH: 'tier3', CWS: 'tier3', KC: 'tier3',
+  };
+  bullpenTierData.tiers = seed;
+  renderBullpenTierBuckets();
+  saveBullpenTiersBulk();
+  showToast('Seeded bullpen tiers from Apr 20 rankings', 'ok');
 }
 
 // ═════════════════════ ABBR + EXPORT ═════════════════════
