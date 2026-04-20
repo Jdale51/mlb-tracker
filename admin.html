@@ -1999,16 +1999,24 @@ function bpAdjScore(adj) {
 }
 
 function starterBlowupScore(whip, tierName) {
-  // tier: tier1=-1, tier2=0, default=check whip
+  // T1 suppresses scoring. T2 is neutral. T3 (default) can only be neutral
+  // or push toward overs based on WHIP — a low-WHIP pitcher who hasn't been
+  // graded as T2 or T1 is treated as noise (small sample / early season),
+  // never as a suppressor. The tier system owns the "good pitcher" signal;
+  // WHIP only triggers over signals for soft starters.
+  //
+  // T3 WHIP bands:
+  //   < 1.1       → 0  (anomalous-good for a default; treat as noise)
+  //   1.1 – 1.39  → +1 (anything not actually good is mild over)
+  //   ≥ 1.4       → +2 (soft starter, real over signal)
   let base = 0;
   if (tierName === 'tier1') base = -1;
   else if (tierName === 'tier2') base = 0;
   else {
-    // Default: use whip + hr9 proxy
     const w = parseFloat(whip) || 1.35;
-    if (w >= 1.60) base = 2;
-    else if (w >= 1.45) base = 1;
-    else if (w < 1.15) base = -1;
+    if (w >= 1.4) base = 2;
+    else if (w >= 1.1) base = 1;
+    // w < 1.1 stays at 0
   }
   return base;
 }
