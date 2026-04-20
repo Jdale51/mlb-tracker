@@ -83,8 +83,9 @@
   .beta-game-row{cursor:pointer;}
   .beta-game-breakdown{display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
   .beta-game-row.expanded .beta-game-breakdown{display:block;}
-  .beta-game-expand-icon{display:inline-block;transition:transform 0.2s;color:var(--muted);font-size:10px;margin-right:6px;}
-  .beta-game-row.expanded .beta-game-expand-icon{transform:rotate(90deg);}
+  .beta-game-expand-icon{display:inline-block;color:var(--muted);font-size:11px;margin-right:6px;width:10px;}
+  .beta-game-expand-icon::before{content:'▸';}
+  .beta-game-row.expanded .beta-game-expand-icon::before{content:'▾';}
   /* Game Log tab */
   .gl-chip{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.4px;padding:5px 9px;border-radius:14px;border:1px solid var(--border);background:var(--surface);color:var(--muted);cursor:pointer;transition:all 0.15s;}
   .gl-chip.active{background:var(--surface2);color:var(--text);border-color:var(--accent);}
@@ -2131,7 +2132,23 @@ function renderBetaGameRow(g) {
   const container = document.getElementById('beta-games-list');
   const placeholder = container.querySelector('.placeholder-msg, div[style*="text-align:center"]');
   if (placeholder) placeholder.remove();
-  const scored = scoreGame(g);
+  // Compute scores fresh. If scoreGame returns anything weird, fall back to
+  // the persisted scored (from blob restore) or zeros so the row still renders.
+  let scored;
+  try {
+    scored = scoreGame(g);
+  } catch(e) {
+    scored = g.scored || { total: 0, label: 'neutral', s1: 0, s2: 0, s3: 0, s4: 0 };
+  }
+  // Coerce any NaN / undefined / missing fields to 0 so the innerHTML never
+  // contains "NaN" or empty values that make rows look broken.
+  const s1 = Number.isFinite(scored?.s1) ? scored.s1 : 0;
+  const s2 = Number.isFinite(scored?.s2) ? scored.s2 : 0;
+  const s3 = Number.isFinite(scored?.s3) ? scored.s3 : 0;
+  const s4 = Number.isFinite(scored?.s4) ? scored.s4 : 0;
+  const total = Number.isFinite(scored?.total) ? scored.total : (s1 + s2 + s3 + s4);
+  const label = scored?.label || (total >= 3 ? 'ceiling' : total <= -3 ? 'floor' : 'neutral');
+
   const tierLabel = t => t === 'tier1' ? '<span class="gold">T1</span>' : t === 'tier2' ? '<span class="silver">T2</span>' : '<span style="color:var(--muted)">T3</span>';
   const bpLabel = g.bpAdj != null ? `${g.bpAdj >= 0 ? '+' : ''}${g.bpAdj}` : '—';
   const p12Label = g.p12 != null ? ` · P12+: ${g.p12}%` : '';
@@ -2151,21 +2168,21 @@ function renderBetaGameRow(g) {
   div.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:900;">
-        <span class="beta-game-expand-icon">▸</span>${g.away} @ ${g.home} <span style="color:var(--muted);font-size:12px;">O/U ${g.ou||'—'}</span>
+        <span class="beta-game-expand-icon"></span>${g.away} @ ${g.home} <span style="color:var(--muted);font-size:12px;">O/U ${g.ou||'—'}</span>
       </div>
-      <div class="beta-score-badge ${scored.label}" data-matchup="${g.matchup}">${scored.total >= 0 ? '+' : ''}${scored.total}</div>
+      <div class="beta-score-badge ${label}" data-matchup="${g.matchup}">${total >= 0 ? '+' : ''}${total}</div>
     </div>
     <div class="beta-game-breakdown">
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;font-size:10px;color:var(--muted);text-align:center;">
-        <div>Park/Weather<br><span style="color:${sColor(scored.s1)};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${sFmt(scored.s1)}</span></div>
-        <div>Starters<br><span style="color:${sColor(scored.s2)};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${sFmt(scored.s2)}</span></div>
-        <div>Bullpen<br><span style="color:${sColor(scored.s3)};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${sFmt(scored.s3)}</span></div>
-        <div>Lineups<br><span style="color:${sColor(scored.s4)};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${sFmt(scored.s4)}</span></div>
+        <div>Park/Weather<br><span style="color:${sColor(s1)};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${sFmt(s1)}</span></div>
+        <div>Starters<br><span style="color:${sColor(s2)};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${sFmt(s2)}</span></div>
+        <div>Bullpen<br><span style="color:${sColor(s3)};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${sFmt(s3)}</span></div>
+        <div>Lineups<br><span style="color:${sColor(s4)};font-family:'Barlow Condensed',sans-serif;font-size:13px;">${sFmt(s4)}</span></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;font-size:10px;color:var(--muted);text-align:center;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">
         <div>BP adj<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:12px;">${bpLabel}</span></div>
         <div>Tiers<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:12px;">${tierLabel(g.awayTier)}/${tierLabel(g.homeTier)}</span></div>
-        <div>BP Tier<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:12px;">${g.bpTier}</span></div>
+        <div>BP Tier<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:12px;">${g.bpTier||'—'}</span></div>
         <div>Lineups<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:10px;">${(g.awayLineup||'—').replace('power_boom_bust','⚡')}/${(g.homeLineup||'—').replace('power_boom_bust','⚡')}</span></div>
       </div>
       ${p12Label ? `<div style="font-size:10px;color:var(--muted);text-align:right;margin-top:6px;">${p12Label}</div>` : ''}
