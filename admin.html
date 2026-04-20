@@ -495,7 +495,7 @@
           <span id="beta-games-summary-icon" style="display:inline-block;transition:transform 0.2s;margin-right:6px;">▸</span><span id="beta-games-summary-text">Loaded inputs</span>
         </summary>
         <div id="beta-games-list" style="margin-top:8px;">
-          <div style="color:var(--muted);font-size:12px;text-align:center;padding:12px;">
+          <div class="beta-placeholder" style="color:var(--muted);font-size:12px;text-align:center;padding:12px;">
             Tap <strong>Auto-Load Inputs</strong> to pull today's games, or wait for BP data to be pasted above.
           </div>
         </div>
@@ -2019,14 +2019,34 @@ function lineupScore(profile) {
   return 0;
 }
 
-function bullpenScore(bpTier, awayWhip, homeWhip) {
-  const avgWhip = ((parseFloat(awayWhip)||1.35) + (parseFloat(homeWhip)||1.35)) / 2;
-  const isSoft = avgWhip >= 1.45;
-  if (!isSoft) return 0;
-  if (bpTier === 'gassed') return 2;
-  if (bpTier === 'taxed') return 1;
-  if (bpTier === 'fresh') return -1;
+// Per-team bullpen impact. Only affects Tier 2 and Tier 3 (default) starters —
+// a gassed pen with a T3 starter means the soft starter has to stay in longer
+// AND the pen amplifies damage once called. A fresh pen with a T3 starter
+// suppresses because managers go to the pen early. Tier 1 pitchers typically
+// go 6, so even a gassed pen survives the last 3 innings → no impact.
+// Taxed washes entirely; we only move on the extremes.
+//
+// Returns per-team contribution (signed, positive = more runs expected).
+// Combined total capped at ±2 after summing both teams in bullpenScore.
+function bullpenContribution(starterTier, bpTier) {
+  if (starterTier === 'tier1') return 0; // T1 goes 6, pen doesn't matter
+  if (bpTier === 'taxed') return 0;      // Middle state washes
+  const mag = starterTier === 'tier2' ? 1 : 2; // tier2 = ±1, default/T3 = ±2
+  if (bpTier === 'gassed') return +mag;
+  if (bpTier === 'fresh')  return -mag;
   return 0;
+}
+
+function bullpenScore(g) {
+  // Per-team pairing: away starter × away pen, home starter × home pen.
+  // Backward-compat: if per-team bp tiers are missing (older blobs), fall
+  // back to the combined g.bpTier so restored games still score.
+  const awayBp = g.awayBpTier || g.bpTier || 'fresh';
+  const homeBp = g.homeBpTier || g.bpTier || 'fresh';
+  const awayContribution = bullpenContribution(g.awayTier || 'default', awayBp);
+  const homeContribution = bullpenContribution(g.homeTier || 'default', homeBp);
+  const raw = awayContribution + homeContribution;
+  return Math.max(-2, Math.min(2, raw));
 }
 
 function scoreGame(g) {
@@ -2034,7 +2054,7 @@ function scoreGame(g) {
   const awayStarter = starterBlowupScore(g.awayWhip, g.awayTier);
   const homeStarter = starterBlowupScore(g.homeWhip, g.homeTier);
   const s2 = Math.max(-2, Math.min(2, awayStarter + homeStarter)); // cap at ±2
-  const s3 = bullpenScore(g.bpTier, g.awayWhip, g.homeWhip);
+  const s3 = bullpenScore(g);
   const s4 = Math.max(-1, Math.min(1, lineupScore(g.awayLineup) + lineupScore(g.homeLineup)));
   const total = s1 + s2 + s3 + s4;
   return { total, s1, s2, s3, s4,
@@ -2106,7 +2126,10 @@ async function autoLoadBetaGames() {
         bpAdj: bpEntry?.runAdj ?? null,
         p12: bpEntry?.p12 ?? null,
         awayWhip: awayStats.whip || '', homeWhip: homeStats.whip || '',
-        awayTier, homeTier, bpTier: combinedBp,
+        awayTier, homeTier,
+        // Per-team bullpen tiers drive the new per-team bullpenContribution logic.
+        // Combined bpTier kept for legacy display, export, and GST-tab flows.
+        awayBpTier, homeBpTier, bpTier: combinedBp,
         awayLineup, homeLineup,
         awayName: awayP?.fullName || 'TBD', homeName: homeP?.fullName || 'TBD',
       };
@@ -2130,7 +2153,13 @@ async function autoLoadBetaGames() {
 
 function renderBetaGameRow(g) {
   const container = document.getElementById('beta-games-list');
-  const placeholder = container.querySelector('.placeholder-msg, div[style*="text-align:center"]');
+  // Remove the initial "Tap Auto-Load Inputs" placeholder. IMPORTANT: the
+  // previous selector `div[style*="text-align:center"]` also matched centered
+  // divs inside freshly-rendered game rows, which caused subsequent renders
+  // to delete pieces of earlier rows (pattern: first 4 rows empty, 5th row
+  // shows partial data). Use a dedicated class so only the real placeholder
+  // is removed.
+  const placeholder = container.querySelector('.beta-placeholder');
   if (placeholder) placeholder.remove();
   // Compute scores fresh. If scoreGame returns anything weird, fall back to
   // the persisted scored (from blob restore) or zeros so the row still renders.
@@ -2182,7 +2211,7 @@ function renderBetaGameRow(g) {
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;font-size:10px;color:var(--muted);text-align:center;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">
         <div>BP adj<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:12px;">${bpLabel}</span></div>
         <div>Tiers<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:12px;">${tierLabel(g.awayTier)}/${tierLabel(g.homeTier)}</span></div>
-        <div>BP Tier<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:12px;">${g.bpTier||'—'}</span></div>
+        <div>BP Tier<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:11px;">${(g.awayBpTier||g.bpTier||'—').slice(0,4)}/${(g.homeBpTier||g.bpTier||'—').slice(0,4)}</span></div>
         <div>Lineups<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:10px;">${(g.awayLineup||'—').replace('power_boom_bust','⚡')}/${(g.homeLineup||'—').replace('power_boom_bust','⚡')}</span></div>
       </div>
       ${p12Label ? `<div style="font-size:10px;color:var(--muted);text-align:right;margin-top:6px;">${p12Label}</div>` : ''}
@@ -2205,7 +2234,7 @@ function updateBetaGamesSummary() {
 
 function clearBetaGames() {
   betaGames = [];
-  document.getElementById('beta-games-list').innerHTML = `<div style="color:var(--muted);font-size:12px;text-align:center;padding:12px;">Tap <strong>Auto-Load Inputs</strong> to pull today's games.</div>`;
+  document.getElementById('beta-games-list').innerHTML = `<div class="beta-placeholder" style="color:var(--muted);font-size:12px;text-align:center;padding:12px;">Tap <strong>Auto-Load Inputs</strong> to pull today's games.</div>`;
   document.getElementById('beta-results').style.display = 'none';
   updateBetaGamesSummary();
 }
@@ -2251,7 +2280,9 @@ function runBetaModel() {
       matchup: g.matchup, away: g.away, home: g.home, ou: g.ou,
       bpAdj: g.bpAdj, p12: g.p12,
       awayTier: g.awayTier, homeTier: g.homeTier,
-      bpTier: g.bpTier, awayLineup: g.awayLineup, homeLineup: g.homeLineup,
+      awayWhip: g.awayWhip, homeWhip: g.homeWhip,
+      awayBpTier: g.awayBpTier, homeBpTier: g.homeBpTier, bpTier: g.bpTier,
+      awayLineup: g.awayLineup, homeLineup: g.homeLineup,
       scored: { total: g.scored.total, label: g.scored.label, s1: g.scored.s1, s2: g.scored.s2, s3: g.scored.s3, s4: g.scored.s4 },
     }))
   });
