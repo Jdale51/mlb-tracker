@@ -222,7 +222,6 @@
 
   <div class="admin-tabs">
     <button class="admin-tab active" onclick="switchAdminTab('manage')">Manage</button>
-    <button class="admin-tab" onclick="switchAdminTab('model')">Model</button>
     <button class="admin-tab" onclick="switchAdminTab('beta')">⚡ Beta</button>
     <button class="admin-tab" onclick="switchAdminTab('altlines')">📊 Alt Lines</button>
     <button class="admin-tab" onclick="switchAdminTab('tiers')">Tiers</button>
@@ -815,7 +814,7 @@ function checkPin() {
 document.getElementById('pin-input').addEventListener('input', checkPin);
 
 function switchAdminTab(tab) {
-  const tabs = ['manage','model','beta','altlines','tiers','outliers','gamelog','export'];
+  const tabs = ['manage','beta','altlines','tiers','outliers','gamelog','export'];
   document.querySelectorAll('.admin-tab').forEach((el, i) => {
     el.classList.toggle('active', tabs[i] === tab);
   });
@@ -1522,7 +1521,7 @@ function renderTodaysStarters() {
     <div class="pitcher-row">
       <div class="pitcher-row-info">
         <div class="pitcher-name">${s.name}</div>
-        <div class="pitcher-meta">${s.team} vs ${s.opp}</div>
+        <div class="pitcher-meta"><strong style="color:var(--text);">${s.team}</strong> vs ${s.opp}</div>
       </div>
       <select class="tier-select" data-tier="${s.tier}" onchange="updatePitcherTier('${s.name.replace(/'/g, "\\'")}', this.value)">
         <option value="default" ${s.tier === 'default' ? 'selected' : ''}>Tier 3</option>
@@ -2210,48 +2209,46 @@ function lineupScore(profile) {
   return 0;
 }
 
-// Per-team bullpen impact. Only affects Tier 2 and Tier 3 (default) starters —
-// a gassed pen with a T3 starter means the soft starter has to stay in longer
-// AND the pen amplifies damage once called. A fresh pen with a T3 starter
-// suppresses because managers go to the pen early. Tier 1 pitchers typically
-// go 6, so even a gassed pen survives the last 3 innings → no impact.
-// Taxed washes entirely; we only move on the extremes.
+// Per-team bullpen impact using the strength matrix. Mirrors BP_STRENGTH_MATRIX
+// in the GST calculator so the two systems stay in sync.
+//   Tier 1 starter: bullpen irrelevant (goes ~6 IP regardless of pen strength)
+//   Tier 2 starter: T1 pen -0.5, T2 pen 0.0, T3 pen +1.0
+//   Tier 3 starter: T1 pen -0.5, T2 pen 0.0, T3 pen +1.5
+// Game range = -1.0 (both T2/T3 starters vs T1 pens) to +3.0 (both T3 starters vs T3 pens).
 //
-// ASYMMETRIC: gassed pulls stronger than fresh suppresses. Reasoning — a
-// gassed pen paired with a soft starter can turn a 5-run game into a blowout
-// (no ceiling on runs scored), while a fresh pen with a soft starter just
-// means a quicker hook (4-5 run games don't become 2-run games; opposing
-// offense still hits).
-//
-// Magnitudes:
-//   Tier 1: 0 regardless (goes 6 innings)
-//   Tier 2: gassed = +1, fresh = -0.5, taxed = 0
-//   Tier 3: gassed = +2, fresh = -1,   taxed = 0
-//
-// Returns per-team contribution (signed, positive = more runs expected).
-// Combined total capped at ±2 after summing both teams in bullpenScore.
+// Accepts either the new strength tiers ('tier1'/'tier2'/'tier3') or legacy
+// 'default'/unknown values. Legacy fatigue labels ('fresh'/'taxed'/'gassed')
+// from older saved blobs fall through to 0 rather than crash the view.
 function bullpenContribution(starterTier, bpTier) {
-  if (starterTier === 'tier1') return 0; // T1 goes 6, pen doesn't matter
-  if (bpTier === 'taxed') return 0;      // Middle state washes
-  if (bpTier === 'gassed') {
-    return starterTier === 'tier2' ? 1 : 2; // +1 for T2, +2 for T3/default
-  }
-  if (bpTier === 'fresh') {
-    return starterTier === 'tier2' ? -0.5 : -1; // halved — suppression is weaker than blowup
-  }
-  return 0;
+  const sKey = starterTier === 'tier1' ? 'tier1'
+             : starterTier === 'tier2' ? 'tier2'
+             : 'tier3'; // 'default', missing, or anything else → tier 3
+  const bKey = bpTier === 'tier1' ? 'tier1'
+             : bpTier === 'tier2' ? 'tier2'
+             : bpTier === 'tier3' ? 'tier3'
+             : null; // legacy fatigue labels or unset → no contribution
+  if (!bKey) return 0;
+  const matrix = {
+    tier1: { tier1:  0.0, tier2: 0.0, tier3:  0.0 },
+    tier2: { tier1: -0.5, tier2: 0.0, tier3: +1.0 },
+    tier3: { tier1: -0.5, tier2: 0.0, tier3: +1.5 },
+  };
+  return matrix[sKey][bKey];
 }
 
 function bullpenScore(g) {
   // Per-team pairing: away starter × away pen, home starter × home pen.
   // Backward-compat: if per-team bp tiers are missing (older blobs), fall
   // back to the combined g.bpTier so restored games still score.
-  const awayBp = g.awayBpTier || g.bpTier || 'fresh';
-  const homeBp = g.homeBpTier || g.bpTier || 'fresh';
+  const awayBp = g.awayBpTier || g.bpTier || null;
+  const homeBp = g.homeBpTier || g.bpTier || null;
   const awayContribution = bullpenContribution(g.awayTier || 'default', awayBp);
   const homeContribution = bullpenContribution(g.homeTier || 'default', homeBp);
+  // Clamp to the matrix's natural game range: -1.0 (T1 pens both sides) to +3.0
+  // (T3 pens both sides). No artificial ±2 cap — Jordan's spec explicitly
+  // allows game impacts up to 3.
   const raw = awayContribution + homeContribution;
-  return Math.max(-2, Math.min(2, raw));
+  return Math.max(-1, Math.min(3, raw));
 }
 
 function scoreGame(g) {
@@ -2260,7 +2257,7 @@ function scoreGame(g) {
   const homeStarter = starterBlowupScore(g.homeWhip, g.homeTier);
   const s2 = Math.max(-2, Math.min(2, awayStarter + homeStarter)); // cap at ±2
   const s3 = bullpenScore(g);
-  const s4 = Math.max(-1, Math.min(1, lineupScore(g.awayLineup) + lineupScore(g.homeLineup)));
+  const s4 = lineupScore(g.awayLineup) + lineupScore(g.homeLineup);
   const total = s1 + s2 + s3 + s4;
   return { total, s1, s2, s3, s4,
     label: total >= 3 ? 'ceiling' : total <= -3 ? 'floor' : 'neutral' };
@@ -2315,10 +2312,11 @@ async function autoLoadBetaGames() {
       const homeP = g.teams.home.probablePitcher;
       const awayStats = awayP ? (pitcherStats[awayP.id] || {}) : {};
       const homeStats = homeP ? (pitcherStats[homeP.id] || {}) : {};
-      const awayBpTier = bpData[awayAbbr]?.tier || 'fresh';
-      const homeBpTier = bpData[homeAbbr]?.tier || 'fresh';
-      const combinedBp = awayBpTier === 'gassed' || homeBpTier === 'gassed' ? 'gassed'
-                       : awayBpTier === 'taxed' || homeBpTier === 'taxed' ? 'taxed' : 'fresh';
+      const awayBpTier = (bullpenTierData?.tiers?.[awayAbbr]) || null;
+      const homeBpTier = (bullpenTierData?.tiers?.[homeAbbr]) || null;
+      // Keep combined bpTier around for legacy export rows. Null when either
+      // team is unranked so scoring falls through to 0 rather than guessing.
+      const combinedBp = (awayBpTier && homeBpTier) ? awayBpTier : null;
       const matchup = `${awayAbbr}@${homeAbbr}`;
       const bpEntry = bpGameData[matchup];
       const awayTier = acesData.pitchers[awayP?.fullName] || 'default';
@@ -2384,6 +2382,10 @@ function renderBetaGameRow(g) {
   const label = scored?.label || (total >= 3 ? 'ceiling' : total <= -3 ? 'floor' : 'neutral');
 
   const tierLabel = t => t === 'tier1' ? '<span class="gold">T1</span>' : t === 'tier2' ? '<span class="silver">T2</span>' : '<span style="color:var(--muted)">T3</span>';
+  // Strength-tier label for the bullpen row (plain text, no color class).
+  const bpTierLabel = t => t === 'tier1' ? 'T1' : t === 'tier2' ? 'T2' : t === 'tier3' ? 'T3' : '—';
+  // Lineup emoji map: boom-bust ⚡, balanced ⚖️, contact ❄️, unset —
+  const lineupEmoji = p => p === 'power_boom_bust' ? '⚡' : p === 'balanced' ? '⚖️' : p === 'contact' ? '❄️' : '—';
   const bpLabel = g.bpAdj != null ? `${g.bpAdj >= 0 ? '+' : ''}${g.bpAdj}` : '—';
   const p12Label = g.p12 != null ? ` · P12+: ${g.p12}%` : '';
 
@@ -2422,8 +2424,8 @@ function renderBetaGameRow(g) {
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;font-size:10px;color:var(--muted);text-align:center;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">
         <div>BP adj<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:12px;">${bpLabel}</span></div>
         <div>Tiers<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:12px;">${tierLabel(g.awayTier)}/${tierLabel(g.homeTier)}</span></div>
-        <div>BP Tier<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:11px;">${(g.awayBpTier||g.bpTier||'—').slice(0,4)}/${(g.homeBpTier||g.bpTier||'—').slice(0,4)}</span></div>
-        <div>Lineups<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:10px;">${(g.awayLineup||'—').replace('power_boom_bust','⚡')}/${(g.homeLineup||'—').replace('power_boom_bust','⚡')}</span></div>
+        <div>BP Tier<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:12px;">${bpTierLabel(g.awayBpTier)}/${bpTierLabel(g.homeBpTier)}</span></div>
+        <div>Lineups<br><span style="color:var(--text);font-family:'Barlow Condensed',sans-serif;font-size:14px;">${lineupEmoji(g.awayLineup)}/${lineupEmoji(g.homeLineup)}</span></div>
       </div>
       ${p12Label ? `<div style="font-size:10px;color:var(--muted);text-align:right;margin-top:6px;">${p12Label}</div>` : ''}
     </div>
@@ -2815,10 +2817,39 @@ function renderAltCard(g, keyPoints) {
   const byPoint = {};
   for (const r of g.alts.ladder) byPoint[r.point] = r;
 
+  // Merge the main line into the ladder. Books publish the current main line
+  // via the `totals` market, not `alternate_totals`, so if DK's current line
+  // is 8.5 it often won't appear in the alt ladder — the row shows as a
+  // dashed blank. Synthesize a ladder-shaped row from g.mainLine so it
+  // renders like every other row.
+  let mainPoint = null;
+  if (g.mainLine && g.mainLine.point != null) {
+    mainPoint = g.mainLine.point;
+    if (!byPoint[mainPoint]) {
+      byPoint[mainPoint] = {
+        point: mainPoint,
+        overPrice: g.mainLine.overPrice ?? null,
+        underPrice: g.mainLine.underPrice ?? null,
+        overImplied: g.mainLine.overImplied ?? null,
+        underImplied: g.mainLine.underImplied ?? null,
+        overFair: g.mainLine.overFair ?? null,
+        underFair: g.mainLine.underFair ?? null,
+        isMainLine: true,
+      };
+    } else {
+      // Alt ladder already has a row at this point — keep it but tag as main.
+      byPoint[mainPoint] = { ...byPoint[mainPoint], isMainLine: true };
+    }
+  }
+
   // Union of key points (always shown) + any points DK actually returned (e.g. 16.5, 3.5)
-  const returnedPoints = g.alts.ladder.map(r => r.point);
-  const allPoints = Array.from(new Set([...keyPoints, ...returnedPoints]))
-    .sort((a, b) => a - b);
+  // + the main-line point (in case it sits off the KEY_POINTS grid, e.g. 8.0 or 9.0).
+  const returnedPoints = Object.keys(byPoint).map(parseFloat);
+  const allPoints = Array.from(new Set([
+    ...keyPoints,
+    ...returnedPoints,
+    ...(mainPoint != null ? [mainPoint] : []),
+  ])).sort((a, b) => a - b);
 
   // Show rows for every point in the union
   const rows = allPoints.map(p => {
@@ -2836,9 +2867,15 @@ function renderAltCard(g, keyPoints) {
     // Highlight extreme tails (>70% or <30%)
     const overColor = overFairPct > 0.7 ? 'var(--green)' : overFairPct < 0.3 ? 'var(--muted)' : 'var(--text)';
     const underColor = underFairPct > 0.7 ? 'var(--blue)' : underFairPct < 0.3 ? 'var(--muted)' : 'var(--text)';
+    // Main-line row: subtle accent background + "MAIN" chip next to the point
+    // so you can see at a glance which row is the current posted line.
+    const rowBg = r.isMainLine ? 'background:rgba(245,197,24,0.07);' : '';
+    const mainChip = r.isMainLine
+      ? '<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:9px;font-weight:700;letter-spacing:0.5px;color:var(--accent);border:1px solid var(--accent);border-radius:3px;padding:0 4px;margin-left:6px;opacity:0.9;">MAIN</span>'
+      : '';
     return `
-      <tr style="border-top:1px solid var(--border);">
-        <td style="padding:5px 6px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;">${p}</td>
+      <tr style="border-top:1px solid var(--border);${rowBg}">
+        <td style="padding:5px 6px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;">${p}${mainChip}</td>
         <td style="padding:5px 6px;font-size:11px;color:var(--muted);text-align:right;">${fmtOdds(r.overPrice)}</td>
         <td style="padding:5px 6px;font-size:12px;color:${overColor};text-align:right;font-weight:600;">${fmtPct(overFairPct)}</td>
         <td style="padding:5px 6px;font-size:11px;color:var(--muted);text-align:right;">${fmtOdds(r.underPrice)}</td>
