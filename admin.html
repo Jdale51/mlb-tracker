@@ -2192,7 +2192,7 @@ function starterBlowupScore(whip, tierName) {
   //   1.1 – 1.39  → +1 (anything not actually good is mild over)
   //   ≥ 1.4       → +2 (soft starter, real over signal)
   let base = 0;
-  if (tierName === 'tier1') base = -1;
+  if (tierName === 'tier1') base = -1.5;
   else if (tierName === 'tier2') base = 0;
   else {
     const w = parseFloat(whip) || 1.35;
@@ -2255,7 +2255,7 @@ function scoreGame(g) {
   const s1 = bpAdjScore(g.bpAdj);
   const awayStarter = starterBlowupScore(g.awayWhip, g.awayTier);
   const homeStarter = starterBlowupScore(g.homeWhip, g.homeTier);
-  const s2 = Math.max(-2, Math.min(2, awayStarter + homeStarter)); // cap at ±2
+  const s2 = Math.max(-3, Math.min(3, awayStarter + homeStarter)); // ±3 — bullpen matrix layers on top to mute (T1 pen) or compound (T3 pen)
   const s3 = bullpenScore(g);
   const s4 = lineupScore(g.awayLineup) + lineupScore(g.homeLineup);
   const total = s1 + s2 + s3 + s4;
