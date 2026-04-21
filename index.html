@@ -996,7 +996,7 @@ function renderStartersTable() {
     return `<tr>
       <td>
         <div class="sp-name">${tierBadge(r.name)}${r.name}${trendEmoji}</div>
-        <div class="sp-team">${r.teamAbbr} vs ${r.oppAbbr}</div>
+        <div class="sp-team"><strong style="color:var(--text);">${r.teamAbbr}</strong> vs ${r.oppAbbr}</div>
       </td>
       <td>${r.l5Wl}</td>
       <td class="${l5EraCls}">${r.l5Era}</td>
