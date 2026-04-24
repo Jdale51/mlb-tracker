@@ -2324,11 +2324,21 @@ function clearBPInput() {
 let betaGames = []; // [{ matchup, away, home, ou, bpAdj, awayWhip, homeWhip, awayTier, homeTier, bpTier, awayLineup, homeLineup }]
 
 function bpAdjScore(adj) {
+  // Clean 0.5-step bands aligned with other half-point model components.
+  //   |adj| < 0.25          → 0     (neutral)
+  //   0.25 ≤ |adj| < 0.75   → ±0.5  (mild)
+  //   0.75 ≤ |adj| < 1.00   → ±1    (meaningful)
+  //   1.00 ≤ |adj| < 1.25   → ±1.5  (strong)
+  //   |adj| ≥ 1.25          → ±2    (extreme, capped)
   if (adj == null) return 0;
-  if (adj >= 0.75) return 2;
-  if (adj >= 0.30) return 1;
-  if (adj <= -0.75) return -2;
-  if (adj <= -0.30) return -1;
+  if (adj >= 1.25) return 2;
+  if (adj >= 1.00) return 1.5;
+  if (adj >= 0.75) return 1;
+  if (adj >= 0.25) return 0.5;
+  if (adj <= -1.25) return -2;
+  if (adj <= -1.00) return -1.5;
+  if (adj <= -0.75) return -1;
+  if (adj <= -0.25) return -0.5;
   return 0;
 }
 
