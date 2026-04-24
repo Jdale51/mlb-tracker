@@ -53,20 +53,23 @@
   .modal-radio.active{border-color:var(--accent);color:var(--accent);background:rgba(245,197,24,0.08);}
   .modal-msg{font-size:12px;margin-top:8px;color:var(--green);}
 
-  /* Open-line badge (game card) */
-  .open-badge{display:inline-flex;align-items:center;gap:4px;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.5px;padding:2px 8px;border-radius:3px;border:1px solid rgba(255,255,255,0.2);color:var(--text);background:rgba(255,255,255,0.04);margin-left:6px;text-transform:uppercase;}
-  .open-badge .open-lbl{color:rgba(240,242,247,0.6);font-weight:600;}
-  .open-badge .open-val{color:var(--text);font-weight:900;}
+  .gtime{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.5px;color:var(--muted);text-transform:uppercase;}
+
+  /* Open-line display (game card) — no box, inline text */
+  .open-badge{display:inline-flex;align-items:center;gap:5px;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.5px;padding:0;margin-left:8px;text-transform:uppercase;}
+  .open-badge .open-lbl{color:var(--muted);font-weight:500;}
+  .open-badge .open-val{color:var(--text);font-weight:700;}
   .tabs{display:flex;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}
   .tab{padding:11px 18px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;cursor:pointer;color:var(--muted);border:none;background:transparent;border-bottom:3px solid transparent;}
   .tab.active{color:var(--text);border-bottom-color:var(--accent);}
-  .total-bar{background:var(--surface2);border-bottom:1px solid var(--border);padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;text-align:center;}
+  .total-bar{background:var(--surface2);border-bottom:1px solid var(--border);padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;text-align:center;align-items:start;}
   .total-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;margin-bottom:2px;}
   .total-num{font-family:'Barlow Condensed',sans-serif;font-size:42px;font-weight:900;color:var(--accent);line-height:1;letter-spacing:-1px;}
   .total-num.gs{color:#B06AFF;}
   .total-meta{font-size:10px;color:var(--muted);line-height:1.7;margin-top:3px;}
-  .slate-pill{display:inline-block;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--text);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;letter-spacing:0.5px;padding:3px 9px;border-radius:4px;text-transform:uppercase;margin-top:6px;}
-  .slate-sub{font-size:10px;color:var(--muted);margin-top:5px;font-family:'Barlow Condensed',sans-serif;letter-spacing:0.3px;}
+  .slate-pill{display:inline-block;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--text);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:10px;letter-spacing:0.4px;padding:3px 8px;border-radius:4px;text-transform:uppercase;margin-top:6px;white-space:nowrap;}
+  .slate-sub{font-size:10px;color:var(--text);margin-top:5px;font-family:'Barlow Condensed',sans-serif;letter-spacing:0.3px;white-space:nowrap;}
+  .slate-sub-inner{color:var(--text);}
   .slate-refresh{display:inline-flex;align-items:center;gap:4px;background:transparent;border:none;color:var(--muted);cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:10px;padding:0 0 0 4px;letter-spacing:0.3px;}
   .slate-refresh:hover{color:var(--text);}
   .slate-bar{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border-bottom:1px solid var(--border);}
@@ -83,11 +86,10 @@
   .sf{background:rgba(107,114,128,0.2);color:var(--muted);}
   .sl{background:rgba(255,59,59,0.15);color:var(--red);}
   .su{background:rgba(43,127,255,0.15);color:var(--blue);}
-  .gtime{font-size:11px;color:var(--muted);}
 
-  .gbody{display:flex;align-items:center;padding:10px 12px;}
-  .team{flex:1;}
-  .team.r{text-align:right;}
+  .gbody{display:flex;align-items:flex-start;padding:10px 12px;}
+  .team{flex:1;display:flex;flex-direction:column;}
+  .team.r{text-align:right;align-items:flex-end;}
   .tabbr{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:var(--text);}
   .tabbr.w{color:var(--green);}
   .tfull{font-size:10px;color:var(--muted);margin-top:1px;}
@@ -291,9 +293,10 @@
       <img src="logo.png" alt="The Grand Salami Tracker" style="height:82px;width:auto;">
     </div>
     <div>
-      <div class="total-lbl">Grand Salami</div>
+      <div class="total-lbl">Grand Salami Line</div>
       <div class="total-num gs" id="gs-num">—</div>
-      <div class="total-meta" id="gs-meta">Waiting for lines...</div>
+      <div id="gs-breakdown" class="slate-pill" style="display:none;"></div>
+      <div class="slate-sub" id="gs-meta"><span class="slate-sub-inner">Waiting for lines...</span></div>
     </div>
   </div>
   <div class="slate-bar" id="today-stats">
@@ -714,6 +717,9 @@ function renderSlateTotal(){
   function refreshBtn(){
     return ` <button class="slate-refresh" onclick="refreshScores();refreshOdds();" title="Refresh">↻</button>`;
   }
+  function buildBreakdown(bd){
+    return `${bd.final} Final · ${bd.live} Live · ${bd.upcoming} Upcoming`;
+  }
 
   // If all games are final we can compute the total purely from scores — no odds needed.
   const allFinal = games.length > 0 && games.every(g => g.status === 'final' && g.awayR !== null && g.homeR !== null);
@@ -721,14 +727,15 @@ function renderSlateTotal(){
     const total = games.reduce((s, g) => s + g.awayR + g.homeR, 0);
     document.getElementById('slate-num').textContent = total.toFixed(1);
     breakdownEl.style.display = 'inline-block';
-    breakdownEl.textContent = `${games.length} Final`;
-    metaEl.innerHTML = `Sum of actual runs${refreshBtn()}`;
+    breakdownEl.textContent = buildBreakdown({final: games.length, live: 0, upcoming: 0});
+    metaEl.innerHTML = `<span class="slate-sub-inner">Sum of actual runs</span>${refreshBtn()}`;
     return;
   }
   if(!games.length||!Object.keys(oddsMap).length){
     document.getElementById('slate-num').textContent='—';
-    breakdownEl.style.display = 'none';
-    metaEl.innerHTML = `Waiting for O/U lines...${refreshBtn()}`;
+    breakdownEl.style.display = 'inline-block';
+    breakdownEl.textContent = buildBreakdown({final: 0, live: 0, upcoming: games.length || 0});
+    metaEl.innerHTML = `<span class="slate-sub-inner">Waiting for O/U lines...</span>${refreshBtn()}`;
     return;
   }
   let total=0;
@@ -748,26 +755,28 @@ function renderSlateTotal(){
     }
   }
   document.getElementById('slate-num').textContent=total.toFixed(1);
-  const parts = [];
-  if(breakdown.final) parts.push(`${breakdown.final} Final`);
-  if(breakdown.live) parts.push(`${breakdown.live} Live`);
-  if(breakdown.upcoming) parts.push(`${breakdown.upcoming} Upcoming`);
   breakdownEl.style.display = 'inline-block';
-  breakdownEl.textContent = parts.join(' · ');
+  breakdownEl.textContent = buildBreakdown(breakdown);
   const ts = updatedTimeStr();
-  metaEl.innerHTML = `Sum of lines · Updated: ${ts || '—'}${refreshBtn()}`;
+  metaEl.innerHTML = `<span class="slate-sub-inner">Sum of lines · <span style="color:var(--muted);">Updated: ${ts || '—'}</span></span>${refreshBtn()}`;
 }
 
 function renderGrandSalami(){
+  const breakdownEl = document.getElementById('gs-breakdown');
+  const metaEl = document.getElementById('gs-meta');
   if(!grandSalami||!grandSalami.line){
     document.getElementById('gs-num').textContent='—';
-    document.getElementById('gs-meta').textContent='Not available';
+    breakdownEl.style.display = 'inline-block';
+    breakdownEl.textContent = 'Line not yet posted';
+    metaEl.innerHTML = '';
     return;
   }
   document.getElementById('gs-num').textContent=grandSalami.line;
   const op=grandSalami.overPrice>0?`+${grandSalami.overPrice}`:grandSalami.overPrice||'';
   const up=grandSalami.underPrice>0?`+${grandSalami.underPrice}`:grandSalami.underPrice||'';
-  document.getElementById('gs-meta').innerHTML=`${op&&up?`O ${op} / U ${up}<br>`:''}${grandSalami.book||'DraftKings'}`;
+  breakdownEl.style.display = 'inline-block';
+  breakdownEl.textContent = op && up ? `O ${op} / U ${up}` : (grandSalami.book||'DraftKings');
+  metaEl.innerHTML = `<span class="slate-sub-inner" style="color:var(--muted);">${op && up ? (grandSalami.book||'DraftKings') : ''}</span>`;
 }
 
 function renderStats(gs, id, usePregame){
@@ -925,7 +934,7 @@ function renderGames(gs, id, live){
           <div class="tabbr ${aw?'w':''}">${g.away}</div>
           ${live ? pitcherHtml(g.awayPitcher, 'left') : ''}
         </div>
-        <div style="display:flex;flex-direction:column;align-items:center;padding:0 10px;flex-shrink:0;">
+        <div style="display:flex;flex-direction:column;align-items:center;padding:0 10px;flex-shrink:0;margin-top:-4px;">
           <div class="sctr" style="padding:0;">
             <span class="sco ${aw?'w':''}">${g.status==='scheduled'?'—':g.awayR!==null?g.awayR:'—'}</span>
             <span class="sdash">-</span>
@@ -1613,33 +1622,48 @@ function selectFbType(type){
     b.classList.toggle('active', b.dataset.fbType===type);
   });
 }
-function submitFeedback(){
+async function submitFeedback(){
   const activeBtn = document.querySelector('.modal-radio.active');
   const type = activeBtn ? activeBtn.dataset.fbType : 'other';
   const text = document.getElementById('fb-text').value.trim();
   const email = document.getElementById('fb-email').value.trim();
   const msg = document.getElementById('fb-msg');
+  const btn = document.getElementById('fb-submit');
   if(!text){
     msg.style.color='var(--red)';
     msg.textContent='Please enter a message first.';
     return;
   }
-  const typeLabel = type==='model'?'Model':type==='site'?'Website':'Other';
-  const subject = `GST Feedback — ${typeLabel}`;
-  const body = `${text}\n\n---\nType: ${typeLabel}\n${email?`Reply-to: ${email}\n`:''}Submitted: ${new Date().toLocaleString()}\nFrom: ${location.href}`;
-  // Email assembled at runtime so it's not plaintext in page source
-  const _u = ['mlb','grand','salami'].join('');
-  const _d = ['gmail','com'].join('.');
-  const _to = _u + String.fromCharCode(64) + _d;
-  const mailto = `mailto:${_to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  window.location.href = mailto;
-  msg.style.color='var(--green)';
-  msg.textContent='Opening your email app...';
-  setTimeout(()=>{
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+  msg.style.color='var(--muted)';
+  msg.textContent='';
+  try{
+    const resp = await fetch('/api/feedback', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        type, message:text, email,
+        userAgent: navigator.userAgent,
+        pageUrl: location.href,
+      }),
+    });
+    if(!resp.ok){
+      const data = await resp.json().catch(()=>({}));
+      throw new Error(data.error || 'Failed to send');
+    }
+    msg.style.color='var(--green)';
+    msg.textContent='Thanks — your feedback was sent!';
     document.getElementById('fb-text').value='';
     document.getElementById('fb-email').value='';
-    closeFeedbackModal();
-  }, 1200);
+    setTimeout(()=>{ closeFeedbackModal(); }, 1400);
+  }catch(e){
+    msg.style.color='var(--red)';
+    msg.textContent=`Couldn't send — ${e.message || 'try again later'}.`;
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Send';
+  }
 }
 // Close modals on Escape
 document.addEventListener('keydown', e=>{
