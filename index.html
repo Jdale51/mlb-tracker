@@ -947,6 +947,14 @@ function renderGames(gs, id, live){
   }).join('');
 }
 
+function dowAbbrev(dateStr){
+  // dateStr is "YYYY-MM-DD" — parse manually to avoid UTC timezone shift.
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if(!y || !m || !d) return '';
+  const dow = new Date(y, m-1, d).getDay(); // 0=Sun, 1=Mon, ... 6=Sat
+  return ['Su','M','T','W','Th','F','Sa'][dow];
+}
+
 function renderHistory(records){
   const el=document.getElementById('hist-content');
   if(!records.length){
@@ -978,8 +986,9 @@ function renderHistory(records){
         }
       }
     } else if(units!=null){ plHtml=`${units}u`; }
+    const dateDisplay = `${r.date.slice(5).split("-").map(n=>parseInt(n)).join("/")} <span style="color:var(--muted);font-size:0.9em;">(${dowAbbrev(r.date)})</span>`;
     return `<tr>
-      <td>${r.date.slice(5).split("-").map(n=>parseInt(n)).join("/")}</td>
+      <td>${dateDisplay}</td>
       <td>${r.gamesOnSlate||'-'}</td>
       <td>${r.grandSalamLine||'-'}</td>
       <td>${r.naiveTotal||'-'}</td>
