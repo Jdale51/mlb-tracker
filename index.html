@@ -67,8 +67,8 @@
   .total-num{font-family:'Barlow Condensed',sans-serif;font-size:42px;font-weight:900;color:var(--accent);line-height:1;letter-spacing:-1px;}
   .total-num.gs{color:#B06AFF;}
   .total-meta{font-size:10px;color:var(--muted);line-height:1.7;margin-top:3px;}
-  .slate-pill{display:inline-block;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--text);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:10px;letter-spacing:0.4px;padding:3px 8px;border-radius:4px;text-transform:uppercase;margin-top:6px;white-space:nowrap;}
-  .slate-sub{font-size:10px;color:var(--text);margin-top:5px;font-family:'Barlow Condensed',sans-serif;letter-spacing:0.3px;white-space:nowrap;}
+  .slate-pill{display:inline-block;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--text);font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:9px;letter-spacing:0.4px;padding:3px 8px;border-radius:4px;text-transform:uppercase;margin-top:6px;white-space:nowrap;}
+  .slate-sub{font-size:9px;color:var(--text);margin-top:5px;font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:0.3px;white-space:nowrap;}
   .slate-sub-inner{color:var(--text);}
   .slate-refresh{display:inline-flex;align-items:center;gap:4px;background:transparent;border:none;color:var(--muted);cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:10px;padding:0 0 0 4px;letter-spacing:0.3px;}
   .slate-refresh:hover{color:var(--text);}
@@ -227,22 +227,10 @@
     <p>Sportsbooks post a single Over/Under for the total runs across all MLB games on a given day. You bet that the slate's total runs will finish over or under that number.</p>
 
     <h3>Where to bet it</h3>
-    <p>The Grand Salami is offered on most major U.S. sportsbooks — DraftKings, FanDuel, BetMGM, Caesars. Lines can differ by 1–2 runs book-to-book, so line shopping matters.</p>
-
-    <h3>How the model works</h3>
-    <p>The model builds an expected slate total from the ground up:</p>
-    <ul>
-      <li>Baseline of 8.5 runs per game</li>
-      <li>Park factor adjustments (net across the slate)</li>
-      <li>Weather (wind, temp, humidity, roof status)</li>
-      <li>Starting pitcher quality — WHIP-weighted, rotation-spot aware</li>
-      <li>Bullpen freshness, fatigue, and blowup risk</li>
-      <li>Asymmetry adjustment (scoring tails lean over)</li>
-      <li>Day-of-week overlay (weekends trend over, Mon/Tue trend under)</li>
-    </ul>
+    <p>The Grand Salami is available on BetOnline, Bovada, and DraftKings — though it's posted most consistently on BetOnline. Lines can differ by 1–2 runs book-to-book, so line shopping matters.</p>
 
     <h3>Picks</h3>
-    <p>Picks are generated when the model's edge against the market line exceeds a minimum threshold. A "fire" 🔥 or "ice" ❄️ emoji flags games where the distribution of outcomes is more extreme than the median.</p>
+    <p>Picks are generated based on model-identified outliers (either 12+ runs or 5 or under). A 🔥 or ❄️ on the game card shows which games the model has identified.</p>
 
     <p class="muted" style="margin-top:14px;">This is a personal project, not financial advice. Always bet responsibly.</p>
   </div>
@@ -257,8 +245,8 @@
 
     <h3>Type</h3>
     <div class="modal-radio-group">
-      <button class="modal-radio active" data-fb-type="model" onclick="selectFbType('model')">Model</button>
-      <button class="modal-radio" data-fb-type="site" onclick="selectFbType('site')">Website</button>
+      <button class="modal-radio active" data-fb-type="site" onclick="selectFbType('site')">Website</button>
+      <button class="modal-radio" data-fb-type="model" onclick="selectFbType('model')">Model</button>
       <button class="modal-radio" data-fb-type="other" onclick="selectFbType('other')">Other</button>
     </div>
 
@@ -289,7 +277,7 @@
       <div id="slate-breakdown" class="slate-pill" style="display:none;"></div>
       <div class="slate-sub" id="slate-meta">Waiting for O/U lines...</div>
     </div>
-    <div style="display:flex;align-items:center;justify-content:center;padding:0 8px;">
+    <div style="display:flex;align-items:center;justify-content:center;padding:0 8px;align-self:stretch;">
       <img src="logo.png" alt="The Grand Salami Tracker" style="height:82px;width:auto;">
     </div>
     <div>
