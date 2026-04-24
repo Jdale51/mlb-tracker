@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MLB Run Tracker</title>
+<title>MLB Grand Salami Tracker</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -14,19 +14,49 @@
   *{box-sizing:border-box;margin:0;padding:0;}
   body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;}
   .header{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
-  .logo{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:26px;letter-spacing:1px;color:var(--text);display:flex;align-items:center;gap:8px;}
-  .logo-dot{width:9px;height:9px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 2s infinite;}
+  .header{flex-wrap:wrap;}
+  .logo{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:20px;letter-spacing:0.5px;color:var(--text);display:flex;align-items:center;gap:8px;line-height:1;text-transform:uppercase;}
+  .logo-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 2s infinite;flex-shrink:0;}
   @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
-  .header-right{text-align:right;}
-  .status-row{display:flex;align-items:center;gap:8px;justify-content:flex-end;flex-wrap:wrap;}
+  .header-icons{display:flex;align-items:center;gap:6px;margin-left:6px;}
+  .icon-btn{width:26px;height:26px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);color:var(--muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.15s;padding:0;font-size:13px;}
+  .icon-btn:hover{color:var(--text);border-color:rgba(255,255,255,0.2);background:rgba(255,255,255,0.04);}
+  .header-right{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px;}
+  .status-row{display:flex;align-items:center;gap:6px;justify-content:flex-end;}
   .pill{font-size:11px;padding:2px 8px;border-radius:3px;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:0.5px;}
   .pill-g{background:rgba(0,196,106,0.12);color:var(--green);}
   .pill-y{background:rgba(245,197,24,0.12);color:var(--accent);}
   .pill-r{background:rgba(255,59,59,0.12);color:var(--red);}
-  .refresh-row{display:flex;gap:6px;margin-top:5px;justify-content:flex-end;}
   .rbtn{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;background:transparent;border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:4px;cursor:pointer;}
   .rbtn:hover{border-color:rgba(255,255,255,0.2);color:var(--text);}
+  .ou-updated{font-size:10px;color:var(--muted);font-family:'Barlow Condensed',sans-serif;letter-spacing:0.3px;}
   .countdown{font-size:10px;color:var(--muted);margin-top:3px;text-align:right;}
+
+  /* Modal */
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px;}
+  .modal-backdrop.show{display:flex;}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:480px;width:100%;max-height:85vh;overflow-y:auto;padding:22px 20px;position:relative;}
+  .modal-close{position:absolute;top:10px;right:10px;background:transparent;border:none;color:var(--muted);font-size:22px;cursor:pointer;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:50%;}
+  .modal-close:hover{color:var(--text);background:rgba(255,255,255,0.05);}
+  .modal h2{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:22px;letter-spacing:0.5px;margin-bottom:12px;text-transform:uppercase;}
+  .modal h3{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;letter-spacing:0.5px;color:var(--accent);text-transform:uppercase;margin:14px 0 6px;}
+  .modal p{font-size:13px;line-height:1.55;color:var(--text);margin-bottom:8px;}
+  .modal p.muted{color:var(--muted);font-size:12px;}
+  .modal ul{padding-left:18px;font-size:13px;line-height:1.6;color:var(--text);}
+  .modal textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:10px;font-family:'Barlow',sans-serif;font-size:13px;resize:vertical;min-height:100px;margin-top:6px;}
+  .modal textarea:focus{outline:none;border-color:var(--accent);}
+  .modal-btn{background:var(--accent);color:#000;border:none;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:0.5px;text-transform:uppercase;padding:9px 16px;border-radius:6px;cursor:pointer;margin-top:10px;}
+  .modal-btn:hover{opacity:0.9;}
+  .modal-btn:disabled{opacity:0.5;cursor:not-allowed;}
+  .modal-radio-group{display:flex;gap:8px;margin:8px 0 4px;}
+  .modal-radio{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--muted);padding:8px;border-radius:6px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:0.5px;text-transform:uppercase;text-align:center;}
+  .modal-radio.active{border-color:var(--accent);color:var(--accent);background:rgba(245,197,24,0.08);}
+  .modal-msg{font-size:12px;margin-top:8px;color:var(--green);}
+
+  /* Open-line badge (game card) */
+  .open-badge{display:inline-flex;align-items:center;gap:4px;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.5px;padding:2px 8px;border-radius:3px;border:1px solid rgba(245,197,24,0.35);color:var(--accent);background:rgba(245,197,24,0.06);margin-left:6px;text-transform:uppercase;}
+  .open-badge .open-lbl{color:rgba(245,197,24,0.7);font-weight:600;}
+  .open-badge .open-val{color:var(--accent);font-weight:900;}
   .tabs{display:flex;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}
   .tab{padding:11px 18px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;cursor:pointer;color:var(--muted);border:none;background:transparent;border-bottom:3px solid transparent;}
   .tab.active{color:var(--text);border-bottom-color:var(--accent);}
@@ -171,17 +201,77 @@
 </div>
 
 <div class="header">
-  <div class="logo"><span class="logo-dot"></span>MLB RUN TRACKER</div>
-  <table style="border-collapse:collapse;white-space:nowrap;">
-    <tr>
-      <td style="text-align:center;padding:0 6px;"><span id="spill" class="pill pill-g" style="font-size:10px;white-space:nowrap;display:inline-block;">Scores: loading</span></td>
-      <td style="text-align:center;padding:0 6px;"><span id="opill" class="pill pill-y" style="font-size:10px;white-space:nowrap;display:inline-block;">O/U: loading</span></td>
-    </tr>
-    <tr>
-      <td style="text-align:center;padding:2px 6px 0;"><button class="rbtn" style="font-size:10px;padding:2px 7px;" onclick="refreshScores()">↻ Scores</button></td>
-      <td style="text-align:center;padding:2px 6px 0;"><span id="lines-updated" class="rbtn" style="display:inline-block;font-size:10px;padding:2px 7px;">—</span></td>
-    </tr>
-  </table>
+  <div class="logo"><span class="logo-dot"></span>MLB Grand Salami Tracker</div>
+  <div class="header-icons">
+    <button class="icon-btn" onclick="openInfoModal()" aria-label="About the model" title="How this works">?</button>
+    <button class="icon-btn" onclick="openFeedbackModal()" aria-label="Send feedback" title="Send feedback">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,6 12,13 2,6"/></svg>
+    </button>
+  </div>
+  <div class="header-right">
+    <div class="status-row">
+      <span id="spill" class="pill pill-g" style="font-size:10px;white-space:nowrap;">Scores: loading</span>
+      <button class="rbtn" style="font-size:10px;padding:2px 7px;" onclick="refreshScores()">↻ Scores</button>
+    </div>
+    <span class="ou-updated" id="lines-updated">O/U Updated: —</span>
+  </div>
+</div>
+
+<!-- Info modal -->
+<div class="modal-backdrop" id="info-modal" onclick="if(event.target===this)closeInfoModal()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeInfoModal()" aria-label="Close">×</button>
+    <h2>MLB Grand Salami Tracker</h2>
+    <p class="muted">A daily tracker and predictive model for MLB Grand Salami totals — the combined runs scored across every game on today's slate.</p>
+
+    <h3>What is the Grand Salami?</h3>
+    <p>Sportsbooks post a single Over/Under for the total runs across all MLB games on a given day. You bet that the slate's total runs will finish over or under that number.</p>
+
+    <h3>Where to bet it</h3>
+    <p>The Grand Salami is offered on most major U.S. sportsbooks — DraftKings, FanDuel, BetMGM, Caesars. Lines can differ by 1–2 runs book-to-book, so line shopping matters.</p>
+
+    <h3>How the model works</h3>
+    <p>The model builds an expected slate total from the ground up:</p>
+    <ul>
+      <li>Baseline of 8.5 runs per game</li>
+      <li>Park factor adjustments (net across the slate)</li>
+      <li>Weather (wind, temp, humidity, roof status)</li>
+      <li>Starting pitcher quality — WHIP-weighted, rotation-spot aware</li>
+      <li>Bullpen freshness, fatigue, and blowup risk</li>
+      <li>Asymmetry adjustment (scoring tails lean over)</li>
+      <li>Day-of-week overlay (weekends trend over, Mon/Tue trend under)</li>
+    </ul>
+
+    <h3>Picks</h3>
+    <p>Picks are generated when the model's edge against the market line exceeds a minimum threshold. A "fire" 🔥 or "ice" ❄️ emoji flags games where the distribution of outcomes is more extreme than the median.</p>
+
+    <p class="muted" style="margin-top:14px;">This is a personal project, not financial advice. Always bet responsibly.</p>
+  </div>
+</div>
+
+<!-- Feedback modal -->
+<div class="modal-backdrop" id="feedback-modal" onclick="if(event.target===this)closeFeedbackModal()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeFeedbackModal()" aria-label="Close">×</button>
+    <h2>Send Feedback</h2>
+    <p class="muted">Help improve the tracker — what's on your mind?</p>
+
+    <h3>Feedback type</h3>
+    <div class="modal-radio-group">
+      <button class="modal-radio active" data-fb-type="model" onclick="selectFbType('model')">Model</button>
+      <button class="modal-radio" data-fb-type="site" onclick="selectFbType('site')">Website</button>
+      <button class="modal-radio" data-fb-type="other" onclick="selectFbType('other')">Other</button>
+    </div>
+
+    <h3>Your feedback</h3>
+    <textarea id="fb-text" placeholder="What did you notice? What could be better?"></textarea>
+
+    <h3>Email (optional)</h3>
+    <textarea id="fb-email" placeholder="Leave an email if you want a reply" style="min-height:38px;"></textarea>
+
+    <button class="modal-btn" id="fb-submit" onclick="submitFeedback()">Send</button>
+    <div class="modal-msg" id="fb-msg"></div>
+  </div>
 </div>
 
 <div class="tabs">
@@ -778,22 +868,22 @@ function renderGames(gs, id, live){
 
     // Open O/U — left-anchored after status badge, never overlaps inning
     const openLineHtml = gradeLine
-      ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--muted);margin-left:6px;">Open: O/U ${gradeLine}${outlierEmoji}</span>`
+      ? `<span class="open-badge"><span class="open-lbl">Open</span><span class="open-val">${gradeLine}</span>${outlierEmoji}</span>`
       : '';
 
     // Pitcher display with stats from cache
     function pitcherHtml(pitcher, align) {
-      if (!pitcher) return `<div class="tpitcher" style="text-align:${align};">TBD</div>`;
+      if (!pitcher) return `<div class="tpitcher" style="text-align:${align};color:var(--muted);">TBD</div>`;
       const cached = pitcherStatsCache[pitcher.id];
       let statStr = '';
       if (cached) {
         const era = cached.era !== '—' ? cached.era : '—';
         const wl = `${cached.wins}-${cached.losses}`;
-        statStr = `<span style="color:var(--muted);padding-left:4px;">(${era}, ${wl})</span>`;
+        statStr = `<span style="color:var(--text);font-weight:700;padding-left:5px;">${era} · ${wl}</span>`;
       }
       const badge = tierBadge(pitcher.name);
       const trend = cached?.trending === 'up' ? ' 📈' : cached?.trending === 'down' ? ' 📉' : '';
-      return `<div class="tpitcher" style="text-align:${align};">${badge}${pitcher.name}${trend}${statStr}</div>`;
+      return `<div class="tpitcher" style="text-align:${align};color:var(--text);font-weight:500;">${badge}${pitcher.name}${trend}${statStr}</div>`;
     }
 
     return `<div class="game">
@@ -807,7 +897,6 @@ function renderGames(gs, id, live){
       <div class="gbody">
         <div class="team">
           <div class="tabbr ${aw?'w':''}">${g.away}</div>
-          <div class="tfull">${g.awayFull||''}</div>
           ${live ? pitcherHtml(g.awayPitcher, 'left') : ''}
         </div>
         <div style="display:flex;flex-direction:column;align-items:center;padding:0 10px;flex-shrink:0;">
@@ -819,7 +908,6 @@ function renderGames(gs, id, live){
         </div>
         <div class="team r">
           <div class="tabbr ${hw?'w':''}">${g.home}</div>
-          <div class="tfull">${g.homeFull||''}</div>
           ${live ? pitcherHtml(g.homePitcher, 'right') : ''}
         </div>
       </div>
@@ -931,18 +1019,15 @@ async function refreshScores(){
 }
 
 async function refreshOdds(){
-  document.getElementById('opill').textContent='O/U: updating...';
   try{
     const resp=await fetchOdds();
     oddsMap=buildOddsMap(resp.games||[]);
     if(resp.grandSalami) grandSalami=resp.grandSalami;
     if(resp.todayPick) todayPick=resp.todayPick;
     if(resp.todayUnits != null) todayUnits=resp.todayUnits;
-    document.getElementById('opill').textContent=`O/U: ${Object.keys(oddsMap).length} lines`;
-    document.getElementById('opill').className='pill pill-y';
     const ts = resp.oddsLastFetched ? new Date(resp.oddsLastFetched) : new Date();
     const timeStr = ts.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
-    document.getElementById('lines-updated').textContent=`Updated: ${timeStr}`;
+    document.getElementById('lines-updated').textContent=`O/U Updated: ${timeStr}`;
     const MAX_OCD = 3 * 60 * 60; // 3 hours max
     if (resp.secondsUntilNext !== undefined && isFinite(resp.secondsUntilNext)) {
       oCD = Math.min(resp.secondsUntilNext, MAX_OCD);
@@ -952,8 +1037,7 @@ async function refreshOdds(){
     renderGrandSalami();
     redraw();
   }catch(e){
-    document.getElementById('opill').textContent='O/U: error';
-    document.getElementById('opill').className='pill pill-r';
+    document.getElementById('lines-updated').textContent='O/U Updated: error';
     console.error(e);
   }
 }
@@ -1499,6 +1583,48 @@ function pickHitBadgeHtml() {
 
 // Run purge on script load
 purgeOldCelebrationState();
+
+// === Modal handlers ===
+function openInfoModal(){document.getElementById('info-modal').classList.add('show');}
+function closeInfoModal(){document.getElementById('info-modal').classList.remove('show');}
+function openFeedbackModal(){
+  document.getElementById('feedback-modal').classList.add('show');
+  document.getElementById('fb-msg').textContent='';
+}
+function closeFeedbackModal(){document.getElementById('feedback-modal').classList.remove('show');}
+function selectFbType(type){
+  document.querySelectorAll('.modal-radio').forEach(b=>{
+    b.classList.toggle('active', b.dataset.fbType===type);
+  });
+}
+function submitFeedback(){
+  const activeBtn = document.querySelector('.modal-radio.active');
+  const type = activeBtn ? activeBtn.dataset.fbType : 'other';
+  const text = document.getElementById('fb-text').value.trim();
+  const email = document.getElementById('fb-email').value.trim();
+  const msg = document.getElementById('fb-msg');
+  if(!text){
+    msg.style.color='var(--red)';
+    msg.textContent='Please enter some feedback first.';
+    return;
+  }
+  const typeLabel = type==='model'?'Model':type==='site'?'Website':'Other';
+  const subject = `GST Feedback — ${typeLabel}`;
+  const body = `${text}\n\n---\nType: ${typeLabel}\n${email?`Reply-to: ${email}\n`:''}Submitted: ${new Date().toLocaleString()}\nFrom: ${location.href}`;
+  const mailto = `mailto:jdale5150@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.location.href = mailto;
+  msg.style.color='var(--green)';
+  msg.textContent='Opening your email app...';
+  setTimeout(()=>{
+    document.getElementById('fb-text').value='';
+    document.getElementById('fb-email').value='';
+    closeFeedbackModal();
+  }, 1200);
+}
+// Close modals on Escape
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape'){closeInfoModal();closeFeedbackModal();}
+});
 
 </script>
 </body>
