@@ -11,15 +11,36 @@ let cache = { data: null, grandSalami: null, fetchedAt: 0 };
 let historyCache = { data: null, loadedAt: 0 };
 const HISTORY_CACHE_MS = 30 * 1000; // 30 seconds — fast propagation of admin writes
 
-function getCacheTTL() {
-  const pstHour = ((new Date().getUTCHours() - 7) + 24) % 24;
-  const pstMin  = new Date().getUTCMinutes();
-  const pstTime = pstHour + pstMin / 60; // e.g. 5:30 = 5.5
+const IN_SLATE_TTL = 5 * 60 * 1000;    // 5 min — aggressive during the slate window
+const OUT_SLATE_TTL = 30 * 60 * 1000;  // 30 min — relaxed outside the window
+const PRE_GAME_BUFFER_MS = 30 * 60 * 1000;  // start polling 30 min before first pitch
+const POST_GAME_BUFFER_MS = 4 * 60 * 60 * 1000; // assume game ends ~4hr after first pitch
 
-  if (pstTime >= 22.5 || pstTime < 5.5)  return 3 * 60 * 60 * 1000;   // 10:30pm–5:30am  → 3hr
-  if (pstTime >= 5.5  && pstTime < 10)   return 60 * 60 * 1000;        // 5:30am–10am     → 1hr
-  if (pstTime >= 10   && pstTime < 16)   return 30 * 60 * 1000;        // 10am–4pm        → 30min
-  return 15 * 60 * 1000;                                                // 4pm–10:30pm     → 15min
+// Determine if "now" sits inside today's slate window based on commence_time values
+// from cached odds data. Window = [earliest_first_pitch - 30min, latest_first_pitch + 4hr].
+// Falls back to false (30min TTL) if cache is empty / no today's games.
+function isInsideSlateWindow() {
+  if (!cache.data || !cache.data.length) return false;
+  const todayGames = filterToday(cache.data);
+  if (!todayGames.length) return false;
+  const now = Date.now();
+  let earliest = Infinity;
+  let latest = 0;
+  for (const g of todayGames) {
+    const t = new Date(g.commence_time).getTime();
+    if (!isNaN(t)) {
+      if (t < earliest) earliest = t;
+      if (t > latest) latest = t;
+    }
+  }
+  if (earliest === Infinity) return false;
+  const windowStart = earliest - PRE_GAME_BUFFER_MS;
+  const windowEnd = latest + POST_GAME_BUFFER_MS;
+  return now >= windowStart && now <= windowEnd;
+}
+
+function getCacheTTL() {
+  return isInsideSlateWindow() ? IN_SLATE_TTL : OUT_SLATE_TTL;
 }
 
 function getSecondsUntilNext() {
