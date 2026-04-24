@@ -405,6 +405,7 @@
       <div class="card-title">Pitcher Tiers</div>
       <div class="sub-tabs">
         <button class="sub-tab active" id="sub-tab-today" onclick="showPitcherSubTab('today')">Today's Starters</button>
+        <button class="sub-tab" id="sub-tab-tomorrow" onclick="showPitcherSubTab('tomorrow')">Tomorrow's Starters</button>
         <button class="sub-tab" id="sub-tab-all" onclick="showPitcherSubTab('all')">All Starters</button>
       </div>
 
@@ -414,6 +415,15 @@
           <button onclick="loadTodaysStarters()" style="background:transparent;border:1px solid var(--border);color:var(--muted);font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;">↻ Refresh</button>
         </div>
         <div class="pitcher-list" id="today-list"><div style="padding:16px;color:var(--muted);font-size:12px;text-align:center;">Loading...</div></div>
+      </div>
+
+      <div id="pitcher-tomorrow" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div class="tier-count" id="tomorrow-count">Not loaded yet</div>
+          <button onclick="loadTomorrowsStarters()" style="background:transparent;border:1px solid var(--border);color:var(--muted);font-size:11px;padding:3px 8px;border-radius:4px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;">↻ Refresh</button>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:6px;font-style:italic;">Not all teams announce next-day starters the night before — TBD slots will fill in as they're posted.</div>
+        <div class="pitcher-list" id="tomorrow-list"><div style="padding:16px;color:var(--muted);font-size:12px;text-align:center;">Click refresh to load tomorrow's probables</div></div>
       </div>
 
       <div id="pitcher-all" style="display:none;">
@@ -831,6 +841,10 @@ function getTodayPDT() {
 }
 function getYesterdayPDT() {
   const pst = new Date(Date.now() + -7 * 60 * 60000 - 86400000);
+  return pst.toISOString().split('T')[0];
+}
+function getTomorrowPDT() {
+  const pst = new Date(Date.now() + -7 * 60 * 60000 + 86400000);
   return pst.toISOString().split('T')[0];
 }
 
@@ -1340,6 +1354,8 @@ const ALL_TEAMS = ['AZ','ATL','BAL','BOS','CHC','CWS','CIN','CLE','COL','DET','H
 let acesData = { pitchers: {} };
 let allStartersCache = [];
 let todayStartersCache = [];
+let tomorrowStartersCache = [];
+let tomorrowStartersLoaded = false;
 let lineupData = { profiles: {} };
 let bullpenTierData = { tiers: {} };
 
@@ -1355,6 +1371,17 @@ async function loadTiers() {
   } catch(e) {
     console.error('loadTiers fetch error:', e);
   }
+  // Restore cached All Starters roster (with team info) from localStorage if present.
+  // This survives page reloads so we don't need to re-sync just to show team abbrs.
+  try {
+    const cached = localStorage.getItem('gst-all-starters');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length) {
+        allStartersCache = parsed;
+      }
+    }
+  } catch(e) { /* corrupt cache, ignore */ }
   // Always render tier buckets — ALL_TEAMS is hardcoded, doesn't depend on API
   renderLineupBuckets();
   renderBullpenTierBuckets();
@@ -1366,9 +1393,15 @@ async function loadTiers() {
 
 function showPitcherSubTab(which) {
   document.getElementById('sub-tab-today').classList.toggle('active', which === 'today');
+  document.getElementById('sub-tab-tomorrow').classList.toggle('active', which === 'tomorrow');
   document.getElementById('sub-tab-all').classList.toggle('active', which === 'all');
   document.getElementById('pitcher-today').style.display = which === 'today' ? 'block' : 'none';
+  document.getElementById('pitcher-tomorrow').style.display = which === 'tomorrow' ? 'block' : 'none';
   document.getElementById('pitcher-all').style.display = which === 'all' ? 'block' : 'none';
+  // Lazy-load tomorrow's starters the first time the tab is opened
+  if (which === 'tomorrow' && !tomorrowStartersLoaded) {
+    loadTomorrowsStarters();
+  }
 }
 
 async function syncStarters() {
@@ -1382,6 +1415,8 @@ async function syncStarters() {
     if (data.ok) {
       allStartersCache = data.starters || [];
       allStartersCache.forEach(s => { acesData.pitchers[s.name] = s.tier; });
+      // Persist so team info survives page reloads without needing a re-sync
+      try { localStorage.setItem('gst-all-starters', JSON.stringify(allStartersCache)); } catch(e) {}
       showToast(`${data.total} pitchers (${data.added} new)`, 'ok');
       renderAllStarters();
     } else {
@@ -1411,7 +1446,16 @@ function renderAllStarters() {
     }
     allStartersCache = names.map(n => ({ name: n, team: '', gamesStarted: 0, tier: acesData.pitchers[n] || 'default' }));
   }
-  allStartersCache.forEach(s => { s.tier = acesData.pitchers[s.name] || 'default'; });
+  // Build a name → team lookup from today's & tomorrow's caches as a fallback
+  // for any pitcher in allStartersCache missing team info (e.g. newly added
+  // between syncs, or restored from localStorage pre-team-field).
+  const teamLookup = {};
+  for (const s of todayStartersCache) if (s.name && s.team) teamLookup[s.name] = s.team;
+  for (const s of tomorrowStartersCache) if (s.name && s.team && !s.tbd) teamLookup[s.name] = s.team;
+  allStartersCache.forEach(s => {
+    s.tier = acesData.pitchers[s.name] || 'default';
+    if (!s.team && teamLookup[s.name]) s.team = teamLookup[s.name];
+  });
   const search = (document.getElementById('pitcher-search').value || '').toLowerCase();
   const filtered = allStartersCache.filter(s => !search || s.name.toLowerCase().includes(search));
   filtered.sort((a, b) => {
@@ -1425,19 +1469,24 @@ function renderAllStarters() {
   const t2 = allStartersCache.filter(s => s.tier === 'tier2').length;
   const def = allStartersCache.length - t1 - t2;
   countEl.innerHTML = `<strong class="gold">T1: ${t1}</strong> · <strong class="silver">T2: ${t2}</strong> · <strong style="color:var(--muted)">T3: ${def}</strong> · <strong>Total: ${allStartersCache.length}</strong>`;
-  el.innerHTML = filtered.map(s => `
+  el.innerHTML = filtered.map(s => {
+    const metaParts = [];
+    if (s.team) metaParts.push(`<strong style="color:var(--text);">${s.team}</strong>`);
+    if (s.gamesStarted) metaParts.push(`${s.gamesStarted} GS`);
+    const meta = metaParts.length ? metaParts.join(' · ') : '<span style="opacity:0.5;">—</span>';
+    return `
     <div class="pitcher-row">
       <div class="pitcher-row-info">
         <div class="pitcher-name">${s.name}</div>
-        <div class="pitcher-meta">${s.team || '—'}${s.gamesStarted ? ' · ' + s.gamesStarted + ' GS' : ''}</div>
+        <div class="pitcher-meta">${meta}</div>
       </div>
       <select class="tier-select" data-tier="${s.tier}" onchange="updatePitcherTier('${s.name.replace(/'/g, "\\'")}', this.value)">
         <option value="default" ${s.tier === 'default' ? 'selected' : ''}>Tier 3</option>
         <option value="tier2" ${s.tier === 'tier2' ? 'selected' : ''}>Tier 2</option>
         <option value="tier1" ${s.tier === 'tier1' ? 'selected' : ''}>Tier 1</option>
       </select>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 function filterPitchers() {
@@ -1450,6 +1499,7 @@ async function updatePitcherTier(name, tier) {
   if (s) s.tier = tier;
   renderAllStarters();
   renderTodaysStarters();
+  if (tomorrowStartersLoaded) renderTomorrowsStarters();
   try {
     const res = await fetch('/api/tiers', {
       method: 'POST',
@@ -1530,6 +1580,109 @@ function renderTodaysStarters() {
       </select>
     </div>
   `).join('');
+}
+
+async function loadTomorrowsStarters() {
+  document.getElementById('tomorrow-count').textContent = "Loading tomorrow's starters...";
+  document.getElementById('tomorrow-list').innerHTML = '<div style="padding:16px;color:var(--muted);font-size:12px;text-align:center;">Fetching from MLB API...</div>';
+  try {
+    const tomorrow = getTomorrowPDT();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(
+      `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${tomorrow}&hydrate=probablePitcher`,
+      { signal: controller.signal }
+    );
+    clearTimeout(timeout);
+    const data = await res.json();
+    const games = data.dates?.[0]?.games || [];
+    const starters = [];
+    let tbdCount = 0;
+    for (const g of games) {
+      const ap = g.teams?.away?.probablePitcher;
+      const hp = g.teams?.home?.probablePitcher;
+      const aAbbr = g.teams?.away?.team?.abbreviation || g.teams?.away?.team?.name?.split(' ').pop() || '???';
+      const hAbbr = g.teams?.home?.team?.abbreviation || g.teams?.home?.team?.name?.split(' ').pop() || '???';
+      // Show BOTH sides — if one side is TBD, still render a placeholder row so
+      // we know that team hasn't announced yet. That's useful info the night before.
+      if (ap) {
+        starters.push({ name: ap.fullName, team: aAbbr, opp: hAbbr, tbd: false });
+      } else {
+        starters.push({ name: 'TBD', team: aAbbr, opp: hAbbr, tbd: true });
+        tbdCount++;
+      }
+      if (hp) {
+        starters.push({ name: hp.fullName, team: hAbbr, opp: aAbbr, tbd: false });
+      } else {
+        starters.push({ name: 'TBD', team: hAbbr, opp: aAbbr, tbd: true });
+        tbdCount++;
+      }
+    }
+    tomorrowStartersCache = starters;
+    tomorrowStartersLoaded = true;
+    renderTomorrowsStarters();
+    if (starters.length === 0) {
+      showToast('No games on tomorrow\'s schedule', 'err');
+    } else {
+      showToast(`Loaded ${starters.length - tbdCount} starters · ${tbdCount} TBD`, 'ok');
+    }
+  } catch(e) {
+    const msg = e.name === 'AbortError' ? 'Timed out — MLB API slow, try again' : e.message;
+    console.error('loadTomorrowsStarters error:', e);
+    document.getElementById('tomorrow-count').textContent = '—';
+    document.getElementById('tomorrow-list').innerHTML = `<div style="padding:16px;color:var(--red);font-size:12px;text-align:center;">${msg}</div>`;
+  }
+}
+
+function renderTomorrowsStarters() {
+  const el = document.getElementById('tomorrow-list');
+  const countEl = document.getElementById('tomorrow-count');
+  if (!tomorrowStartersCache.length) {
+    el.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:12px;text-align:center;">No games on tomorrow\'s schedule</div>';
+    countEl.textContent = '—';
+    return;
+  }
+  const enriched = tomorrowStartersCache.map(s => ({
+    ...s,
+    tier: s.tbd ? 'default' : (acesData.pitchers[s.name] || 'default'),
+  }));
+  const announced = enriched.filter(s => !s.tbd);
+  const t1 = announced.filter(s => s.tier === 'tier1').length;
+  const t2 = announced.filter(s => s.tier === 'tier2').length;
+  const def = announced.length - t1 - t2;
+  const tbd = enriched.filter(s => s.tbd).length;
+  countEl.innerHTML = `<strong class="gold">T1: ${t1}</strong> · <strong class="silver">T2: ${t2}</strong> · <strong>T3: ${def}</strong>${tbd ? ` · <strong style="color:var(--muted);">TBD: ${tbd}</strong>` : ''} · <strong>Total: ${announced.length}/${enriched.length}</strong>`;
+  // Sort: TBD last, then by tier, then team
+  enriched.sort((a, b) => {
+    if (a.tbd !== b.tbd) return a.tbd ? 1 : -1;
+    const t = tierSortKey(a.tier) - tierSortKey(b.tier);
+    if (t !== 0) return t;
+    return (a.team || '').localeCompare(b.team || '');
+  });
+  el.innerHTML = enriched.map(s => {
+    if (s.tbd) {
+      return `
+        <div class="pitcher-row" style="opacity:0.55;">
+          <div class="pitcher-row-info">
+            <div class="pitcher-name" style="color:var(--muted);font-style:italic;">TBD</div>
+            <div class="pitcher-meta"><strong style="color:var(--text);">${s.team}</strong> vs ${s.opp}</div>
+          </div>
+          <div style="font-size:10px;color:var(--muted);font-family:'Barlow Condensed',sans-serif;letter-spacing:1px;padding:6px 10px;border:1px dashed var(--border);border-radius:4px;">PENDING</div>
+        </div>`;
+    }
+    return `
+      <div class="pitcher-row">
+        <div class="pitcher-row-info">
+          <div class="pitcher-name">${s.name}</div>
+          <div class="pitcher-meta"><strong style="color:var(--text);">${s.team}</strong> vs ${s.opp}</div>
+        </div>
+        <select class="tier-select" data-tier="${s.tier}" onchange="updatePitcherTier('${s.name.replace(/'/g, "\\'")}', this.value)">
+          <option value="default" ${s.tier === 'default' ? 'selected' : ''}>Tier 3</option>
+          <option value="tier2" ${s.tier === 'tier2' ? 'selected' : ''}>Tier 2</option>
+          <option value="tier1" ${s.tier === 'tier1' ? 'selected' : ''}>Tier 1</option>
+        </select>
+      </div>`;
+  }).join('');
 }
 
 let draggedTeam = null;
