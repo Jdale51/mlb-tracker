@@ -134,10 +134,38 @@
   .tier-badge{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:900;padding:1px 4px;border-radius:3px;margin-right:4px;letter-spacing:0.5px;vertical-align:middle;}
   .tier-badge.t1{background:rgba(212,175,55,0.15);color:#D4AF37;border:1px solid rgba(212,175,55,0.4);}
   .tier-badge.t2{background:rgba(192,192,192,0.15);color:#C0C0C0;border:1px solid rgba(192,192,192,0.4);}
+  /* ═══════════ PICK-HIT CELEBRATION ═══════════ */
+  #celebration-overlay{position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:9998;display:none;}
+  #celebration-overlay.active{display:block;}
+  #celebration-banner{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.3);z-index:9999;text-align:center;pointer-events:none;opacity:0;transition:opacity 0.4s ease-out,transform 0.5s cubic-bezier(0.34,1.56,0.64,1);}
+  #celebration-banner.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
+  #celebration-banner .banner-main{font-family:'Barlow Condensed',sans-serif;font-size:clamp(56px,14vw,120px);font-weight:900;letter-spacing:4px;background:linear-gradient(135deg,#FFD700 0%,#FFA500 35%,#FF6B35 70%,#D4AF37 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 20px rgba(255,165,0,0.6)) drop-shadow(0 4px 12px rgba(0,0,0,0.8));line-height:0.9;margin-bottom:8px;}
+  #celebration-banner .banner-sub{font-family:'Barlow Condensed',sans-serif;font-size:clamp(20px,4vw,32px);font-weight:700;letter-spacing:3px;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,0.9),0 0 18px rgba(255,215,0,0.5);}
+  #celebration-banner .banner-sub.over-hit{color:#00C46A;text-shadow:0 2px 8px rgba(0,0,0,0.9),0 0 18px rgba(0,196,106,0.6);}
+  #celebration-banner .banner-sub.under-hit{color:#2B7FFF;text-shadow:0 2px 8px rgba(0,0,0,0.9),0 0 18px rgba(43,127,255,0.6);}
+  /* Persistent badge shown in stats row after celebration has played */
+  .pick-hit-badge{display:inline-flex;align-items:center;gap:4px;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:800;letter-spacing:1.5px;padding:3px 8px;border-radius:4px;background:linear-gradient(135deg,rgba(255,215,0,0.25),rgba(255,107,53,0.25));color:#FFD700;border:1px solid rgba(255,215,0,0.5);margin-top:4px;text-shadow:0 1px 2px rgba(0,0,0,0.8);animation:hit-badge-pulse 2.5s ease-in-out infinite;}
+  @keyframes hit-badge-pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,215,0,0.4);}50%{box-shadow:0 0 0 8px rgba(255,215,0,0);}}
+  /* Flying salami emojis */
+  .salami-flyer{position:fixed;font-size:42px;pointer-events:none;z-index:9997;animation:salami-fly 3s cubic-bezier(0.25,0.46,0.45,0.94) forwards;}
+  @keyframes salami-fly{
+    0%{opacity:0;transform:translateY(100vh) rotate(0deg) scale(0.5);}
+    15%{opacity:1;}
+    85%{opacity:1;}
+    100%{opacity:0;transform:translateY(-20vh) rotate(720deg) scale(1.4);}
+  }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
+
+<!-- ═════════════════════ PICK-HIT CELEBRATION ═════════════════════ -->
+<div id="celebration-overlay"></div>
+<div id="celebration-banner">
+  <div class="banner-main" id="celebration-main">SALAMI!</div>
+  <div class="banner-sub" id="celebration-sub">OVER HITS</div>
+</div>
 
 <div class="header">
   <div class="logo"><span class="logo-dot"></span>MLB RUN TRACKER</div>
@@ -635,7 +663,8 @@ function renderStats(gs, id, usePregame){
   let pickHtml = '';
   if (id === 'today-stats') {
     const pickLabel = todayPick ? (todayUnits ? `${todayPick} (${todayUnits}u)` : todayPick) : '—';
-    pickHtml = `<div class="sstat"><div id="pick-display" class="snum" style="font-size:${todayUnits?'18px':'26px'};color:${todayPick==='OVER'?'var(--green)':todayPick==='UNDER'?'var(--blue)':'var(--muted)'}">${pickLabel}</div><div class="slbl">Pick</div></div>`;
+    const badge = pickHitBadgeHtml();
+    pickHtml = `<div class="sstat"><div id="pick-display" class="snum" style="font-size:${todayUnits?'18px':'26px'};color:${todayPick==='OVER'?'var(--green)':todayPick==='UNDER'?'var(--blue)':'var(--muted)'}">${pickLabel}</div><div class="slbl">Pick</div>${badge}</div>`;
   } else if (id === 'yest-stats') {
     pickHtml = `<div class="sstat"><div class="snum" style="color:${yestPick==='OVER'?'var(--green)':yestPick==='UNDER'?'var(--blue)':'var(--muted)'}">${yestPick||'—'}</div><div class="slbl">Pick</div></div>`;
   }
@@ -650,6 +679,8 @@ function renderStats(gs, id, usePregame){
   if(id==='today-stats'){
     const allFinal=gs.length>0&&gs.every(g=>g.status==='final');
     if(allFinal&&final.length>0) saveActualRuns(finalTot);
+    // Check for pick hit — fires celebration on first trigger, shows badge after
+    runCelebrationCheck();
   }
 }
 
@@ -1205,6 +1236,204 @@ async function loadBullpen() {
   `;
   bullpenLoaded = true;
 }
+
+// ═════════════════════ PICK-HIT CELEBRATION ═════════════════════
+// Fires confetti + banner when the user's pick hits.
+// OVER: triggers LIVE — the moment slate runs cross (GS line + 0.5)
+// UNDER: triggers at END OF SLATE — when all games are final and total < GS line
+// Window: from trigger until midnight PT, persists across page reloads (replays once per session)
+// State stored in localStorage under key `gst-hit-YYYY-MM-DD` with value "over"|"under"
+
+const CELEBRATION_STORAGE_PREFIX = 'gst-hit-';
+const CELEBRATION_SHOWN_SUFFIX = '-shown';
+
+function hitStorageKey(dateStr) { return CELEBRATION_STORAGE_PREFIX + dateStr; }
+function shownStorageKey(dateStr) { return CELEBRATION_STORAGE_PREFIX + dateStr + CELEBRATION_SHOWN_SUFFIX; }
+
+// Purge old hit records (anything not today) — keeps localStorage clean
+function purgeOldCelebrationState() {
+  try {
+    const today = getPDTDate();
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(CELEBRATION_STORAGE_PREFIX) && !key.startsWith(hitStorageKey(today))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+  } catch(e) { /* storage unavailable, not critical */ }
+}
+
+// Check if we're still in the celebration window (before midnight PT of game day)
+function inCelebrationWindow(dateStr) {
+  const today = getPDTDate();
+  return dateStr === today;
+}
+
+// Read/write helpers with try-catch for Safari private mode etc.
+function getStoredHit(dateStr) {
+  try { return localStorage.getItem(hitStorageKey(dateStr)); } catch(e) { return null; }
+}
+function setStoredHit(dateStr, result) {
+  try { localStorage.setItem(hitStorageKey(dateStr), result); } catch(e) {}
+}
+function hasShownCelebration(dateStr) {
+  try { return localStorage.getItem(shownStorageKey(dateStr)) === '1'; } catch(e) { return false; }
+}
+function markCelebrationShown(dateStr) {
+  try { localStorage.setItem(shownStorageKey(dateStr), '1'); } catch(e) {}
+}
+
+// Calculate current slate total from games (finals + live projections)
+// For OVER detection we ONLY count finalized runs — live projections can bounce
+// and we don't want false triggers. Use confirmed runs from final + live games.
+function calculateActualRunsScored() {
+  let runs = 0;
+  let liveOrFinal = 0;
+  let finalCount = 0;
+  for (const g of games) {
+    if (g.awayR !== null && g.homeR !== null && g.status !== 'scheduled') {
+      runs += (g.awayR || 0) + (g.homeR || 0);
+      liveOrFinal++;
+      if (g.status === 'final') finalCount++;
+    }
+  }
+  return { runs, liveOrFinal, finalCount, totalGames: games.length };
+}
+
+// Main check — called from renderStats on every scoreboard tick.
+// Returns the hit result ('over'|'under') if a fresh trigger should fire.
+function checkForPickHit() {
+  // Need a pick, a line, and games to even consider
+  if (!todayPick || !grandSalami || !grandSalami.line || !games.length) return null;
+  const today = getPDTDate();
+  if (!inCelebrationWindow(today)) return null;
+  const gsLine = grandSalami.line;
+  const { runs, finalCount, totalGames } = calculateActualRunsScored();
+  const existing = getStoredHit(today);
+
+  // OVER: live trigger the moment confirmed runs cross the line.
+  // GS lines are .5 (e.g. 82.5) so runs > line === runs >= line + 0.5
+  if (todayPick === 'OVER' && runs > gsLine) {
+    if (existing !== 'over') {
+      setStoredHit(today, 'over');
+      return 'over';
+    }
+  }
+
+  // UNDER: only trigger when all games are final
+  const allFinal = totalGames > 0 && finalCount === totalGames;
+  if (todayPick === 'UNDER' && allFinal && runs < gsLine) {
+    if (existing !== 'under') {
+      setStoredHit(today, 'under');
+      return 'under';
+    }
+  }
+
+  return null;
+}
+
+// Fire the celebration — confetti, banner, flying salamis
+function triggerCelebration(result) {
+  const banner = document.getElementById('celebration-banner');
+  const sub = document.getElementById('celebration-sub');
+  const overlay = document.getElementById('celebration-overlay');
+  if (!banner || !sub || !overlay) return;
+
+  // Configure banner text based on result
+  if (result === 'over') {
+    sub.textContent = 'OVER HITS ⬆';
+    sub.className = 'banner-sub over-hit';
+  } else {
+    sub.textContent = 'UNDER CASHES ⬇';
+    sub.className = 'banner-sub under-hit';
+  }
+
+  // Show overlay + banner
+  overlay.classList.add('active');
+  // Small delay so transition animates from scale(0.3) → scale(1)
+  requestAnimationFrame(() => {
+    banner.classList.add('show');
+  });
+
+  // Fire confetti bursts (~3 seconds of cannons)
+  if (typeof confetti === 'function') {
+    const colors = result === 'over'
+      ? ['#FFD700', '#FFA500', '#FF6B35', '#00C46A', '#D4AF37']   // gold/green
+      : ['#FFD700', '#FFA500', '#FF6B35', '#2B7FFF', '#D4AF37'];  // gold/blue
+    // Three staggered cannons from different angles
+    confetti({ particleCount: 90, spread: 70, startVelocity: 55, origin: { x: 0.1, y: 0.9 }, angle: 60, colors });
+    confetti({ particleCount: 90, spread: 70, startVelocity: 55, origin: { x: 0.9, y: 0.9 }, angle: 120, colors });
+    setTimeout(() => {
+      confetti({ particleCount: 120, spread: 100, startVelocity: 50, origin: { x: 0.5, y: 0.7 }, colors });
+    }, 600);
+    setTimeout(() => {
+      confetti({ particleCount: 70, spread: 60, startVelocity: 45, origin: { x: 0.2, y: 0.8 }, angle: 75, colors });
+      confetti({ particleCount: 70, spread: 60, startVelocity: 45, origin: { x: 0.8, y: 0.8 }, angle: 105, colors });
+    }, 1400);
+  }
+
+  // Fly salami emojis up from bottom of screen
+  launchSalamiFlyers();
+
+  // Fade out after 3s total
+  setTimeout(() => {
+    banner.classList.remove('show');
+    setTimeout(() => {
+      overlay.classList.remove('active');
+      markCelebrationShown(getPDTDate());
+      // Re-render stats so the persistent badge appears
+      renderStats(games, 'today-stats', true);
+    }, 500);
+  }, 3000);
+}
+
+function launchSalamiFlyers() {
+  const emojis = ['🥩', '🎉', '💰', '🔥', '🥩', '💸', '🎊', '🥩'];
+  for (let i = 0; i < 12; i++) {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'salami-flyer';
+      el.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+      el.style.left = (Math.random() * 90 + 5) + 'vw';
+      el.style.animationDuration = (2.3 + Math.random() * 0.9) + 's';
+      document.body.appendChild(el);
+      // Clean up after animation
+      setTimeout(() => el.remove(), 3500);
+    }, i * 120);
+  }
+}
+
+// Called from renderStats — runs the check, fires celebration if new,
+// and shows persistent badge if already fired earlier today.
+function runCelebrationCheck() {
+  const today = getPDTDate();
+  const fresh = checkForPickHit();
+  if (fresh && !hasShownCelebration(today)) {
+    triggerCelebration(fresh);
+    return;
+  }
+  // On page load: if there's a stored hit from today and we haven't shown it yet
+  // (e.g. user opened the app after the hit happened while closed), fire it now.
+  const stored = getStoredHit(today);
+  if (stored && !hasShownCelebration(today) && inCelebrationWindow(today)) {
+    triggerCelebration(stored);
+  }
+}
+
+// Returns HTML snippet for the persistent "HIT" badge, or empty string
+function pickHitBadgeHtml() {
+  const today = getPDTDate();
+  if (!inCelebrationWindow(today)) return '';
+  const stored = getStoredHit(today);
+  if (!stored) return '';
+  const label = stored === 'over' ? 'OVER HIT 🎯' : 'UNDER CASHED 🎯';
+  return `<div class="pick-hit-badge">${label}</div>`;
+}
+
+// Run purge on script load
+purgeOldCelebrationState();
 
 </script>
 </body>
