@@ -137,12 +137,12 @@
   /* ═══════════ PICK-HIT CELEBRATION ═══════════ */
   #celebration-overlay{position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:9998;display:none;}
   #celebration-overlay.active{display:block;}
-  #celebration-banner{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.3);z-index:9999;text-align:center;pointer-events:none;opacity:0;transition:opacity 0.4s ease-out,transform 0.5s cubic-bezier(0.34,1.56,0.64,1);}
+  #celebration-banner{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.3);z-index:9999;text-align:center;pointer-events:none;opacity:0;transition:opacity 0.4s ease-out,transform 0.5s cubic-bezier(0.34,1.56,0.64,1);padding:28px 56px 24px;border-radius:18px;background:radial-gradient(ellipse at center, rgba(10,10,15,0.95) 0%, rgba(10,10,15,0.88) 60%, rgba(10,10,15,0.75) 100%);box-shadow:0 0 40px 8px rgba(0,0,0,0.7),0 0 80px 20px rgba(255,165,0,0.25),inset 0 1px 0 rgba(255,215,0,0.3);border:1px solid rgba(255,215,0,0.4);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
   #celebration-banner.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
   #celebration-banner .banner-main{font-family:'Barlow Condensed',sans-serif;font-size:clamp(56px,14vw,120px);font-weight:900;letter-spacing:4px;background:linear-gradient(135deg,#FFD700 0%,#FFA500 35%,#FF6B35 70%,#D4AF37 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 20px rgba(255,165,0,0.6)) drop-shadow(0 4px 12px rgba(0,0,0,0.8));line-height:0.9;margin-bottom:8px;}
   #celebration-banner .banner-sub{font-family:'Barlow Condensed',sans-serif;font-size:clamp(20px,4vw,32px);font-weight:700;letter-spacing:3px;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,0.9),0 0 18px rgba(255,215,0,0.5);}
-  #celebration-banner .banner-sub.over-hit{color:#00C46A;text-shadow:0 2px 8px rgba(0,0,0,0.9),0 0 18px rgba(0,196,106,0.6);}
-  #celebration-banner .banner-sub.under-hit{color:#2B7FFF;text-shadow:0 2px 8px rgba(0,0,0,0.9),0 0 18px rgba(43,127,255,0.6);}
+  #celebration-banner .banner-sub.over-hit{color:#00E878;text-shadow:0 2px 8px rgba(0,0,0,0.9),0 0 18px rgba(0,196,106,0.6);}
+  #celebration-banner .banner-sub.under-hit{color:#4DA0FF;text-shadow:0 2px 8px rgba(0,0,0,0.9),0 0 18px rgba(43,127,255,0.6);}
   /* Persistent badge shown in stats row after celebration has played */
   .pick-hit-badge{display:inline-flex;align-items:center;gap:4px;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:800;letter-spacing:1.5px;padding:3px 8px;border-radius:4px;background:linear-gradient(135deg,rgba(255,215,0,0.25),rgba(255,107,53,0.25));color:#FFD700;border:1px solid rgba(255,215,0,0.5);margin-top:4px;text-shadow:0 1px 2px rgba(0,0,0,0.8);animation:hit-badge-pulse 2.5s ease-in-out infinite;}
   @keyframes hit-badge-pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,215,0,0.4);}50%{box-shadow:0 0 0 8px rgba(255,215,0,0);}}
@@ -1343,7 +1343,7 @@ function triggerCelebration(result) {
 
   // Configure banner text based on result
   if (result === 'over') {
-    sub.textContent = 'OVER HITS ⬆';
+    sub.textContent = 'OVER HITS 🎯';
     sub.className = 'banner-sub over-hit';
   } else {
     sub.textContent = 'UNDER CASHES ⬇';
