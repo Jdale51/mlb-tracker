@@ -14,11 +14,11 @@
   *{box-sizing:border-box;margin:0;padding:0;}
   body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;}
   .header{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
-  .header{flex-wrap:wrap;}
-  .logo{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:20px;letter-spacing:0.5px;color:var(--text);display:flex;align-items:center;gap:8px;line-height:1;text-transform:uppercase;}
+  .header{flex-wrap:wrap;justify-content:space-between;}
+  .logo{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:20px;letter-spacing:0.5px;color:var(--text);display:flex;align-items:center;gap:8px;line-height:1;text-transform:uppercase;flex:1;min-width:0;}
   .logo-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 2s infinite;flex-shrink:0;}
   @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
-  .header-icons{display:flex;align-items:center;gap:6px;margin-left:6px;}
+  .header-icons{display:flex;align-items:center;gap:6px;flex-shrink:0;}
   .icon-btn{width:26px;height:26px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);color:var(--muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.15s;padding:0;font-size:13px;}
   .icon-btn:hover{color:var(--text);border-color:rgba(255,255,255,0.2);background:rgba(255,255,255,0.04);}
   .header-right{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px;}
@@ -54,9 +54,9 @@
   .modal-msg{font-size:12px;margin-top:8px;color:var(--green);}
 
   /* Open-line badge (game card) */
-  .open-badge{display:inline-flex;align-items:center;gap:4px;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.5px;padding:2px 8px;border-radius:3px;border:1px solid rgba(245,197,24,0.35);color:var(--accent);background:rgba(245,197,24,0.06);margin-left:6px;text-transform:uppercase;}
-  .open-badge .open-lbl{color:rgba(245,197,24,0.7);font-weight:600;}
-  .open-badge .open-val{color:var(--accent);font-weight:900;}
+  .open-badge{display:inline-flex;align-items:center;gap:4px;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.5px;padding:2px 8px;border-radius:3px;border:1px solid rgba(255,255,255,0.2);color:var(--text);background:rgba(255,255,255,0.04);margin-left:6px;text-transform:uppercase;}
+  .open-badge .open-lbl{color:rgba(240,242,247,0.6);font-weight:600;}
+  .open-badge .open-val{color:var(--text);font-weight:900;}
   .tabs{display:flex;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}
   .tab{padding:11px 18px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;cursor:pointer;color:var(--muted);border:none;background:transparent;border-bottom:3px solid transparent;}
   .tab.active{color:var(--text);border-bottom-color:var(--accent);}
@@ -65,6 +65,10 @@
   .total-num{font-family:'Barlow Condensed',sans-serif;font-size:42px;font-weight:900;color:var(--accent);line-height:1;letter-spacing:-1px;}
   .total-num.gs{color:#B06AFF;}
   .total-meta{font-size:10px;color:var(--muted);line-height:1.7;margin-top:3px;}
+  .slate-pill{display:inline-block;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--text);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;letter-spacing:0.5px;padding:3px 9px;border-radius:4px;text-transform:uppercase;margin-top:6px;}
+  .slate-sub{font-size:10px;color:var(--muted);margin-top:5px;font-family:'Barlow Condensed',sans-serif;letter-spacing:0.3px;}
+  .slate-refresh{display:inline-flex;align-items:center;gap:4px;background:transparent;border:none;color:var(--muted);cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:10px;padding:0 0 0 4px;letter-spacing:0.3px;}
+  .slate-refresh:hover{color:var(--text);}
   .slate-bar{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border-bottom:1px solid var(--border);}
   .gs-bar-wrap{height:4px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;margin:5px 8px 0;}
   .gs-bar-fill{height:100%;border-radius:2px;transition:width 0.5s ease;}
@@ -203,17 +207,10 @@
 <div class="header">
   <div class="logo"><span class="logo-dot"></span>MLB Grand Salami Tracker</div>
   <div class="header-icons">
-    <button class="icon-btn" onclick="openInfoModal()" aria-label="About the model" title="How this works">?</button>
-    <button class="icon-btn" onclick="openFeedbackModal()" aria-label="Send feedback" title="Send feedback">
+    <button class="icon-btn" onclick="openInfoModal()" aria-label="How this works" title="How this works">?</button>
+    <button class="icon-btn" onclick="openFeedbackModal()" aria-label="Feedback / questions" title="Feedback / questions">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,6 12,13 2,6"/></svg>
     </button>
-  </div>
-  <div class="header-right">
-    <div class="status-row">
-      <span id="spill" class="pill pill-g" style="font-size:10px;white-space:nowrap;">Scores: loading</span>
-      <button class="rbtn" style="font-size:10px;padding:2px 7px;" onclick="refreshScores()">↻ Scores</button>
-    </div>
-    <span class="ou-updated" id="lines-updated">O/U Updated: —</span>
   </div>
 </div>
 
@@ -253,18 +250,18 @@
 <div class="modal-backdrop" id="feedback-modal" onclick="if(event.target===this)closeFeedbackModal()">
   <div class="modal">
     <button class="modal-close" onclick="closeFeedbackModal()" aria-label="Close">×</button>
-    <h2>Send Feedback</h2>
-    <p class="muted">Help improve the tracker — what's on your mind?</p>
+    <h2>Feedback / Questions</h2>
+    <p class="muted">Have a question about the model, spot a bug, or want to suggest something? Drop it below.</p>
 
-    <h3>Feedback type</h3>
+    <h3>Type</h3>
     <div class="modal-radio-group">
       <button class="modal-radio active" data-fb-type="model" onclick="selectFbType('model')">Model</button>
       <button class="modal-radio" data-fb-type="site" onclick="selectFbType('site')">Website</button>
       <button class="modal-radio" data-fb-type="other" onclick="selectFbType('other')">Other</button>
     </div>
 
-    <h3>Your feedback</h3>
-    <textarea id="fb-text" placeholder="What did you notice? What could be better?"></textarea>
+    <h3>Message</h3>
+    <textarea id="fb-text" placeholder="What's on your mind?"></textarea>
 
     <h3>Email (optional)</h3>
     <textarea id="fb-email" placeholder="Leave an email if you want a reply" style="min-height:38px;"></textarea>
@@ -287,7 +284,8 @@
     <div>
       <div class="total-lbl">Implied Slate Total</div>
       <div class="total-num" id="slate-num">—</div>
-      <div class="total-meta" id="slate-meta">Waiting for O/U lines...</div>
+      <div id="slate-breakdown" class="slate-pill" style="display:none;"></div>
+      <div class="slate-sub" id="slate-meta">Waiting for O/U lines...</div>
     </div>
     <div style="display:flex;align-items:center;justify-content:center;padding:0 8px;">
       <img src="logo.png" alt="The Grand Salami Tracker" style="height:82px;width:auto;">
@@ -391,6 +389,7 @@ let pregameLines = {};      // opening lines from blob — used for O/U counter
 let grandSalami = null;
 let todayPick = null;
 let todayUnits = null;
+let oddsUpdatedAt = null;   // timestamp of last odds fetch
 let yestPick = null;
 let yestGames = [];
 let sCD = SCORES_MS/1000;
@@ -705,18 +704,31 @@ function ouSt(runs, pregameLine, status){
 // ── RENDER ────────────────────────────────────────────────────────────────────
 
 function renderSlateTotal(){
+  const breakdownEl = document.getElementById('slate-breakdown');
+  const metaEl = document.getElementById('slate-meta');
+
+  function updatedTimeStr(){
+    if(!oddsUpdatedAt) return '';
+    return oddsUpdatedAt.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+  }
+  function refreshBtn(){
+    return ` <button class="slate-refresh" onclick="refreshScores();refreshOdds();" title="Refresh">↻</button>`;
+  }
+
   // If all games are final we can compute the total purely from scores — no odds needed.
-  // This keeps the number visible after the slate ends (books drop lines for finalized games).
   const allFinal = games.length > 0 && games.every(g => g.status === 'final' && g.awayR !== null && g.homeR !== null);
   if (allFinal) {
     const total = games.reduce((s, g) => s + g.awayR + g.homeR, 0);
     document.getElementById('slate-num').textContent = total.toFixed(1);
-    document.getElementById('slate-meta').innerHTML = `${games.length} final<br>Sum of actual runs`;
+    breakdownEl.style.display = 'inline-block';
+    breakdownEl.textContent = `${games.length} Final`;
+    metaEl.innerHTML = `Sum of actual runs${refreshBtn()}`;
     return;
   }
   if(!games.length||!Object.keys(oddsMap).length){
     document.getElementById('slate-num').textContent='—';
-    document.getElementById('slate-meta').textContent='Waiting for O/U lines...';
+    breakdownEl.style.display = 'none';
+    metaEl.innerHTML = `Waiting for O/U lines...${refreshBtn()}`;
     return;
   }
   let total=0;
@@ -736,8 +748,14 @@ function renderSlateTotal(){
     }
   }
   document.getElementById('slate-num').textContent=total.toFixed(1);
-  document.getElementById('slate-meta').innerHTML=
-    `${breakdown.final} final · ${breakdown.live} live · ${breakdown.upcoming} upcoming<br>Sum of lines (rounded up) · DK`;
+  const parts = [];
+  if(breakdown.final) parts.push(`${breakdown.final} Final`);
+  if(breakdown.live) parts.push(`${breakdown.live} Live`);
+  if(breakdown.upcoming) parts.push(`${breakdown.upcoming} Upcoming`);
+  breakdownEl.style.display = 'inline-block';
+  breakdownEl.textContent = parts.join(' · ');
+  const ts = updatedTimeStr();
+  metaEl.innerHTML = `Sum of lines · Updated: ${ts || '—'}${refreshBtn()}`;
 }
 
 function renderGrandSalami(){
@@ -872,6 +890,8 @@ function renderGames(gs, id, live){
       : '';
 
     // Pitcher display with stats from cache
+    // Layout: pitcher name (white) + stats (muted, regular weight) on row 1
+    //         tier badge on its own row, flush to outer edge (left/right)
     function pitcherHtml(pitcher, align) {
       if (!pitcher) return `<div class="tpitcher" style="text-align:${align};color:var(--muted);">TBD</div>`;
       const cached = pitcherStatsCache[pitcher.id];
@@ -879,11 +899,17 @@ function renderGames(gs, id, live){
       if (cached) {
         const era = cached.era !== '—' ? cached.era : '—';
         const wl = `${cached.wins}-${cached.losses}`;
-        statStr = `<span style="color:var(--text);font-weight:700;padding-left:5px;">${era} · ${wl}</span>`;
+        statStr = `<span style="color:rgba(240,242,247,0.55);font-weight:400;padding-left:6px;font-size:10px;">${era} · ${wl}</span>`;
       }
-      const badge = tierBadge(pitcher.name);
       const trend = cached?.trending === 'up' ? ' 📈' : cached?.trending === 'down' ? ' 📉' : '';
-      return `<div class="tpitcher" style="text-align:${align};color:var(--text);font-weight:500;">${badge}${pitcher.name}${trend}${statStr}</div>`;
+      const tier = tierBadge(pitcher.name);
+      const tierRow = tier
+        ? `<div style="text-align:${align};margin-top:3px;">${tier}</div>`
+        : '';
+      return `
+        <div class="tpitcher" style="text-align:${align};color:var(--text);font-weight:500;">${pitcher.name}${trend}${statStr}</div>
+        ${tierRow}
+      `;
     }
 
     return `<div class="game">
@@ -991,14 +1017,9 @@ function redraw(){
 }
 
 async function refreshScores(){
-  document.getElementById('spill').textContent='Scores: updating...';
   try{
     const data=await fetchScores();
     games=data;
-    const live=games.filter(g=>g.status==='live').length;
-    const fin=games.filter(g=>g.status==='final').length;
-    document.getElementById('spill').textContent=`${live} Live · ${fin} Final`;
-    document.getElementById('spill').className='pill pill-g';
     sCD=SCORES_MS/1000;
     // Pre-fetch pitcher stats in background — never block scores render
     const pitcherIds = [...new Set([
@@ -1012,8 +1033,6 @@ async function refreshScores(){
     }
     redraw();
   }catch(e){
-    document.getElementById('spill').textContent='Scores: error';
-    document.getElementById('spill').className='pill pill-r';
     console.error(e);
   }
 }
@@ -1025,9 +1044,7 @@ async function refreshOdds(){
     if(resp.grandSalami) grandSalami=resp.grandSalami;
     if(resp.todayPick) todayPick=resp.todayPick;
     if(resp.todayUnits != null) todayUnits=resp.todayUnits;
-    const ts = resp.oddsLastFetched ? new Date(resp.oddsLastFetched) : new Date();
-    const timeStr = ts.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
-    document.getElementById('lines-updated').textContent=`O/U Updated: ${timeStr}`;
+    oddsUpdatedAt = resp.oddsLastFetched ? new Date(resp.oddsLastFetched) : new Date();
     const MAX_OCD = 3 * 60 * 60; // 3 hours max
     if (resp.secondsUntilNext !== undefined && isFinite(resp.secondsUntilNext)) {
       oCD = Math.min(resp.secondsUntilNext, MAX_OCD);
@@ -1037,7 +1054,6 @@ async function refreshOdds(){
     renderGrandSalami();
     redraw();
   }catch(e){
-    document.getElementById('lines-updated').textContent='O/U Updated: error';
     console.error(e);
   }
 }
@@ -1605,13 +1621,17 @@ function submitFeedback(){
   const msg = document.getElementById('fb-msg');
   if(!text){
     msg.style.color='var(--red)';
-    msg.textContent='Please enter some feedback first.';
+    msg.textContent='Please enter a message first.';
     return;
   }
   const typeLabel = type==='model'?'Model':type==='site'?'Website':'Other';
   const subject = `GST Feedback — ${typeLabel}`;
   const body = `${text}\n\n---\nType: ${typeLabel}\n${email?`Reply-to: ${email}\n`:''}Submitted: ${new Date().toLocaleString()}\nFrom: ${location.href}`;
-  const mailto = `mailto:jdale5150@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  // Email assembled at runtime so it's not plaintext in page source
+  const _u = ['mlb','grand','salami'].join('');
+  const _d = ['gmail','com'].join('.');
+  const _to = _u + String.fromCharCode(64) + _d;
+  const mailto = `mailto:${_to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   window.location.href = mailto;
   msg.style.color='var(--green)';
   msg.textContent='Opening your email app...';
