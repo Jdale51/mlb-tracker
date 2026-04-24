@@ -1470,10 +1470,9 @@ function renderAllStarters() {
   const def = allStartersCache.length - t1 - t2;
   countEl.innerHTML = `<strong class="gold">T1: ${t1}</strong> · <strong class="silver">T2: ${t2}</strong> · <strong style="color:var(--muted)">T3: ${def}</strong> · <strong>Total: ${allStartersCache.length}</strong>`;
   el.innerHTML = filtered.map(s => {
-    const metaParts = [];
-    if (s.team) metaParts.push(`<strong style="color:var(--text);">${s.team}</strong>`);
-    if (s.gamesStarted) metaParts.push(`${s.gamesStarted} GS`);
-    const meta = metaParts.length ? metaParts.join(' · ') : '<span style="opacity:0.5;">—</span>';
+    const meta = s.team
+      ? `<strong style="color:var(--text);">${s.team}</strong>`
+      : '<span style="opacity:0.5;">—</span>';
     return `
     <div class="pitcher-row">
       <div class="pitcher-row-info">
