@@ -143,9 +143,12 @@
   #celebration-banner .banner-sub{font-family:'Barlow Condensed',sans-serif;font-size:clamp(20px,4vw,32px);font-weight:700;letter-spacing:3px;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,0.9),0 0 18px rgba(255,215,0,0.5);}
   #celebration-banner .banner-sub.over-hit{color:#00E878;text-shadow:0 2px 8px rgba(0,0,0,0.9),0 0 18px rgba(0,196,106,0.6);}
   #celebration-banner .banner-sub.under-hit{color:#4DA0FF;text-shadow:0 2px 8px rgba(0,0,0,0.9),0 0 18px rgba(43,127,255,0.6);}
-  /* Persistent badge shown in stats row after celebration has played */
-  .pick-hit-badge{display:inline-flex;align-items:center;gap:4px;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:800;letter-spacing:1.5px;padding:3px 8px;border-radius:4px;background:linear-gradient(135deg,rgba(255,215,0,0.25),rgba(255,107,53,0.25));color:#FFD700;border:1px solid rgba(255,215,0,0.5);margin-top:4px;text-shadow:0 1px 2px rgba(0,0,0,0.8);animation:hit-badge-pulse 2.5s ease-in-out infinite;}
-  @keyframes hit-badge-pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,215,0,0.4);}50%{box-shadow:0 0 0 8px rgba(255,215,0,0);}}
+  /* Pick-hit stat panel — replaces Innings Remaining once the pick resolves as a win */
+  .sstat.sstat-hit{display:flex;align-items:center;justify-content:center;padding:0;}
+  .hit-stat-badge{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:8px 10px;border-radius:8px;background:linear-gradient(135deg,rgba(255,215,0,0.18),rgba(255,107,53,0.18));border:1.5px solid rgba(255,215,0,0.55);box-shadow:0 0 16px rgba(255,215,0,0.2),inset 0 1px 0 rgba(255,215,0,0.25);animation:hit-stat-pulse 2.5s ease-in-out infinite;min-width:0;}
+  .hit-stat-label{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:900;letter-spacing:1.5px;color:#FFD700;text-shadow:0 1px 2px rgba(0,0,0,0.8);line-height:1;white-space:nowrap;}
+  .hit-stat-icon{font-size:20px;line-height:1;}
+  @keyframes hit-stat-pulse{0%,100%{box-shadow:0 0 16px rgba(255,215,0,0.2),inset 0 1px 0 rgba(255,215,0,0.25);}50%{box-shadow:0 0 22px rgba(255,215,0,0.45),inset 0 1px 0 rgba(255,215,0,0.35);}}
   /* Flying salami emojis */
   .salami-flyer{position:fixed;font-size:42px;pointer-events:none;z-index:9997;animation:salami-fly 3s cubic-bezier(0.25,0.46,0.45,0.94) forwards;}
   @keyframes salami-fly{
@@ -244,15 +247,44 @@
 const BOOK = 'draftkings';
 const SCORES_MS = 60000;
 
-function getOddsInterval() {
-  const pstHour = ((new Date().getUTCHours() - 7) + 24) % 24;
-  const pstMin  = new Date().getUTCMinutes();
-  const pstTime = pstHour + pstMin / 60;
+// Slate-window-aware polling:
+//   In window (30min before first pitch → 4hr after last first pitch) → 5min
+//   Out of window                                                      → 30min
+// The server computes its own TTL identically and sends `secondsUntilNext` in each
+// response, so once the server responds the client aligns exactly via oCD reset.
+// This function only drives the initial/fallback interval before the first response.
+const IN_SLATE_MS = 5 * 60 * 1000;
+const OUT_SLATE_MS = 30 * 60 * 1000;
+const PRE_GAME_BUFFER_MS = 30 * 60 * 1000;
+const POST_GAME_BUFFER_MS = 4 * 60 * 60 * 1000;
 
-  if (pstTime >= 22.5 || pstTime < 5.5)  return 3 * 60 * 60 * 1000;   // 10:30pm–5:30am → 3hr
-  if (pstTime >= 5.5  && pstTime < 10)   return 60 * 60 * 1000;        // 5:30am–10am    → 1hr
-  if (pstTime >= 10   && pstTime < 16)   return 30 * 60 * 1000;        // 10am–4pm       → 30min
-  return 15 * 60 * 1000;                                                // 4pm–10:30pm    → 15min
+function getOddsInterval() {
+  // If we have today's games loaded, compute the window from their first-pitch times.
+  // MLB Stats API uses `gameDate` (ISO string). Client fetches this via fetchScores().
+  if (games && games.length) {
+    let earliest = Infinity;
+    let latest = 0;
+    // games[] uses normalized fields; raw gameDate isn't kept, but scheduled games
+    // have their 'time' label. Easier to read from the Odds API data? — but that's
+    // the thing we'd be polling for. Instead use MLB schedule times derived via
+    // the per-game cache stored in window.__gameTimes (set in fetchScores below).
+    const times = window.__gameTimes || [];
+    for (const t of times) {
+      const ms = new Date(t).getTime();
+      if (!isNaN(ms)) {
+        if (ms < earliest) earliest = ms;
+        if (ms > latest) latest = ms;
+      }
+    }
+    if (earliest !== Infinity) {
+      const now = Date.now();
+      const windowStart = earliest - PRE_GAME_BUFFER_MS;
+      const windowEnd = latest + POST_GAME_BUFFER_MS;
+      return (now >= windowStart && now <= windowEnd) ? IN_SLATE_MS : OUT_SLATE_MS;
+    }
+  }
+  // No schedule loaded yet — default to out-of-window to be polite until we know.
+  return OUT_SLATE_MS;
 }
 
 // Always use PDT (UTC-7) regardless of device timezone
@@ -392,6 +424,8 @@ async function fetchScores() {
   if (!scoresRes.ok) throw new Error(`MLB API ${scoresRes.status}`);
   const data = await scoresRes.json();
   const raw = (data.dates && data.dates[0]) ? data.dates[0].games : [];
+  // Capture first-pitch times so getOddsInterval() can compute the slate window
+  window.__gameTimes = raw.map(g => g.gameDate).filter(Boolean);
   return raw.map(g => {
     const state = g.status.abstractGameState;
     const ls = g.linescore || {};
@@ -581,6 +615,15 @@ function ouSt(runs, pregameLine, status){
 // ── RENDER ────────────────────────────────────────────────────────────────────
 
 function renderSlateTotal(){
+  // If all games are final we can compute the total purely from scores — no odds needed.
+  // This keeps the number visible after the slate ends (books drop lines for finalized games).
+  const allFinal = games.length > 0 && games.every(g => g.status === 'final' && g.awayR !== null && g.homeR !== null);
+  if (allFinal) {
+    const total = games.reduce((s, g) => s + g.awayR + g.homeR, 0);
+    document.getElementById('slate-num').textContent = total.toFixed(1);
+    document.getElementById('slate-meta').innerHTML = `${games.length} final<br>Sum of actual runs`;
+    return;
+  }
   if(!games.length||!Object.keys(oddsMap).length){
     document.getElementById('slate-num').textContent='—';
     document.getElementById('slate-meta').textContent='Waiting for O/U lines...';
@@ -655,16 +698,38 @@ function renderStats(gs, id, usePregame){
   }
   const innRemaining = Math.max(0, totalInnings - innCompleted);
   const innPct = totalInnings > 0 ? Math.round((innCompleted / totalInnings) * 100) : 0;
-  const gsStatHtml = gs.length > 0 ? `<div class="sstat">
+
+  // Default innings stat
+  const innHtml = gs.length > 0 ? `<div class="sstat">
     <div class="snum">${innRemaining}</div>
     <div class="gs-bar-wrap"><div class="gs-bar-fill" style="width:${innPct}%;background:var(--accent)"></div></div>
     <div class="slbl">Innings Remaining</div>
   </div>` : `<div class="sstat"><div class="snum">—</div><div class="slbl">Innings Remaining</div></div>`;
+
+  // When today's pick has hit, swap the innings stat for a celebratory HIT panel
+  // (innings-remaining becomes irrelevant info once the bet resolves).
+  // On losing slates we leave innings in place so it still counts down to 0.
+  let gsStatHtml = innHtml;
+  if (id === 'today-stats') {
+    const today = getPDTDate();
+    const storedHit = (typeof getStoredHit === 'function' && inCelebrationWindow(today))
+      ? getStoredHit(today) : null;
+    if (storedHit === 'over' || storedHit === 'under') {
+      const label = storedHit === 'over' ? 'OVER HIT' : 'UNDER CASHED';
+      const icon = storedHit === 'over' ? '🎯' : '⬇';
+      gsStatHtml = `<div class="sstat sstat-hit">
+        <div class="hit-stat-badge">
+          <div class="hit-stat-label">${label}</div>
+          <div class="hit-stat-icon">${icon}</div>
+        </div>
+      </div>`;
+    }
+  }
+
   let pickHtml = '';
   if (id === 'today-stats') {
     const pickLabel = todayPick ? (todayUnits ? `${todayPick} (${todayUnits}u)` : todayPick) : '—';
-    const badge = pickHitBadgeHtml();
-    pickHtml = `<div class="sstat"><div id="pick-display" class="snum" style="font-size:${todayUnits?'18px':'26px'};color:${todayPick==='OVER'?'var(--green)':todayPick==='UNDER'?'var(--blue)':'var(--muted)'}">${pickLabel}</div><div class="slbl">Pick</div>${badge}</div>`;
+    pickHtml = `<div class="sstat"><div id="pick-display" class="snum" style="font-size:${todayUnits?'18px':'26px'};color:${todayPick==='OVER'?'var(--green)':todayPick==='UNDER'?'var(--blue)':'var(--muted)'}">${pickLabel}</div><div class="slbl">Pick</div></div>`;
   } else if (id === 'yest-stats') {
     pickHtml = `<div class="sstat"><div class="snum" style="color:${yestPick==='OVER'?'var(--green)':yestPick==='UNDER'?'var(--blue)':'var(--muted)'}">${yestPick||'—'}</div><div class="slbl">Pick</div></div>`;
   }
