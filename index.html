@@ -34,8 +34,13 @@
   .logo-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 2s infinite;flex-shrink:0;}
   @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
   .header-icons{display:flex;align-items:center;gap:6px;flex-shrink:0;}
-  .icon-btn{width:26px;height:26px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);color:var(--muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.15s;padding:0;font-size:13px;}
+  .icon-btn{width:26px;height:26px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);color:var(--muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.15s;padding:0;font-size:13px;position:relative;}
   .icon-btn:hover{color:var(--text);border-color:rgba(255,255,255,0.2);background:rgba(255,255,255,0.04);}
+  .icon-btn.info{color:var(--accent);border-color:rgba(245,197,24,0.3);font-weight:700;}
+  .icon-btn.info:hover{color:var(--accent);border-color:rgba(245,197,24,0.5);background:rgba(245,197,24,0.08);}
+  .icon-btn .badge-dot{position:absolute;top:-2px;right:-2px;width:8px;height:8px;background:var(--accent);border-radius:50%;border:1.5px solid var(--bg);display:none;}
+  .icon-btn.has-new .badge-dot{display:block;animation:dotPulse 1.6s ease-in-out infinite;}
+  @keyframes dotPulse{0%,100%{transform:scale(1);opacity:1;box-shadow:0 0 0 0 rgba(245,197,24,0.5);}50%{transform:scale(1.15);opacity:0.85;box-shadow:0 0 0 4px rgba(245,197,24,0);}}
   .header-right{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px;}
   .status-row{display:flex;align-items:center;gap:6px;justify-content:flex-end;}
   .pill{font-size:11px;padding:2px 8px;border-radius:3px;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:0.5px;}
@@ -107,10 +112,12 @@
   .team.r{text-align:right;align-items:flex-end;}
   .tabbr{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:var(--text);}
   .tabbr.w{color:var(--green);}
+  .tabbr.t{color:#9CA3AF;}
   .tfull{font-size:10px;color:var(--muted);margin-top:1px;}
   .sctr{display:flex;align-items:center;gap:8px;padding:0 10px;flex-shrink:0;}
   .sco{font-family:'Barlow Condensed',sans-serif;font-size:34px;font-weight:900;color:var(--text);min-width:26px;text-align:center;line-height:1;}
   .sco.w{color:var(--green);}
+  .sco.t{color:#9CA3AF;}
   .sdash{color:var(--muted);font-size:16px;}
   .line-center{text-align:center;margin-top:4px;}
   .line-open{font-size:10px;color:var(--muted);font-family:'Barlow Condensed',sans-serif;letter-spacing:0.5px;}
@@ -224,10 +231,21 @@
 <div class="header">
   <div class="logo"><span class="logo-dot"></span>MLB Grand Salami Tracker</div>
   <div class="header-icons">
-    <button class="icon-btn" onclick="openInfoModal()" aria-label="How this works" title="How this works">?</button>
-    <button class="icon-btn" onclick="openFeedbackModal()" aria-label="Feedback / questions" title="Feedback / questions">
+    <button class="icon-btn info" onclick="openInfoModal()" aria-label="How this works" title="How this works">?</button>
+    <button class="icon-btn" id="feedback-btn" onclick="openFeedbackModal()" aria-label="Feedback / questions" title="Feedback / questions">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,6 12,13 2,6"/></svg>
+      <span class="badge-dot"></span>
     </button>
+    <script>
+      // Show notification dot until user opens feedback at least once
+      (function(){
+        try {
+          if (!localStorage.getItem('feedbackSeen')) {
+            document.getElementById('feedback-btn').classList.add('has-new');
+          }
+        } catch(e) {}
+      })();
+    </script>
   </div>
 </div>
 
@@ -883,6 +901,9 @@ function renderGames(gs, id, live){
     const st=ouSt(runs, gradeLine, g.status);
     const pct=runs&&gradeLine?Math.min(100,Math.round((runs/(gradeLine*1.8))*100)):0;
     const aw=g.awayR!==null&&g.awayR>g.homeR,hw=g.homeR!==null&&g.homeR>g.awayR;
+    const tied = g.awayR!==null && g.homeR!==null && g.awayR===g.homeR && g.status!=='scheduled';
+    const awCls = aw ? 'w' : (tied ? 't' : '');
+    const hwCls = hw ? 'w' : (tied ? 't' : '');
     const sc=g.status==='final'?'sf':g.status==='live'?'sl':'su';
     const sl=g.status==='final'?'Final':g.status==='live'?'● Live':'Upcoming';
     const inn=g.status==='live'&&g.inning?`<span class="inn">${g.inning}</span>`:'';
@@ -934,18 +955,18 @@ function renderGames(gs, id, live){
       </div>
       <div class="gbody">
         <div class="team">
-          <div class="tabbr ${aw?'w':''}">${g.away}</div>
+          <div class="tabbr ${awCls}">${g.away}</div>
           ${live ? pitcherHtml(g.awayPitcher, 'left') : ''}
         </div>
         <div style="display:flex;flex-direction:column;align-items:center;padding:0 10px;flex-shrink:0;margin-top:-4px;">
           <div class="sctr" style="padding:0;">
-            <span class="sco ${aw?'w':''}">${g.status==='scheduled'?'—':g.awayR!==null?g.awayR:'—'}</span>
+            <span class="sco ${awCls}">${g.status==='scheduled'?'—':g.awayR!==null?g.awayR:'—'}</span>
             <span class="sdash">-</span>
-            <span class="sco ${hw?'w':''}">${g.status==='scheduled'?'—':g.homeR!==null?g.homeR:'—'}</span>
+            <span class="sco ${hwCls}">${g.status==='scheduled'?'—':g.homeR!==null?g.homeR:'—'}</span>
           </div>
         </div>
         <div class="team r">
-          <div class="tabbr ${hw?'w':''}">${g.home}</div>
+          <div class="tabbr ${hwCls}">${g.home}</div>
           ${live ? pitcherHtml(g.homePitcher, 'right') : ''}
         </div>
       </div>
@@ -1627,6 +1648,11 @@ function closeInfoModal(){document.getElementById('info-modal').classList.remove
 function openFeedbackModal(){
   document.getElementById('feedback-modal').classList.add('show');
   document.getElementById('fb-msg').textContent='';
+  // Dismiss the new-feedback dot once user has discovered the feature
+  try {
+    localStorage.setItem('feedbackSeen', '1');
+    document.getElementById('feedback-btn').classList.remove('has-new');
+  } catch(e) {}
 }
 function closeFeedbackModal(){document.getElementById('feedback-modal').classList.remove('show');}
 function selectFbType(type){
