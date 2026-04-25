@@ -3,6 +3,23 @@
     { "source": "/admin", "destination": "/admin.html" },
     { "source": "/api/park-weather", "destination": "/api/park-weather.js" }
   ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "mlb-tracker-grandsalami.vercel.app"
+        }
+      ],
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
+        }
+      ]
+    }
+  ],
   "crons": [
     {
       "path": "/api/cron-gs-scraper",
