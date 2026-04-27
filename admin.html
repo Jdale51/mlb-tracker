@@ -12,6 +12,10 @@
     --border:rgba(255,255,255,0.07);--text:#F0F2F7;--muted:#6B7280;--accent:#F5C518;
     --purple:#B06AFF;--orange:#FF8C00;
     --gold:#D4AF37;--silver:#C0C0C0;
+    /* 5-tier starter color palette (2026-04-27 model rebuild):
+       T1 = gold (elite), T2 = silver (strong),
+       T3 = white/neutral, T4 = copper/amber (fragile), T5 = red (soft) */
+    --t3-color:#E8EAF0;--t4-color:#B87333;--t5-color:#E64545;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
   body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;max-width:520px;margin:0 auto;padding:16px;}
@@ -183,10 +187,16 @@
   .tier-select{background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:5px 7px;color:var(--text);font-size:12px;cursor:pointer;font-family:'Barlow',sans-serif;}
   .tier-select[data-tier="tier1"]{border-color:var(--gold);color:var(--gold);font-weight:700;}
   .tier-select[data-tier="tier2"]{border-color:var(--silver);color:var(--silver);font-weight:700;}
+  .tier-select[data-tier="tier3"]{border-color:var(--t3-color);color:var(--t3-color);font-weight:700;}
+  .tier-select[data-tier="tier4"]{border-color:var(--t4-color);color:var(--t4-color);font-weight:700;}
+  .tier-select[data-tier="tier5"]{border-color:var(--t5-color);color:var(--t5-color);font-weight:700;}
   .tier-count{font-size:11px;color:var(--muted);padding:6px 4px;}
   .tier-count strong{color:var(--text);font-family:'Barlow Condensed',sans-serif;}
   .gold{color:var(--gold);}
   .silver{color:var(--silver);}
+  .t3-text{color:var(--t3-color);}
+  .t4-text{color:var(--t4-color);}
+  .t5-text{color:var(--t5-color);}
   .sync-btn{background:transparent;border:1px solid var(--accent);color:var(--accent);padding:6px 12px;border-radius:6px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:0.5px;cursor:pointer;margin-bottom:10px;}
   .sync-btn:hover{background:rgba(245,197,24,0.1);}
   .sync-btn:disabled{opacity:0.5;cursor:not-allowed;}
@@ -432,6 +442,36 @@
         <div class="tier-count" id="all-count">—</div>
         <div class="pitcher-list" id="all-list"><div style="padding:16px;color:var(--muted);font-size:12px;text-align:center;">Click "Sync from MLB API" to load pitchers</div></div>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">5-Tier Migration Tools</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.5;">
+        One-time tools for the 2026-04-27 5-tier rebuild. Run <strong>Migrate Aces</strong> first
+        to convert legacy <code>default</code> pitcher tags to <code>tier4</code>.
+        Then re-grade pitchers in the All Starters tab as needed.
+        Finally run <strong>Backfill History</strong> to update historical game-log tier values
+        based on each pitcher's current tier.
+        <br><br>
+        Backfill rules: <span class="gold">T1 historicals are preserved untouched</span>.
+        Empty / legacy <code>tier2</code> / <code>default</code> / legacy <code>tier3</code> values
+        are rewritten using the current aces.json. Use the dry-run option first to preview.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <button onclick="migrateAcesToTier4()" id="migrate-btn"
+          style="background:transparent;border:1px solid var(--t4-color);color:var(--t4-color);padding:8px 12px;border-radius:6px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:0.5px;">
+          ① Migrate Aces (default → tier4)
+        </button>
+        <button onclick="backfillHistoricalTiers(true)" id="backfill-dry-btn"
+          style="background:transparent;border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:0.5px;">
+          ② Backfill History (DRY RUN — preview only)
+        </button>
+        <button onclick="backfillHistoricalTiers(false)" id="backfill-btn"
+          style="background:transparent;border:1px solid var(--gold);color:var(--gold);padding:8px 12px;border-radius:6px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:0.5px;">
+          ③ Backfill History (LIVE — write changes)
+        </button>
+      </div>
+      <div id="migration-output" style="margin-top:12px;font-size:11px;color:var(--muted);font-family:'Barlow Condensed',monospace;line-height:1.5;"></div>
     </div>
 
     <div class="card">
@@ -898,31 +938,44 @@ function rotAdj(rot) {
   return map[String(rot)] || 0;
 }
 // Starter tier from the assigned aces list (set in Tiers tab).
-//   'tier1'   -> tier 1 (elite / ace) — bullpen impact muted
-//   'tier2'   -> tier 2 (above avg)
-//   anything else (including 'default', unassigned, or blank) -> tier 3
-// Per Jordan's spec: every unranked starter is treated as tier 3 so the model
-// assumes bullpen exposure unless the pitcher has been explicitly promoted.
+//   'tier1' -> elite ace — bullpen impact muted
+//   'tier2' -> strong #2 — small bullpen impact
+//   'tier3' -> league-average MLB starter — neutral
+//   'tier4' -> below-avg/fragile — magnified bullpen impact (fire-hazard candidate)
+//   'tier5' -> soft starter — biggest bullpen impact
+// Per the 2026-04-27 5-tier rebuild: any unrated/legacy 'default' starter falls to tier4
+// (not tier3) because empirically the legacy 'default' bucket performed slightly worse
+// than league average and absorbed most "soft starter" candidates from the old system.
 function starterTierForPitcher(pitcherName) {
-  if (!pitcherName) return 'tier3';
+  if (!pitcherName) return 'tier4';
   const t = (acesData && acesData.pitchers) ? acesData.pitchers[pitcherName] : null;
   if (t === 'tier1') return 'tier1';
   if (t === 'tier2') return 'tier2';
-  return 'tier3';
+  if (t === 'tier3') return 'tier3';
+  if (t === 'tier4') return 'tier4';
+  if (t === 'tier5') return 'tier5';
+  return 'tier4'; // legacy 'default', empty, or unset → tier4
 }
 
 // Per-team bullpen run delta, indexed by (starterTier, bullpenTier).
-// Derived from Jordan's matrix spec: T1 starter muffles bullpen tier entirely;
-// T2/T3 starters expose the bullpen asymmetrically. Per-team values; SUM both sides.
-// Game range: -1.0 (T2 starters + T1 pens both sides) to +3.0 (T3 starters + T3 pens both sides).
+// 5-tier matrix from the 2026-04-27 rebuild (Option A weights):
+//   T1 starter: bullpen muted entirely (aces finish their starts)
+//   T2 starter: small bullpen exposure (-0.25 / 0 / +0.5)
+//   T3 starter: moderate bullpen exposure (-0.5 / 0 / +1.0)
+//   T4 starter: magnified bullpen exposure (-0.5 / 0 / +1.5) — fire hazard candidates
+//   T5 starter: maximum bullpen exposure (-0.5 / 0 / +2.0) — soft starters get pulled early
+// Per-team values; SUM both sides for game total.
+// Game range: -1.0 (T2-T5 starters + T1 pens both sides) to +4.0 (T5 starters + T3 pens both sides).
 const BP_STRENGTH_MATRIX = {
-  tier1: { tier1:  0.0, tier2: 0.0, tier3:  0.0 },
-  tier2: { tier1: -0.5, tier2: 0.0, tier3: +1.0 },
-  tier3: { tier1: -0.5, tier2: 0.0, tier3: +1.5 },
+  tier1: { tier1:  0.0,  tier2: 0.0, tier3:  0.0 },
+  tier2: { tier1: -0.25, tier2: 0.0, tier3: +0.5 },
+  tier3: { tier1: -0.5,  tier2: 0.0, tier3: +1.0 },
+  tier4: { tier1: -0.5,  tier2: 0.0, tier3: +1.5 },
+  tier5: { tier1: -0.5,  tier2: 0.0, tier3: +2.0 },
 };
 
 function bpCellAdj(starterTier, bpTier) {
-  const row = BP_STRENGTH_MATRIX[starterTier] || BP_STRENGTH_MATRIX.tier2;
+  const row = BP_STRENGTH_MATRIX[starterTier] || BP_STRENGTH_MATRIX.tier4;
   const val = row[bpTier];
   return typeof val === 'number' ? val : 0;
 }
@@ -944,7 +997,9 @@ function bullpenCombined(_bpTierFatigue, _awayWhip, _homeWhip, awayTeam, homeTea
   const homeAdj = bpCellAdj(homeSTier, homeBp);
   const adj = awayAdj + homeAdj;
   const fmt = (n) => (n >= 0 ? '+' : '') + n.toFixed(2);
-  const shortS = (t) => t === 'tier1' ? 'T1s' : t === 'tier2' ? 'T2s' : 'T3s';
+  const shortS = (t) => t === 'tier1' ? 'T1s' : t === 'tier2' ? 'T2s'
+                      : t === 'tier3' ? 'T3s' : t === 'tier4' ? 'T4s'
+                      : t === 'tier5' ? 'T5s' : 'T?s';
   const shortB = (t) => t === 'tier1' ? 'T1p' : t === 'tier2' ? 'T2p' : 'T3p';
   const note = `${awayTeam||'AWY'} ${shortS(awaySTier)}+${shortB(awayBp)} ${fmt(awayAdj)} · ${homeTeam||'HOM'} ${shortS(homeSTier)}+${shortB(homeBp)} ${fmt(homeAdj)}`;
   return { adj, note };
@@ -1430,8 +1485,86 @@ async function syncStarters() {
   }
 }
 
+// One-time migration: convert legacy 'default' tier values in aces.json to 'tier4'.
+// Idempotent — safe to run multiple times.
+async function migrateAcesToTier4() {
+  const btn = document.getElementById('migrate-btn');
+  const out = document.getElementById('migration-output');
+  if (!confirm('Migrate all "default" pitcher tiers to "tier4"?\n\nThis updates aces.json. Safe to run multiple times.')) return;
+  btn.disabled = true;
+  btn.textContent = 'Migrating...';
+  out.textContent = '';
+  try {
+    const res = await fetch('/api/tiers?action=migrate-tiers');
+    const data = await res.json();
+    if (data.ok) {
+      out.innerHTML = `<span style="color:var(--green);">✓ Migration complete:</span> ${data.migrated} of ${data.total} pitchers moved to tier4. <br>Refresh the page or click All Starters tab to see updated tiers.`;
+      // Reload aces data so the UI picks up the new values
+      try {
+        const tiersRes = await fetch('/api/tiers');
+        const tiersData = await tiersRes.json();
+        if (tiersData.aces) acesData = tiersData.aces;
+      } catch(e) {}
+      showToast(`Migrated ${data.migrated} pitchers ✓`, 'ok');
+    } else {
+      out.innerHTML = `<span style="color:var(--red);">✗ Migration failed:</span> ${data.error || 'unknown error'}`;
+    }
+  } catch(e) {
+    out.innerHTML = `<span style="color:var(--red);">✗ Error:</span> ${e.message}`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '① Migrate Aces (default → tier4)';
+  }
+}
+
+// Walks all historical beta-results blobs, joins with game-outcomes to recover
+// starter names, then rewrites awayTier/homeTier per the current aces.json.
+// Pass dryRun=true to preview without writing.
+async function backfillHistoricalTiers(dryRun) {
+  const btn = document.getElementById(dryRun ? 'backfill-dry-btn' : 'backfill-btn');
+  const out = document.getElementById('migration-output');
+  const action = dryRun ? 'PREVIEW' : 'WRITE';
+  if (!dryRun && !confirm('LIVE backfill — this will rewrite historical beta-results blobs.\n\nT1 historicals are preserved. Empty / tier2 / default / legacy-tier3 values get rewritten to whatever the pitcher\'s CURRENT tier is in aces.json.\n\nProceed?')) return;
+  btn.disabled = true;
+  btn.textContent = `${action}ing...`;
+  out.textContent = `${action}ing historical tiers — this may take 30-60 seconds...`;
+  try {
+    const url = `/api/tiers?action=backfill-history${dryRun ? '&dryRun=1' : ''}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.ok) {
+      out.innerHTML = `
+        <span style="color:${dryRun ? 'var(--accent)' : 'var(--green)'};">
+          ${dryRun ? '⚠ DRY RUN' : '✓ LIVE'} Backfill complete
+        </span><br>
+        Dates processed: <strong>${data.datesProcessed}</strong> ·
+        Skipped: <strong>${data.datesSkipped}</strong><br>
+        Games updated: <strong style="color:var(--green);">${data.gamesUpdated}</strong> ·
+        Unchanged: ${data.gamesUnchanged} ·
+        No-match: ${data.gamesNoMatch}
+        ${dryRun ? '<br><br><span style="color:var(--accent);">Re-run with the LIVE button to actually write changes.</span>' : ''}
+      `;
+      showToast(`${dryRun ? 'Preview' : 'Backfilled'}: ${data.gamesUpdated} games`, 'ok');
+    } else {
+      out.innerHTML = `<span style="color:var(--red);">✗ Backfill failed:</span> ${data.error || 'unknown error'}`;
+    }
+  } catch(e) {
+    out.innerHTML = `<span style="color:var(--red);">✗ Error:</span> ${e.message}`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = dryRun
+      ? '② Backfill History (DRY RUN — preview only)'
+      : '③ Backfill History (LIVE — write changes)';
+  }
+}
+
 function tierSortKey(tier) {
-  return tier === 'tier1' ? 0 : tier === 'tier2' ? 1 : 2;
+  if (tier === 'tier1') return 0;
+  if (tier === 'tier2') return 1;
+  if (tier === 'tier3') return 2;
+  if (tier === 'tier4') return 3;
+  if (tier === 'tier5') return 4;
+  return 3; // legacy 'default' / unset / unknown → sorts with tier4
 }
 
 function renderAllStarters() {
@@ -1444,7 +1577,7 @@ function renderAllStarters() {
       countEl.textContent = '—';
       return;
     }
-    allStartersCache = names.map(n => ({ name: n, team: '', gamesStarted: 0, tier: acesData.pitchers[n] || 'default' }));
+    allStartersCache = names.map(n => ({ name: n, team: '', gamesStarted: 0, tier: acesData.pitchers[n] || 'tier4' }));
   }
   // Build a name → team lookup from today's & tomorrow's caches as a fallback
   // for any pitcher in allStartersCache missing team info (e.g. newly added
@@ -1453,7 +1586,7 @@ function renderAllStarters() {
   for (const s of todayStartersCache) if (s.name && s.team) teamLookup[s.name] = s.team;
   for (const s of tomorrowStartersCache) if (s.name && s.team && !s.tbd) teamLookup[s.name] = s.team;
   allStartersCache.forEach(s => {
-    s.tier = acesData.pitchers[s.name] || 'default';
+    s.tier = acesData.pitchers[s.name] || 'tier4';
     if (!s.team && teamLookup[s.name]) s.team = teamLookup[s.name];
   });
   const search = (document.getElementById('pitcher-search').value || '').toLowerCase();
@@ -1467,22 +1600,28 @@ function renderAllStarters() {
   });
   const t1 = allStartersCache.filter(s => s.tier === 'tier1').length;
   const t2 = allStartersCache.filter(s => s.tier === 'tier2').length;
-  const def = allStartersCache.length - t1 - t2;
-  countEl.innerHTML = `<strong class="gold">T1: ${t1}</strong> · <strong class="silver">T2: ${t2}</strong> · <strong style="color:var(--muted)">T3: ${def}</strong> · <strong>Total: ${allStartersCache.length}</strong>`;
+  const t3 = allStartersCache.filter(s => s.tier === 'tier3').length;
+  const t4 = allStartersCache.filter(s => s.tier === 'tier4' || s.tier === 'default' || !s.tier).length;
+  const t5 = allStartersCache.filter(s => s.tier === 'tier5').length;
+  countEl.innerHTML = `<strong class="gold">T1: ${t1}</strong> · <strong class="silver">T2: ${t2}</strong> · <strong class="t3-text">T3: ${t3}</strong> · <strong class="t4-text">T4: ${t4}</strong> · <strong class="t5-text">T5: ${t5}</strong> · <strong>Total: ${allStartersCache.length}</strong>`;
   el.innerHTML = filtered.map(s => {
     const meta = s.team
       ? `<strong style="color:var(--text);">${s.team}</strong>`
       : '<span style="opacity:0.5;">—</span>';
+    // Normalize legacy 'default' to 'tier4' for display so the select renders the right option
+    const displayTier = (s.tier === 'default' || !s.tier) ? 'tier4' : s.tier;
     return `
     <div class="pitcher-row">
       <div class="pitcher-row-info">
         <div class="pitcher-name">${s.name}</div>
         <div class="pitcher-meta">${meta}</div>
       </div>
-      <select class="tier-select" data-tier="${s.tier}" onchange="updatePitcherTier('${s.name.replace(/'/g, "\\'")}', this.value)">
-        <option value="default" ${s.tier === 'default' ? 'selected' : ''}>Tier 3</option>
-        <option value="tier2" ${s.tier === 'tier2' ? 'selected' : ''}>Tier 2</option>
-        <option value="tier1" ${s.tier === 'tier1' ? 'selected' : ''}>Tier 1</option>
+      <select class="tier-select" data-tier="${displayTier}" onchange="updatePitcherTier('${s.name.replace(/'/g, "\\'")}', this.value)">
+        <option value="tier1" ${displayTier === 'tier1' ? 'selected' : ''}>Tier 1 · Elite</option>
+        <option value="tier2" ${displayTier === 'tier2' ? 'selected' : ''}>Tier 2 · Strong</option>
+        <option value="tier3" ${displayTier === 'tier3' ? 'selected' : ''}>Tier 3 · Average</option>
+        <option value="tier4" ${displayTier === 'tier4' ? 'selected' : ''}>Tier 4 · Fragile</option>
+        <option value="tier5" ${displayTier === 'tier5' ? 'selected' : ''}>Tier 5 · Soft</option>
       </select>
     </div>`;
   }).join('');
@@ -1555,30 +1694,36 @@ function renderTodaysStarters() {
   }
   const enriched = todayStartersCache.map(s => ({
     ...s,
-    tier: acesData.pitchers[s.name] || 'default',
+    tier: acesData.pitchers[s.name] || 'tier4',
   }));
   const t1 = enriched.filter(s => s.tier === 'tier1').length;
   const t2 = enriched.filter(s => s.tier === 'tier2').length;
-  const def = enriched.length - t1 - t2;
-  countEl.innerHTML = `<strong class="gold">T1: ${t1}</strong> · <strong class="silver">T2: ${t2}</strong> · <strong>T3: ${def}</strong> · <strong>Total: ${enriched.length}</strong>`;
+  const t3 = enriched.filter(s => s.tier === 'tier3').length;
+  const t4 = enriched.filter(s => s.tier === 'tier4' || s.tier === 'default' || !s.tier).length;
+  const t5 = enriched.filter(s => s.tier === 'tier5').length;
+  countEl.innerHTML = `<strong class="gold">T1: ${t1}</strong> · <strong class="silver">T2: ${t2}</strong> · <strong class="t3-text">T3: ${t3}</strong> · <strong class="t4-text">T4: ${t4}</strong> · <strong class="t5-text">T5: ${t5}</strong> · <strong>Total: ${enriched.length}</strong>`;
   enriched.sort((a, b) => {
     const t = tierSortKey(a.tier) - tierSortKey(b.tier);
     if (t !== 0) return t;
     return (a.team || '').localeCompare(b.team || '');
   });
-  el.innerHTML = enriched.map(s => `
+  el.innerHTML = enriched.map(s => {
+    const displayTier = (s.tier === 'default' || !s.tier) ? 'tier4' : s.tier;
+    return `
     <div class="pitcher-row">
       <div class="pitcher-row-info">
         <div class="pitcher-name">${s.name}</div>
         <div class="pitcher-meta"><strong style="color:var(--text);">${s.team}</strong> vs ${s.opp}</div>
       </div>
-      <select class="tier-select" data-tier="${s.tier}" onchange="updatePitcherTier('${s.name.replace(/'/g, "\\'")}', this.value)">
-        <option value="default" ${s.tier === 'default' ? 'selected' : ''}>Tier 3</option>
-        <option value="tier2" ${s.tier === 'tier2' ? 'selected' : ''}>Tier 2</option>
-        <option value="tier1" ${s.tier === 'tier1' ? 'selected' : ''}>Tier 1</option>
+      <select class="tier-select" data-tier="${displayTier}" onchange="updatePitcherTier('${s.name.replace(/'/g, "\\'")}', this.value)">
+        <option value="tier1" ${displayTier === 'tier1' ? 'selected' : ''}>Tier 1 · Elite</option>
+        <option value="tier2" ${displayTier === 'tier2' ? 'selected' : ''}>Tier 2 · Strong</option>
+        <option value="tier3" ${displayTier === 'tier3' ? 'selected' : ''}>Tier 3 · Average</option>
+        <option value="tier4" ${displayTier === 'tier4' ? 'selected' : ''}>Tier 4 · Fragile</option>
+        <option value="tier5" ${displayTier === 'tier5' ? 'selected' : ''}>Tier 5 · Soft</option>
       </select>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 async function loadTomorrowsStarters() {
@@ -1643,14 +1788,16 @@ function renderTomorrowsStarters() {
   }
   const enriched = tomorrowStartersCache.map(s => ({
     ...s,
-    tier: s.tbd ? 'default' : (acesData.pitchers[s.name] || 'default'),
+    tier: s.tbd ? 'tier4' : (acesData.pitchers[s.name] || 'tier4'),
   }));
   const announced = enriched.filter(s => !s.tbd);
   const t1 = announced.filter(s => s.tier === 'tier1').length;
   const t2 = announced.filter(s => s.tier === 'tier2').length;
-  const def = announced.length - t1 - t2;
+  const t3 = announced.filter(s => s.tier === 'tier3').length;
+  const t4 = announced.filter(s => s.tier === 'tier4' || s.tier === 'default' || !s.tier).length;
+  const t5 = announced.filter(s => s.tier === 'tier5').length;
   const tbd = enriched.filter(s => s.tbd).length;
-  countEl.innerHTML = `<strong class="gold">T1: ${t1}</strong> · <strong class="silver">T2: ${t2}</strong> · <strong>T3: ${def}</strong>${tbd ? ` · <strong style="color:var(--muted);">TBD: ${tbd}</strong>` : ''} · <strong>Total: ${announced.length}/${enriched.length}</strong>`;
+  countEl.innerHTML = `<strong class="gold">T1: ${t1}</strong> · <strong class="silver">T2: ${t2}</strong> · <strong class="t3-text">T3: ${t3}</strong> · <strong class="t4-text">T4: ${t4}</strong> · <strong class="t5-text">T5: ${t5}</strong>${tbd ? ` · <strong style="color:var(--muted);">TBD: ${tbd}</strong>` : ''} · <strong>${announced.length}/${enriched.length}</strong>`;
   // Sort: TBD last, then by tier, then team
   enriched.sort((a, b) => {
     if (a.tbd !== b.tbd) return a.tbd ? 1 : -1;
@@ -1669,16 +1816,19 @@ function renderTomorrowsStarters() {
           <div style="font-size:10px;color:var(--muted);font-family:'Barlow Condensed',sans-serif;letter-spacing:1px;padding:6px 10px;border:1px dashed var(--border);border-radius:4px;">PENDING</div>
         </div>`;
     }
+    const displayTier = (s.tier === 'default' || !s.tier) ? 'tier4' : s.tier;
     return `
       <div class="pitcher-row">
         <div class="pitcher-row-info">
           <div class="pitcher-name">${s.name}</div>
           <div class="pitcher-meta"><strong style="color:var(--text);">${s.team}</strong> vs ${s.opp}</div>
         </div>
-        <select class="tier-select" data-tier="${s.tier}" onchange="updatePitcherTier('${s.name.replace(/'/g, "\\'")}', this.value)">
-          <option value="default" ${s.tier === 'default' ? 'selected' : ''}>Tier 3</option>
-          <option value="tier2" ${s.tier === 'tier2' ? 'selected' : ''}>Tier 2</option>
-          <option value="tier1" ${s.tier === 'tier1' ? 'selected' : ''}>Tier 1</option>
+        <select class="tier-select" data-tier="${displayTier}" onchange="updatePitcherTier('${s.name.replace(/'/g, "\\'")}', this.value)">
+          <option value="tier1" ${displayTier === 'tier1' ? 'selected' : ''}>Tier 1 · Elite</option>
+          <option value="tier2" ${displayTier === 'tier2' ? 'selected' : ''}>Tier 2 · Strong</option>
+          <option value="tier3" ${displayTier === 'tier3' ? 'selected' : ''}>Tier 3 · Average</option>
+          <option value="tier4" ${displayTier === 'tier4' ? 'selected' : ''}>Tier 4 · Fragile</option>
+          <option value="tier5" ${displayTier === 'tier5' ? 'selected' : ''}>Tier 5 · Soft</option>
         </select>
       </div>`;
   }).join('');
@@ -2064,7 +2214,10 @@ async function exportForClaude() {
     var t = tierInfo.aces && tierInfo.aces[name];
     if (t === 'tier1') return ' [T1]';
     if (t === 'tier2') return ' [T2]';
-    return '';
+    if (t === 'tier3') return ' [T3]';
+    if (t === 'tier4' || t === 'default') return ' [T4]';
+    if (t === 'tier5') return ' [T5]';
+    return ' [T4]'; // unrated → defaults to T4 in 5-tier system
   }
   gameList.forEach(function(g){
     out.push(g.away+' @ '+g.home+':');
@@ -2343,26 +2496,24 @@ function bpAdjScore(adj) {
 }
 
 function starterBlowupScore(whip, tierName) {
-  // T1 suppresses scoring. T2 is neutral. T3 (default) can only be neutral
-  // or push toward overs based on WHIP — a low-WHIP pitcher who hasn't been
-  // graded as T2 or T1 is treated as noise (small sample / early season),
-  // never as a suppressor. The tier system owns the "good pitcher" signal;
-  // WHIP only triggers over signals for soft starters.
-  //
-  // T3 WHIP bands:
-  //   < 1.1       → 0  (anomalous-good for a default; treat as noise)
-  //   1.1 – 1.39  → +1 (anything not actually good is mild over)
-  //   ≥ 1.4       → +2 (soft starter, real over signal)
-  let base = 0;
-  if (tierName === 'tier1') base = -1.5;
-  else if (tierName === 'tier2') base = 0;
-  else {
-    const w = parseFloat(whip) || 1.35;
-    if (w >= 1.4) base = 2;
-    else if (w >= 1.1) base = 1;
-    // w < 1.1 stays at 0
-  }
-  return base;
+  // 5-tier starter adjustment (2026-04-27 rebuild, Option A weights):
+  //   T1: -1.5  (elite ace; suppression confirmed empirically at -0.9 runs/team)
+  //   T2: -0.5  (strong #2; modest suppression)
+  //   T3:  0    (league-average; neutral)
+  //   T4: +0.5  (below-avg/fragile; mild over signal)
+  //   T5: +1.0  (soft starter; meaningful over signal)
+  // Bullpen matrix carries the asymmetric "fire hazard" amplification — a T5
+  // starter paired with a T3 pen still adds +2.0 per side via BP_STRENGTH_MATRIX,
+  // so the starter-side weight stays modest to avoid double-counting.
+  // Legacy 'default' / blank values fall to T4 (matches the empirical default population).
+  // The `whip` arg is retained for call-site compatibility; classification now
+  // owns the WHIP signal (T4/T5 = high-WHIP fragile arms by definition).
+  if (tierName === 'tier1') return -1.5;
+  if (tierName === 'tier2') return -0.5;
+  if (tierName === 'tier3') return 0;
+  if (tierName === 'tier5') return 1.0;
+  // tier4, 'default', missing, or unknown → +0.5
+  return 0.5;
 }
 
 function lineupScore(profile) {
@@ -2374,26 +2525,32 @@ function lineupScore(profile) {
 // Per-team bullpen impact using the strength matrix. Mirrors BP_STRENGTH_MATRIX
 // in the GST calculator so the two systems stay in sync.
 //   Tier 1 starter: bullpen irrelevant (goes ~6 IP regardless of pen strength)
-//   Tier 2 starter: T1 pen -0.5, T2 pen 0.0, T3 pen +1.0
-//   Tier 3 starter: T1 pen -0.5, T2 pen 0.0, T3 pen +1.5
-// Game range = -1.0 (both T2/T3 starters vs T1 pens) to +3.0 (both T3 starters vs T3 pens).
+//   Tier 2 starter: T1 pen -0.25, T2 pen 0.0, T3 pen +0.5
+//   Tier 3 starter: T1 pen -0.5,  T2 pen 0.0, T3 pen +1.0
+//   Tier 4 starter: T1 pen -0.5,  T2 pen 0.0, T3 pen +1.5
+//   Tier 5 starter: T1 pen -0.5,  T2 pen 0.0, T3 pen +2.0
+// Game range: -1.0 (T2-T5 starters + T1 pens both sides) to +4.0 (T5 starters + T3 pens both sides).
 //
-// Accepts either the new strength tiers ('tier1'/'tier2'/'tier3') or legacy
-// 'default'/unknown values. Legacy fatigue labels ('fresh'/'taxed'/'gassed')
-// from older saved blobs fall through to 0 rather than crash the view.
+// Accepts any 5-tier value or legacy 'default'/unknown (→ tier4).
+// Legacy fatigue labels ('fresh'/'taxed'/'gassed') from older saved blobs
+// fall through to 0 rather than crash the view.
 function bullpenContribution(starterTier, bpTier) {
   const sKey = starterTier === 'tier1' ? 'tier1'
              : starterTier === 'tier2' ? 'tier2'
-             : 'tier3'; // 'default', missing, or anything else → tier 3
+             : starterTier === 'tier3' ? 'tier3'
+             : starterTier === 'tier5' ? 'tier5'
+             : 'tier4'; // 'tier4', 'default', missing, or anything else → tier 4
   const bKey = bpTier === 'tier1' ? 'tier1'
              : bpTier === 'tier2' ? 'tier2'
              : bpTier === 'tier3' ? 'tier3'
              : null; // legacy fatigue labels or unset → no contribution
   if (!bKey) return 0;
   const matrix = {
-    tier1: { tier1:  0.0, tier2: 0.0, tier3:  0.0 },
-    tier2: { tier1: -0.5, tier2: 0.0, tier3: +1.0 },
-    tier3: { tier1: -0.5, tier2: 0.0, tier3: +1.5 },
+    tier1: { tier1:  0.0,  tier2: 0.0, tier3:  0.0 },
+    tier2: { tier1: -0.25, tier2: 0.0, tier3: +0.5 },
+    tier3: { tier1: -0.5,  tier2: 0.0, tier3: +1.0 },
+    tier4: { tier1: -0.5,  tier2: 0.0, tier3: +1.5 },
+    tier5: { tier1: -0.5,  tier2: 0.0, tier3: +2.0 },
   };
   return matrix[sKey][bKey];
 }
@@ -2404,20 +2561,22 @@ function bullpenScore(g) {
   // back to the combined g.bpTier so restored games still score.
   const awayBp = g.awayBpTier || g.bpTier || null;
   const homeBp = g.homeBpTier || g.bpTier || null;
-  const awayContribution = bullpenContribution(g.awayTier || 'default', awayBp);
-  const homeContribution = bullpenContribution(g.homeTier || 'default', homeBp);
-  // Clamp to the matrix's natural game range: -1.0 (T1 pens both sides) to +3.0
-  // (T3 pens both sides). No artificial ±2 cap — Jordan's spec explicitly
-  // allows game impacts up to 3.
+  const awayContribution = bullpenContribution(g.awayTier || 'tier4', awayBp);
+  const homeContribution = bullpenContribution(g.homeTier || 'tier4', homeBp);
+  // Clamp to the 5-tier matrix's natural game range: -1.0 (T1 pens both sides
+  // with T2-T5 starters) to +4.0 (T3 pens both sides with T5 starters).
   const raw = awayContribution + homeContribution;
-  return Math.max(-1, Math.min(3, raw));
+  return Math.max(-1, Math.min(4, raw));
 }
 
 function scoreGame(g) {
   const s1 = bpAdjScore(g.bpAdj);
   const awayStarter = starterBlowupScore(g.awayWhip, g.awayTier);
   const homeStarter = starterBlowupScore(g.homeWhip, g.homeTier);
-  const s2 = Math.max(-3, Math.min(3, awayStarter + homeStarter)); // ±3 — bullpen matrix layers on top to mute (T1 pen) or compound (T3 pen)
+  // 5-tier natural starter range: -3.0 (two T1) to +2.0 (two T5). Asymmetric clamp
+  // matches the empirical asymmetry — T1 effect is the largest of any tier, and
+  // bullpen matrix layers on top to compound or mute.
+  const s2 = Math.max(-3, Math.min(2, awayStarter + homeStarter));
   const s3 = bullpenScore(g);
   const s4 = lineupScore(g.awayLineup) + lineupScore(g.homeLineup);
   const total = s1 + s2 + s3 + s4;
@@ -2481,8 +2640,8 @@ async function autoLoadBetaGames() {
       const combinedBp = (awayBpTier && homeBpTier) ? awayBpTier : null;
       const matchup = `${awayAbbr}@${homeAbbr}`;
       const bpEntry = bpGameData[matchup];
-      const awayTier = acesData.pitchers[awayP?.fullName] || 'default';
-      const homeTier = acesData.pitchers[homeP?.fullName] || 'default';
+      const awayTier = acesData.pitchers[awayP?.fullName] || 'tier4';
+      const homeTier = acesData.pitchers[homeP?.fullName] || 'tier4';
       const awayLineup = lineupData.profiles[awayAbbr] || null;
       const homeLineup = lineupData.profiles[homeAbbr] || null;
       const gameObj = {
@@ -2543,7 +2702,14 @@ function renderBetaGameRow(g) {
   const total = Number.isFinite(scored?.total) ? scored.total : (s1 + s2 + s3 + s4);
   const label = scored?.label || (total >= 3 ? 'ceiling' : total <= -3 ? 'floor' : 'neutral');
 
-  const tierLabel = t => t === 'tier1' ? '<span class="gold">T1</span>' : t === 'tier2' ? '<span class="silver">T2</span>' : '<span style="color:var(--muted)">T3</span>';
+  const tierLabel = t => {
+    if (t === 'tier1') return '<span class="gold">T1</span>';
+    if (t === 'tier2') return '<span class="silver">T2</span>';
+    if (t === 'tier3') return '<span class="t3-text">T3</span>';
+    if (t === 'tier4' || t === 'default' || !t) return '<span class="t4-text">T4</span>';
+    if (t === 'tier5') return '<span class="t5-text">T5</span>';
+    return '<span style="color:var(--muted)">—</span>';
+  };
   // Strength-tier label for the bullpen row (plain text, no color class).
   const bpTierLabel = t => t === 'tier1' ? 'T1' : t === 'tier2' ? 'T2' : t === 'tier3' ? 'T3' : '—';
   // Lineup emoji map: boom-bust ⚡, balanced ⚖️, contact ❄️, unset —
