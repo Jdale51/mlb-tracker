@@ -1,4 +1,4 @@
 User-agent: *
 Disallow: /admin
 
-Sitemap: https://mlbgrandsalami.com/sitemap.xml
+Sitemap: https://www.mlbgrandsalami.com/sitemap.xml
