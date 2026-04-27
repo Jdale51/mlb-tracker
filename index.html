@@ -192,6 +192,9 @@
   .tier-badge{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:900;padding:1px 4px;border-radius:3px;margin-right:4px;letter-spacing:0.5px;vertical-align:middle;}
   .tier-badge.t1{background:rgba(212,175,55,0.15);color:#D4AF37;border:1px solid rgba(212,175,55,0.4);}
   .tier-badge.t2{background:rgba(192,192,192,0.15);color:#C0C0C0;border:1px solid rgba(192,192,192,0.4);}
+  .tier-badge.t3{background:rgba(232,234,240,0.10);color:#E8EAF0;border:1px solid rgba(232,234,240,0.35);}
+  .tier-badge.t4{background:rgba(184,115,51,0.18);color:#B87333;border:1px solid rgba(184,115,51,0.45);}
+  .tier-badge.t5{background:rgba(230,69,69,0.18);color:#E64545;border:1px solid rgba(230,69,69,0.45);}
   /* ═══════════ PICK-HIT CELEBRATION ═══════════ */
   #celebration-overlay{position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:9998;display:none;}
   #celebration-overlay.active{display:block;}
@@ -419,7 +422,7 @@ let yestGames = [];
 let sCD = SCORES_MS/1000;
 let oCD = getOddsInterval()/1000;
 let timer = null;
-let aceTiers = {};      // { "Pitcher Name": "tier1" | "tier2" | "default" }
+let aceTiers = {};      // { "Pitcher Name": "tier1" | "tier2" | "tier3" | "tier4" | "tier5" }
 let lineupProfiles = {}; // { "NYY": "power_boom_bust" | "balanced" | "contact" }
 let parkWeatherData = {}; // { "NYM@CHC": 0.98, ... }
 let betaTailScores  = {}; // { "NYM@CHC": { total: 4, label: "ceiling" } }
@@ -439,12 +442,15 @@ const ABBR = {
 
 function ta(name){ return ABBR[name] || name.split(' ').pop().slice(0,3).toUpperCase(); }
 
-// Tier badge helper — returns HTML for T1/T2 badge or empty string
+// Tier badge helper — returns HTML for T1-T5 badge or empty string
 function tierBadge(pitcherName) {
   if (!pitcherName) return '';
   const tier = aceTiers[pitcherName];
   if (tier === 'tier1') return '<span class="tier-badge t1">T1</span>';
   if (tier === 'tier2') return '<span class="tier-badge t2">T2</span>';
+  if (tier === 'tier3') return '<span class="tier-badge t3">T3</span>';
+  if (tier === 'tier4' || tier === 'default') return '<span class="tier-badge t4">T4</span>';
+  if (tier === 'tier5') return '<span class="tier-badge t5">T5</span>';
   return '';
 }
 
