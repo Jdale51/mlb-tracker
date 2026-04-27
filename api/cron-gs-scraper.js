@@ -313,7 +313,8 @@ async function markNotified(bookName) {
   if (!res.ok) console.error('Failed to mark notified:', await res.text());
 }
 
-async function sendPushoverNotification({ line, overPrice, underPrice, book }) {
+async function sendPushoverNotification({ line, overPrice, underPrice, book }, opts = {}) {
+  const { isTest = false, testDate = null } = opts;
   const token = process.env.PUSHOVER_TOKEN;
   const user = process.env.PUSHOVER_USER;
   if (!token || !user) {
@@ -324,31 +325,51 @@ async function sendPushoverNotification({ line, overPrice, underPrice, book }) {
   const overStr = overPrice > 0 ? `+${overPrice}` : `${overPrice}`;
   const underStr = underPrice > 0 ? `+${underPrice}` : `${underPrice}`;
 
+  const title = isTest
+    ? `🧪 [TEST] GS Line — ${testDate}`
+    : '⚾ Grand Salami Line Is Live';
+
+  const messageLines = [
+    `🎰 GS Line: ${line}`,
+    `O ${overStr} / U ${underStr}`,
+    `Source: ${book}`,
+  ];
+
+  if (isTest) {
+    messageLines.push('', `Test fire using ${testDate} archive data.`);
+  } else {
+    messageLines.push('', 'Open tracker to set pick & units.');
+  }
+
   const pushRes = await fetch('https://api.pushover.net/1/messages.json', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       token,
       user,
-      title: '⚾ Grand Salami Line Is Live',
-      message: [
-        `🎰 GS Line: ${line}`,
-        `O ${overStr} / U ${underStr}`,
-        `Source: ${book}`,
-        '',
-        'Open tracker to set pick & units.',
-      ].join('\n'),
-      priority: 1,
-      sound: 'cashregister',
+      title,
+      message: messageLines.join('\n'),
+      priority: isTest ? 0 : 1,
+      sound: isTest ? 'pushover' : 'cashregister',
     }),
   });
 
   if (!pushRes.ok) console.error('Pushover failed:', await pushRes.text());
-  else console.log(`Pushover sent (${book})`);
+  else console.log(`Pushover sent (${book})${isTest ? ' [TEST]' : ''}`);
 }
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'GET only' });
+
+  // Test mode: ?test=YYYY-MM-DD pulls archived data from that date,
+  // fires Pushover with [TEST] prefix, and SKIPS tracker save + dedupe marker.
+  // Useful for verifying the pipeline end-to-end without waiting for a live drop.
+  const testDate = req.query?.test || (req.url && new URL(req.url, 'http://x').searchParams.get('test'));
+  const isTest = !!testDate;
+
+  if (isTest && !/^\d{4}-\d{2}-\d{2}$/.test(testDate)) {
+    return res.status(400).json({ error: 'test param must be YYYY-MM-DD' });
+  }
 
   try {
     const todayRecord = await getTodayRecord();
@@ -356,7 +377,8 @@ module.exports = async function handler(req, res) {
     const alreadySavedLine = !!(todayRecord && todayRecord.grandSalamLine);
     const autoSave = process.env.AUTO_SAVE_LINE !== 'false';
 
-    if (alreadyNotified) {
+    // Skip the dedupe check in test mode so we can re-fire as many times as we want
+    if (alreadyNotified && !isTest) {
       return res.status(200).json({
         ok: true,
         skipped: true,
@@ -364,22 +386,24 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // Step 1: fetch the schedule and resolve today's MLB GS team ID dynamically.
+    // Step 1: fetch the schedule and resolve the MLB GS team ID dynamically.
     // Row IDs shift day-to-day based on slate composition (e.g. 993 today, 997 yesterday).
-    const scheduleText = await fetchSportsmemoFile(SCHEDULE_URL);
+    const dateParam = isTest ? `&date=${testDate}` : '';
+    const scheduleText = await fetchSportsmemoFile(`${SCHEDULE_URL}${dateParam}`);
     const gsTeamId = findMLBGrandSalamiTeamId(scheduleText);
 
     if (!gsTeamId) {
-      // No MLB Grand Salami section in schedule — likely off-season or schedule glitch
       return res.status(200).json({
         ok: true,
         found: false,
-        message: 'No MLB Grand Salami section in today\'s schedule',
+        testMode: isTest,
+        testDate: testDate || null,
+        message: `No MLB Grand Salami section in ${isTest ? testDate : "today's"} schedule`,
       });
     }
 
     // Step 2: fetch the lines and look up that team ID's row
-    const rawText = await fetchSportsmemoFile(LINES_URL);
+    const rawText = await fetchSportsmemoFile(`${LINES_URL}${dateParam}`);
     const gsLine = findGSLine(rawText, gsTeamId);
 
     if (!gsLine) {
@@ -387,30 +411,35 @@ module.exports = async function handler(req, res) {
         ok: true,
         found: false,
         teamId: gsTeamId,
-        message: `No GS line posted yet (watching t${gsTeamId})`,
+        testMode: isTest,
+        testDate: testDate || null,
+        message: `No GS line ${isTest ? `in ${testDate} archive` : 'posted yet'} (watching t${gsTeamId})`,
       });
     }
 
-    console.log(`GS line found: ${gsLine.line} from ${gsLine.book} (raw: "${gsLine.raw}", t${gsTeamId})`);
+    console.log(`GS line found${isTest ? ` [TEST ${testDate}]` : ''}: ${gsLine.line} from ${gsLine.book} (raw: "${gsLine.raw}", t${gsTeamId})`);
 
     const actions = [];
 
-    // Fire Pushover (once per day — controlled by gsNotifiedBooks check above)
-    actions.push(sendPushoverNotification(gsLine));
+    // Fire Pushover — in test mode it gets a [TEST] prefix so you know it's a drill
+    actions.push(sendPushoverNotification(gsLine, { isTest, testDate }));
 
-    // Save line to tracker if not already there
-    if (!alreadySavedLine && autoSave) {
-      actions.push(saveToTracker(gsLine));
+    if (!isTest) {
+      // Save line to tracker if not already there (live mode only)
+      if (!alreadySavedLine && autoSave) {
+        actions.push(saveToTracker(gsLine));
+      }
+      // Mark notified so we don't fire again today (live mode only)
+      actions.push(markNotified(gsLine.book));
     }
-
-    // Mark notified so we don't fire again today
-    actions.push(markNotified(gsLine.book));
 
     await Promise.all(actions);
 
     return res.status(200).json({
       ok: true,
       found: true,
+      testMode: isTest,
+      testDate: testDate || null,
       teamId: gsTeamId,
       line: gsLine.line,
       overPrice: gsLine.overPrice,
@@ -418,7 +447,7 @@ module.exports = async function handler(req, res) {
       book: gsLine.book,
       raw: gsLine.raw,
       allCandidates: gsLine.allCandidates,
-      saved: !alreadySavedLine && autoSave,
+      saved: !isTest && !alreadySavedLine && autoSave,
       notified: true,
     });
 
