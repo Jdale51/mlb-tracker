@@ -10,7 +10,14 @@ let acesBlobUrl = null;
 let lineupBlobUrl = null;
 let bullpenBlobUrl = null;
 
-const EMPTY_ACES = { updated: null, pitchers: {} }; // { "Pitcher Name": "tier1" | "tier2" | "default" }
+const EMPTY_ACES = { updated: null, pitchers: {} }; // { "Pitcher Name": "tier1" | "tier2" | "tier3" | "tier4" | "tier5" }
+// Tier system (5-tier, established 2026-04-27):
+//   tier1 = Elite ace (Cy Young candidates, sub-1.10 WHIP)
+//   tier2 = Strong #2 (1.10-1.20 WHIP, sub-3.50 ERA)
+//   tier3 = Average MLB starter (true neutral)
+//   tier4 = Below-average / fragile (volatile arms, 1.30-1.45 WHIP) — DEFAULT for unrated
+//   tier5 = Soft starter (replacement-level, WHIP >=1.45)
+// Legacy 'default' is treated as 'tier4' on read until explicitly upgraded by admin.
 const EMPTY_LINEUPS = { updated: null, profiles: {} }; // { "NYY": "power_boom_bust" | "balanced" | "contact" }
 const EMPTY_BULLPENS = { updated: null, tiers: {} }; // { "NYY": "tier1" | "tier2" | "tier3" }
 
@@ -100,6 +107,115 @@ module.exports = async function handler(req, res) {
 
   if (req.method === 'GET') {
     try {
+      if (action === 'backfill-history') {
+        // Walk every beta-results-{date}.json blob, join with game-outcomes-{date}.json
+        // to recover starter names, then look up the CURRENT tier in aces.json
+        // and write it back to the beta blob.
+        //
+        // Per Jordan's 2026-04-27 spec: preserve 'tier1' historical values
+        // (they're still T1 in the new system) but rewrite empty/'tier2'/'default'
+        // values to whatever the pitcher's current tier is in aces.json.
+        // Untouched if the matchup can't be resolved to a starter name.
+        const aces = await readAces();
+        const pitcherTiers = aces.pitchers || {};
+        const { blobs } = await list();
+        const betaBlobs = blobs.filter(b => /^beta-results-\d{4}-\d{2}-\d{2}\.json$/.test(b.pathname));
+        const outcomesBlobs = {};
+        for (const b of blobs) {
+          const m = b.pathname.match(/^game-outcomes-(\d{4}-\d{2}-\d{2})\.json$/);
+          if (m) outcomesBlobs[m[1]] = b;
+        }
+
+        let datesProcessed = 0, datesSkipped = 0, gamesUpdated = 0, gamesUnchanged = 0, gamesNoMatch = 0;
+        const dryRun = req.query?.dryRun === '1';
+        const PRESERVE_VALUES = new Set(['tier1']); // never overwrite — already correct
+        const REWRITE_VALUES = new Set(['', 'tier2', 'default', null, undefined, 'tier3']); // upgrade from old system
+        // Note: we explicitly DO want to rewrite legacy 'tier3' (which used to mean "default")
+        // — those rows were tagged with a legacy label that has different meaning now.
+
+        for (const betaBlob of betaBlobs) {
+          const dateMatch = betaBlob.pathname.match(/(\d{4}-\d{2}-\d{2})/);
+          if (!dateMatch) { datesSkipped++; continue; }
+          const date = dateMatch[1];
+          const outBlob = outcomesBlobs[date];
+          if (!outBlob) { datesSkipped++; continue; }
+
+          try {
+            const [betaRes, outRes] = await Promise.all([
+              fetch(`${betaBlob.url}?t=${Date.now()}`),
+              fetch(`${outBlob.url}?t=${Date.now()}`),
+            ]);
+            if (!betaRes.ok || !outRes.ok) { datesSkipped++; continue; }
+            const betaData = await betaRes.json();
+            const outData = await outRes.json();
+
+            // Build matchup → starter names lookup from outcomes
+            const starterByMatchup = {};
+            for (const o of (outData.games || [])) {
+              starterByMatchup[o.matchup] = {
+                away: o.pitching?.away?.starter?.name || null,
+                home: o.pitching?.home?.starter?.name || null,
+              };
+            }
+
+            let dirty = false;
+            for (const g of (betaData.games || [])) {
+              const starters = starterByMatchup[g.matchup];
+              if (!starters) { gamesNoMatch++; continue; }
+              let touched = false;
+              for (const side of ['away', 'home']) {
+                const tierKey = side + 'Tier';
+                const currentVal = g[tierKey];
+                if (PRESERVE_VALUES.has(currentVal)) continue;
+                if (!REWRITE_VALUES.has(currentVal)) continue;
+                const pitcherName = starters[side];
+                if (!pitcherName) continue;
+                const newTier = pitcherTiers[pitcherName] || 'tier4';
+                if (newTier !== currentVal) {
+                  g[tierKey] = newTier;
+                  touched = true;
+                  dirty = true;
+                }
+              }
+              if (touched) gamesUpdated++; else gamesUnchanged++;
+            }
+
+            if (dirty && !dryRun) {
+              await put(betaBlob.pathname, JSON.stringify(betaData), {
+                access: 'public', addRandomSuffix: false, contentType: 'application/json',
+              });
+            }
+            datesProcessed++;
+          } catch(e) {
+            console.error(`backfill ${date} error:`, e.message);
+            datesSkipped++;
+          }
+        }
+
+        return res.status(200).json({
+          ok: true, dryRun,
+          datesProcessed, datesSkipped,
+          gamesUpdated, gamesUnchanged, gamesNoMatch,
+        });
+      }
+
+      if (action === 'migrate-tiers') {
+        // One-time migration: convert all 'default' tiers in aces.json to 'tier4'.
+        // Safe to run multiple times — only touches pitchers still on legacy values.
+        const aces = await readAces();
+        const pitchers = { ...(aces.pitchers || {}) };
+        let migrated = 0;
+        for (const name of Object.keys(pitchers)) {
+          if (pitchers[name] === 'default' || !pitchers[name]) {
+            pitchers[name] = 'tier4';
+            migrated++;
+          }
+        }
+        const updated = { updated: new Date().toISOString().split('T')[0], pitchers };
+        await writeAces(updated);
+        return res.status(200).json({ ok: true, migrated, total: Object.keys(pitchers).length });
+      }
+
       if (action === 'sync') {
         // Sync new starters from MLB API into the aces list with "default" tier
         const season = req.query?.season || new Date().getFullYear();
@@ -109,7 +225,9 @@ module.exports = async function handler(req, res) {
         let added = 0;
         for (const s of starters) {
           if (!(s.name in pitchers)) {
-            pitchers[s.name] = 'default';
+            // New unrated starters land in tier4 (below-avg/fragile) by default,
+            // matching the empirical T3-default population from the 3-tier era.
+            pitchers[s.name] = 'tier4';
             added++;
           }
         }
@@ -118,7 +236,7 @@ module.exports = async function handler(req, res) {
         // Also send back the full starter list with their tiers so admin can render
         const enriched = starters.map(s => ({
           ...s,
-          tier: pitchers[s.name] || 'default',
+          tier: pitchers[s.name] || 'tier4',
         }));
         return res.status(200).json({ ok: true, added, total: starters.length, starters: enriched });
       }
@@ -138,12 +256,16 @@ module.exports = async function handler(req, res) {
 
       if (type === 'ace') {
         if (!pitcherName || !tier) return res.status(400).json({ error: 'Missing pitcherName or tier' });
-        if (!['tier1', 'tier2', 'default'].includes(tier)) {
+        // Accept any of the 5 tiers. Legacy 'default' aliases to tier4 on write
+        // so admin POSTs from older UI builds don't silently drop pitchers.
+        const VALID_TIERS = ['tier1', 'tier2', 'tier3', 'tier4', 'tier5'];
+        let normalized = tier === 'default' ? 'tier4' : tier;
+        if (!VALID_TIERS.includes(normalized)) {
           return res.status(400).json({ error: 'Invalid tier' });
         }
         const aces = await readAces();
         const pitchers = { ...(aces.pitchers || {}) };
-        pitchers[pitcherName] = tier;
+        pitchers[pitcherName] = normalized;
         const updated = { updated: new Date().toISOString().split('T')[0], pitchers };
         await writeAces(updated);
         return res.status(200).json({ ok: true });
