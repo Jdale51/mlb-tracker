@@ -1,12 +1,30 @@
 /**
- * GS Line Scraper — Vercel Cron Job
- * Runs every 5 minutes, scrapes sportsmemo.com for the MLB Grand Salami line.
+ * GS Line Scraper — Vercel Cron Job (v2)
+ * Runs every 5 minutes (24/7), fetches sportsmemo.com's JSON endpoint and looks
+ * for the MLB Grand Salami line in the Open or Consensus columns.
+ *
+ * Why v2:
+ * The previous version scraped the rendered HTML, which never worked because
+ * sportsmemo.com loads odds via XHR after page render. This version hits the
+ * underlying data file directly:
+ *   https://www.sportsmemo.com/odds?action=getData&data=lines-today.txt
+ *
+ * Format of lines-today.txt:
+ *   {timestamp_header}{tTEAMID p0 bBOOKID rROW,,timestamp,value}{...}
+ *
+ * MLB Grand Salami row mapping (from sportsmemo's UI):
+ *   t995 = AWAY/HOME run-line market (moneyline-style)
+ *   t997 = OVER/UNDER RUNS market (the actual GS total — what we want)
+ *
+ * Book column mapping for GS:
+ *   b115 = "Open" column
+ *   b116 = "Consensus" column
+ * GS rarely posts to actual books — almost always shows up only in Open/Consensus.
  *
  * Behavior:
- * - Checks ALL book columns every run
- * - First book to post: auto-saves to tracker + Pushover notification
- * - Subsequent books posting: Pushover notification only (no overwrite)
- * - Each book only notifies ONCE per day
+ * - Fires Pushover ONCE per day on first detection of any t997 row with a value
+ * - Auto-saves the line to the tracker
+ * - Uses gsNotifiedBooks marker on today's record to dedupe across cron runs
  *
  * Env vars:
  *   PUSHOVER_TOKEN       — Pushover app token
@@ -15,187 +33,191 @@
  *   AUTO_SAVE_LINE       — 'false' to disable auto-save (default: true)
  */
 
-const SPORTSMEMO_URL = 'https://www.sportsmemo.com/odds';
+const SPORTSMEMO_DATA_URL = 'https://www.sportsmemo.com/odds?action=getData&data=lines-today.txt';
 const BASE_URL = () => process.env.TRACKER_BASE_URL || 'https://mlb-tracker-grandsalami.vercel.app';
 
-// Book column class names on sportsmemo — b1 through b12
-// Order: Open | DraftKings | FanDuel | Circa | SuperBook | Caesars | BetMGM | SouthPoint | HardRock | ESPNBet | Fanatics | Consensus
-const BOOK_CLASSES = [
-  { name: 'Open',       cls: 'b1' },
-  { name: 'DraftKings', cls: 'b2' },
-  { name: 'FanDuel',    cls: 'b3' },
-  { name: 'Circa',      cls: 'b4' },
-  { name: 'SuperBook',  cls: 'b5' },
-  { name: 'Caesars',    cls: 'b6' },
-  { name: 'BetMGM',     cls: 'b7' },
-  { name: 'SouthPoint', cls: 'b8' },
-  { name: 'HardRock',   cls: 'b9' },
-  { name: 'ESPNBet',    cls: 'b10' },
-  { name: 'Fanatics',   cls: 'b11' },
-  { name: 'Consensus',  cls: 'b12' },
-];
+// MLB Grand Salami team IDs in the sportsmemo data file
+const GS_OVER_UNDER_TEAM = 't997'; // OVER RUNS / UNDER RUNS row
+
+// Book ID -> display name (only the ones that actually carry GS)
+const BOOK_NAMES = {
+  b115: 'Open',
+  b116: 'Consensus',
+};
 
 function getTodayPDT() {
   const pst = new Date(Date.now() + -7 * 60 * 60000);
   return pst.toISOString().split('T')[0];
 }
 
-// Parse a GS line cell — handles formats like:
-// "132½-15" "132.5 -110" "132½ -26" "137½u-15"
-// BetOnline style: "132½-15" where -15 means -115
-function parseLine(raw) {
-  if (!raw || raw.trim() === '' || raw.trim() === '-') return null;
-
-  let cleaned = raw
+/**
+ * Parse a sportsmemo line value cell.
+ *
+ * Examples seen in the wild:
+ *   "146"          -> just a total, no juice attached
+ *   "146o-15"      -> total 146, over -115 (cents-style)
+ *   "146u-15"      -> total 146, under -115
+ *   "8½o-15"       -> total 8.5, over -115 (per-game style)
+ *   "-137/+113"    -> moneyline pair (NOT a totals line — used for AWAY/HOME runs market)
+ *
+ * For GS we only care about the totals format, since the OVER RUNS row is t997.
+ *
+ * Returns: { line, juiceSide, juicePrice } or null
+ *   juiceSide: 'o' or 'u' indicating which side carries the juice
+ *   juicePrice: full odds (e.g. -115)
+ */
+function parseTotalsCell(raw) {
+  if (!raw) return null;
+  const cleaned = String(raw)
     .replace(/½/g, '.5')
     .replace(/¼/g, '.25')
     .replace(/¾/g, '.75')
-    .replace(/&frac12;/g, '.5')
-    .replace(/[ou]/gi, ' ')
-    .replace(/\s+/g, ' ')
     .trim();
 
-  const numRegex = /[+-]?\d+\.?\d*/g;
-  const nums = [];
-  let match;
-  while ((match = numRegex.exec(cleaned)) !== null) {
-    nums.push(parseFloat(match[0]));
+  if (!cleaned || cleaned === '-') return null;
+
+  // Reject moneyline-pair format like "-137/+113"
+  if (cleaned.includes('/')) return null;
+
+  // Match: optional digits + optional decimal, optional o/u + optional cents
+  // Examples: "146", "146o-15", "8.5u-12", "10.5o-25"
+  const m = cleaned.match(/^(\d+\.?\d*)(?:([ou])([+-]?\d+))?$/i);
+  if (!m) return null;
+
+  const line = parseFloat(m[1]);
+  if (isNaN(line) || line <= 0) return null;
+
+  let juiceSide = null;
+  let juicePrice = null;
+
+  if (m[2] && m[3]) {
+    juiceSide = m[2].toLowerCase();
+    const cents = parseInt(m[3], 10);
+    // sportsmemo uses cents-style: -15 means -115, +5 means +105
+    juicePrice = cents < 0 ? -(100 + Math.abs(cents)) : (100 + cents);
   }
 
-  if (nums.length === 0) return null;
+  return { line, juiceSide, juicePrice };
+}
 
-  let line = null;
-  let overPrice = null;
-  let underPrice = null;
+/**
+ * Convert a parsed totals cell into {line, overPrice, underPrice}.
+ * Sportsmemo only shows juice on one side; we infer the other side as the
+ * complementary -110/-110 baseline rebalanced. If no juice is shown, default both to -110.
+ */
+function toOverUnderPrices(parsed) {
+  if (!parsed) return null;
 
-  for (const n of nums) {
-    const abs = Math.abs(n);
-    if (abs >= 100 && abs < 200 && line === null) {
-      line = abs;
-    } else if (abs >= 100 && abs <= 600) {
-      if (overPrice === null) overPrice = Math.round(n);
-      else if (underPrice === null) underPrice = Math.round(n);
-    } else if (abs < 50 && abs > 0 && line !== null) {
-      // BetOnline cents-style: -15 = -115, +5 = +105
-      const fullOdds = n < 0 ? -(100 + abs) : (100 + abs);
-      if (overPrice === null) overPrice = fullOdds;
-      else if (underPrice === null) underPrice = fullOdds;
+  const { line, juiceSide, juicePrice } = parsed;
+  let overPrice = -110;
+  let underPrice = -110;
+
+  if (juiceSide && juicePrice != null) {
+    if (juiceSide === 'o') {
+      overPrice = juicePrice;
+      // If over is e.g. -115, the under is roughly -105 (standard 20¢ market)
+      underPrice = juicePrice < 0 ? -(220 + juicePrice) : (juicePrice - 220);
+    } else {
+      underPrice = juicePrice;
+      overPrice = juicePrice < 0 ? -(220 + juicePrice) : (juicePrice - 220);
     }
   }
 
-  return line ? {
-    line,
-    overPrice: overPrice || -110,
-    underPrice: underPrice || -110,
-  } : null;
+  return { line, overPrice, underPrice };
 }
 
-// Extract the two div values from a book cell
-// <td class="book b1"><div>OVER_VALUE</div><div>UNDER_VALUE</div></td>
-function extractDivValues(cellHtml) {
-  const divRegex = /<div[^>]*>([\s\S]*?)<\/div>/gi;
-  const vals = [];
+/**
+ * Parse the sportsmemo lines-today.txt file and pull out the MLB GS over/under line.
+ *
+ * Returns the first found populated cell, preferring Open over Consensus.
+ * Returns null if no t997 row has a parseable totals value.
+ */
+function findGSLine(rawText) {
+  if (!rawText) return null;
+
+  // Each entry is wrapped in {} — parse them out
+  // Format inside braces: tTEAMpPbBOOKrROW,,timestamp,value
+  const entryRegex = /\{([^{}]+)\}/g;
+
+  const candidates = []; // collected hits, will sort by preferred book order
   let match;
-  while ((match = divRegex.exec(cellHtml)) !== null) {
-    const content = match[1]
-      .replace(/<[^>]+>/g, '')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&frac12;/g, '½')
-      .replace(/\s+/g, ' ')
-      .trim();
-    vals.push(content);
-  }
-  return vals; // [overValue, underValue]
-}
 
-async function scrapeAllBooks() {
-  const res = await fetch(SPORTSMEMO_URL, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.5',
-    }
+  while ((match = entryRegex.exec(rawText)) !== null) {
+    const entry = match[1];
+
+    // Quick filter — must contain GS team ID
+    if (!entry.startsWith(`${GS_OVER_UNDER_TEAM}p0b`)) continue;
+
+    // Split on comma — expect 4 parts: key, _, timestamp, value
+    const parts = entry.split(',');
+    if (parts.length < 4) continue;
+
+    const key = parts[0]; // e.g. "t997p0b115r1"
+    const value = parts.slice(3).join(',').trim(); // value can theoretically contain commas, defensive
+
+    if (!value) continue;
+
+    // Extract book ID and row number from key
+    const keyMatch = key.match(/^t\d+p0(b\d+)r(\d+)$/);
+    if (!keyMatch) continue;
+
+    const bookId = keyMatch[1];
+    const rowNum = parseInt(keyMatch[2], 10);
+
+    // r1 = primary market (the totals number); r2 = secondary (we don't care for GS)
+    if (rowNum !== 1) continue;
+
+    const parsed = parseTotalsCell(value);
+    if (!parsed) continue;
+
+    const bookName = BOOK_NAMES[bookId] || bookId;
+
+    candidates.push({
+      bookId,
+      bookName,
+      ...parsed,
+      raw: value,
+    });
+  }
+
+  if (candidates.length === 0) return null;
+
+  // Prefer Open (b115), then Consensus (b116), then anything else
+  const preference = ['b115', 'b116'];
+  candidates.sort((a, b) => {
+    const ai = preference.indexOf(a.bookId);
+    const bi = preference.indexOf(b.bookId);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
   });
 
-  if (!res.ok) throw new Error(`Sportsmemo fetch failed: ${res.status}`);
-  const html = await res.text();
+  const winner = candidates[0];
+  const prices = toOverUnderPrices(winner);
 
-  // Find MLB Grand Salami section
-  const gsIndex = html.search(/GRAND SALAMI/i);
-  if (gsIndex === -1) {
-    console.log('Grand Salami section not found');
-    return {};
+  return {
+    ...prices,
+    book: winner.bookName,
+    bookId: winner.bookId,
+    raw: winner.raw,
+    allCandidates: candidates.map(c => ({ book: c.bookName, line: c.line, raw: c.raw })),
+  };
+}
+
+async function fetchLinesData() {
+  // Cache-buster — sportsmemo's frontend uses a random number in `cb=`
+  const url = `${SPORTSMEMO_DATA_URL}&cb=${Date.now()}`;
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'text/plain,*/*',
+      'Referer': 'https://www.sportsmemo.com/odds',
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Sportsmemo fetch failed: ${res.status}`);
   }
 
-  // Get the GS section HTML — slice from GS header to next sport section
-  const gsHtml = html.slice(gsIndex);
-
-  // Find the row containing OVER RUNS / UNDER RUNS
-  // Structure: <tr><th>..OVER RUNS..UNDER RUNS..</th><td class="book b1"><div>over</div><div>under</div></td>...</tr>
-  const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-  let gsRow = null;
-  let match;
-
-  while ((match = rowRegex.exec(gsHtml)) !== null) {
-    const rowText = match[0];
-    if (rowText.includes('OVER RUNS') && rowText.includes('UNDER RUNS')) {
-      gsRow = rowText;
-      break;
-    }
-    // Stop if we hit NHL section
-    if (match[0].includes('NHL') && match.index > 500) break;
-  }
-
-  if (!gsRow) {
-    console.log('Could not find OVER/UNDER RUNS row');
-    return {};
-  }
-
-  console.log('Found GS row, length:', gsRow.length);
-
-  // Extract each book cell by class name
-  const found = {};
-
-  for (const { name: bookName, cls } of BOOK_CLASSES) {
-    // Match <td class="book b1">...</td> — handles extra classes too
-    const cellRegex = new RegExp(`<td[^>]*class="[^"]*book[^"]*${cls}[^"]*"[^>]*>([\\s\\S]*?)<\\/td>`, 'i');
-    const cellMatch = cellRegex.exec(gsRow);
-
-    if (!cellMatch) {
-      console.log(`${bookName} (${cls}): cell not found`);
-      continue;
-    }
-
-    const cellHtml = cellMatch[1];
-    const divValues = extractDivValues(cellHtml);
-
-    const overRaw = divValues[0] || '';
-    const underRaw = divValues[1] || '';
-
-    console.log(`${bookName} (${cls}): over="${overRaw}" under="${underRaw}"`);
-
-    if (!overRaw || overRaw === '' || overRaw === '-') continue;
-
-    const parsed = parseLine(overRaw);
-    if (!parsed || !parsed.line) continue;
-
-    // Try to get under price from second div
-    if (underRaw && underRaw !== '' && underRaw !== '-') {
-      const underParsed = parseLine(underRaw);
-      if (underParsed && underParsed.overPrice) {
-        parsed.underPrice = underParsed.overPrice;
-      }
-    }
-
-    found[bookName] = {
-      line: parsed.line,
-      overPrice: parsed.overPrice,
-      underPrice: parsed.underPrice,
-    };
-  }
-
-  console.log('Books with lines:', Object.keys(found));
-  return found;
+  return await res.text();
 }
 
 async function getTodayRecord() {
@@ -204,7 +226,7 @@ async function getTodayRecord() {
     const history = await res.json();
     const today = getTodayPDT();
     return history.find(r => r.date === today) || null;
-  } catch(e) {
+  } catch (e) {
     return null;
   }
 }
@@ -226,29 +248,29 @@ async function saveToTracker(gsData) {
   else console.log(`Saved GS line ${gsData.line} from ${gsData.book}`);
 }
 
-async function markBooksNotified(bookNames) {
+async function markNotified(bookName) {
   const today = getTodayPDT();
   const res = await fetch(`${BASE_URL()}/api/odds`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       date: today,
-      gsNotifiedBooks: bookNames,
+      gsNotifiedBooks: [bookName],
     }),
   });
-  if (!res.ok) console.error('Failed to save notified books:', await res.text());
+  if (!res.ok) console.error('Failed to mark notified:', await res.text());
 }
 
-async function sendPushoverNotification({ line, overPrice, underPrice, book, isUpdate }) {
+async function sendPushoverNotification({ line, overPrice, underPrice, book }) {
   const token = process.env.PUSHOVER_TOKEN;
   const user = process.env.PUSHOVER_USER;
-  if (!token || !user) { console.log('Pushover not configured'); return; }
+  if (!token || !user) {
+    console.log('Pushover not configured');
+    return;
+  }
 
   const overStr = overPrice > 0 ? `+${overPrice}` : `${overPrice}`;
   const underStr = underPrice > 0 ? `+${underPrice}` : `${underPrice}`;
-  const title = isUpdate
-    ? `⚾ GS Line Now on ${book}`
-    : `⚾ Grand Salami Line Is Live`;
 
   const pushRes = await fetch('https://api.pushover.net/1/messages.json', {
     method: 'POST',
@@ -256,83 +278,82 @@ async function sendPushoverNotification({ line, overPrice, underPrice, book, isU
     body: JSON.stringify({
       token,
       user,
-      title,
+      title: '⚾ Grand Salami Line Is Live',
       message: [
         `🎰 GS Line: ${line}`,
         `O ${overStr} / U ${underStr}`,
-        `Book: ${book}`,
-        isUpdate ? '' : '\nOpen tracker to set pick & units.',
-      ].join('\n').trim(),
+        `Source: ${book}`,
+        '',
+        'Open tracker to set pick & units.',
+      ].join('\n'),
       priority: 1,
       sound: 'cashregister',
     }),
   });
 
   if (!pushRes.ok) console.error('Pushover failed:', await pushRes.text());
-  else console.log(`Pushover sent for ${book}`);
+  else console.log(`Pushover sent (${book})`);
 }
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'GET only' });
 
-  // Only run 5am–1pm PT
-  const pstHour = ((new Date().getUTCHours() - 7) + 24) % 24;
-  if (pstHour < 5 || pstHour > 13) {
-    return res.status(200).json({
-      ok: true,
-      skipped: true,
-      reason: `Outside active hours (PT hour: ${pstHour})`
-    });
-  }
-
   try {
     const todayRecord = await getTodayRecord();
+    const alreadyNotified = !!(todayRecord && Array.isArray(todayRecord.gsNotifiedBooks) && todayRecord.gsNotifiedBooks.length > 0);
     const alreadySavedLine = !!(todayRecord && todayRecord.grandSalamLine);
-    const notifiedBooks = todayRecord?.gsNotifiedBooks || [];
     const autoSave = process.env.AUTO_SAVE_LINE !== 'false';
 
-    console.log(`Already saved: ${alreadySavedLine}, Notified: ${notifiedBooks.join(', ') || 'none'}`);
-
-    const booksWithLines = await scrapeAllBooks();
-
-    if (Object.keys(booksWithLines).length === 0) {
-      return res.status(200).json({ ok: true, found: false, message: 'No lines posted yet' });
+    if (alreadyNotified) {
+      return res.status(200).json({
+        ok: true,
+        skipped: true,
+        reason: 'Already notified for today',
+      });
     }
 
-    const newlyNotified = [];
+    const rawText = await fetchLinesData();
+    const gsLine = findGSLine(rawText);
+
+    if (!gsLine) {
+      return res.status(200).json({
+        ok: true,
+        found: false,
+        message: 'No GS line posted yet',
+      });
+    }
+
+    console.log(`GS line found: ${gsLine.line} from ${gsLine.book} (raw: "${gsLine.raw}")`);
+
     const actions = [];
 
-    for (const [bookName, gsData] of Object.entries(booksWithLines)) {
-      if (notifiedBooks.includes(bookName)) continue;
+    // Fire Pushover (once per day — controlled by gsNotifiedBooks check above)
+    actions.push(sendPushoverNotification(gsLine));
 
-      const isFirstLine = !alreadySavedLine;
-      const payload = { ...gsData, book: bookName, isUpdate: !isFirstLine };
-
-      console.log(`New book: ${bookName} line ${gsData.line} (first: ${isFirstLine})`);
-
-      if (isFirstLine && autoSave) {
-        actions.push(saveToTracker(payload));
-      }
-
-      actions.push(sendPushoverNotification(payload));
-      newlyNotified.push(bookName);
+    // Save line to tracker if not already there
+    if (!alreadySavedLine && autoSave) {
+      actions.push(saveToTracker(gsLine));
     }
 
-    if (newlyNotified.length > 0) {
-      const allNotified = [...notifiedBooks, ...newlyNotified];
-      actions.push(markBooksNotified(allNotified));
-      await Promise.all(actions);
-    }
+    // Mark notified so we don't fire again today
+    actions.push(markNotified(gsLine.book));
+
+    await Promise.all(actions);
 
     return res.status(200).json({
       ok: true,
       found: true,
-      booksFound: Object.keys(booksWithLines),
-      newlyNotified,
-      alreadyNotified: notifiedBooks,
+      line: gsLine.line,
+      overPrice: gsLine.overPrice,
+      underPrice: gsLine.underPrice,
+      book: gsLine.book,
+      raw: gsLine.raw,
+      allCandidates: gsLine.allCandidates,
+      saved: !alreadySavedLine && autoSave,
+      notified: true,
     });
 
-  } catch(e) {
+  } catch (e) {
     console.error('Scraper error:', e.message);
     return res.status(500).json({ error: e.message });
   }
