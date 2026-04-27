@@ -78,7 +78,8 @@
   /* Open-line display (game card) — no box, inline text */
   .open-badge{display:inline-flex;align-items:center;gap:5px;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.5px;padding:0;margin-left:8px;text-transform:uppercase;}
   .open-badge .open-lbl{color:var(--muted);font-weight:500;}
-  .open-badge .open-val{color:var(--text);font-weight:700;}
+  /* Bumped to 13px + weight 800 so .5 totals (e.g. 8.5/9.5) stay legible on desktop */
+  .open-badge .open-val{color:var(--text);font-weight:800;font-size:13px;}
   .tabs{display:flex;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border);}
   .tab{padding:11px 18px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;cursor:pointer;color:var(--muted);border:none;background:transparent;border-bottom:3px solid transparent;}
   .tab.active{color:var(--text);border-bottom-color:var(--accent);}
@@ -112,7 +113,8 @@
   .team.r{text-align:right;align-items:flex-end;}
   .tabbr{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:var(--text);}
   .tabbr.w{color:var(--green);}
-  .tabbr.t{color:#9CA3AF;}
+  /* Tied: keep team initials white — only the scores go gray (see .sco.t below) */
+  .tabbr.t{color:var(--text);}
   .tfull{font-size:10px;color:var(--muted);margin-top:1px;}
   .sctr{display:flex;align-items:center;gap:8px;padding:0 10px;flex-shrink:0;}
   .sco{font-family:'Barlow Condensed',sans-serif;font-size:34px;font-weight:900;color:var(--text);min-width:26px;text-align:center;line-height:1;}
