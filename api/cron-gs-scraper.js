@@ -6,15 +6,17 @@
  * Why v2:
  * The previous version scraped the rendered HTML, which never worked because
  * sportsmemo.com loads odds via XHR after page render. This version hits the
- * underlying data file directly:
+ * underlying data files directly.
+ *
+ * Two-step lookup:
+ *   1. Fetch today.txt to find the team ID of the OVER RUNS row in the MLB
+ *      Grand Salami section (the row ID shifts day-to-day based on slate size).
+ *   2. Fetch lines-today.txt and pull the value of that team ID's row from
+ *      either the Open or Consensus book column.
+ *
+ * Files used:
+ *   https://www.sportsmemo.com/odds?action=getData&data=today.txt
  *   https://www.sportsmemo.com/odds?action=getData&data=lines-today.txt
- *
- * Format of lines-today.txt:
- *   {timestamp_header}{tTEAMID p0 bBOOKID rROW,,timestamp,value}{...}
- *
- * MLB Grand Salami row mapping (from sportsmemo's UI):
- *   t995 = AWAY/HOME run-line market (moneyline-style)
- *   t997 = OVER/UNDER RUNS market (the actual GS total — what we want)
  *
  * Book column mapping for GS:
  *   b115 = "Open" column
@@ -22,9 +24,10 @@
  * GS rarely posts to actual books — almost always shows up only in Open/Consensus.
  *
  * Behavior:
- * - Fires Pushover ONCE per day on first detection of any t997 row with a value
+ * - Fires Pushover ONCE per day on first detection of MLB OVER RUNS line
  * - Auto-saves the line to the tracker
  * - Uses gsNotifiedBooks marker on today's record to dedupe across cron runs
+ * - Does NOT fire on AWAY RUNS / HOME RUNS (separate market, not the GS total)
  *
  * Env vars:
  *   PUSHOVER_TOKEN       — Pushover app token
@@ -33,11 +36,10 @@
  *   AUTO_SAVE_LINE       — 'false' to disable auto-save (default: true)
  */
 
-const SPORTSMEMO_DATA_URL = 'https://www.sportsmemo.com/odds?action=getData&data=lines-today.txt';
+const SPORTSMEMO_BASE = 'https://www.sportsmemo.com/odds?action=getData';
+const LINES_URL = `${SPORTSMEMO_BASE}&data=lines-today.txt`;
+const SCHEDULE_URL = `${SPORTSMEMO_BASE}&data=today.txt`;
 const BASE_URL = () => process.env.TRACKER_BASE_URL || 'https://mlb-tracker-grandsalami.vercel.app';
-
-// MLB Grand Salami team IDs in the sportsmemo data file
-const GS_OVER_UNDER_TEAM = 't997'; // OVER RUNS / UNDER RUNS row
 
 // Book ID -> display name (only the ones that actually carry GS)
 const BOOK_NAMES = {
@@ -127,13 +129,63 @@ function toOverUnderPrices(parsed) {
 }
 
 /**
+ * Parse today.txt to find the team ID of the OVER RUNS row in the MLB Grand Salami section.
+ *
+ * The schedule file is structured as nested groups:
+ *   {{header_meta, "...SECTION TITLE..."}, {teamId, ..., {AwayTeamName,...,HomeTeamName,...}}, ...}
+ *
+ * For the MLB Grand Salami section, the rows are:
+ *   {AWAY_RUNS_ID, ..., {AWAY RUNS, AWAY RUNS, ..., HOME RUNS, HOME RUNS, ...}}
+ *   {OVER_RUNS_ID, ..., {OVER RUNS, OVER RUNS, ..., UNDER RUNS, UNDER RUNS, ...}}
+ *
+ * We need OVER_RUNS_ID — that's the team ID we'll look up in lines-today.txt.
+ *
+ * Returns: numeric team ID (e.g. 993) or null if not found.
+ */
+function findMLBGrandSalamiTeamId(scheduleText) {
+  if (!scheduleText) return null;
+
+  // Find the MLB Grand Salami section header. The title format is:
+  //   "MAJOR LEAGUE BASEBALL - <day>, <date> - GRAND SALAMI"
+  // We need to be specific about MLB to avoid matching NHL Grand Salami.
+  const headerRegex = /\{header\d+,[^}]*?"MAJOR LEAGUE BASEBALL[^"]*GRAND SALAMI[^"]*"\}/gi;
+  const headerMatch = headerRegex.exec(scheduleText);
+  if (!headerMatch) return null;
+
+  const sectionStart = headerMatch.index + headerMatch[0].length;
+
+  // The MLB GS section ends at the next {header...} or end of string.
+  const nextHeaderRegex = /\{header\d+,/g;
+  nextHeaderRegex.lastIndex = sectionStart;
+  const nextHeaderMatch = nextHeaderRegex.exec(scheduleText);
+  const sectionEnd = nextHeaderMatch ? nextHeaderMatch.index : scheduleText.length;
+
+  const sectionText = scheduleText.slice(sectionStart, sectionEnd);
+
+  // Within the section, find the row whose team-name field contains "OVER RUNS".
+  // Row format: {teamId,...,{OVER RUNS,OVER RUNS,...,UNDER RUNS,UNDER RUNS,...}}
+  // The teamId is the first field after the opening brace.
+  const rowRegex = /\{(\d+),[^{}]*?\{OVER RUNS\b/i;
+  const rowMatch = rowRegex.exec(sectionText);
+  if (!rowMatch) return null;
+
+  const teamId = parseInt(rowMatch[1], 10);
+  if (isNaN(teamId)) return null;
+
+  return teamId;
+}
+
+/**
  * Parse the sportsmemo lines-today.txt file and pull out the MLB GS over/under line.
  *
+ * Takes the team ID resolved from the schedule (e.g. 993 today, 997 yesterday).
  * Returns the first found populated cell, preferring Open over Consensus.
- * Returns null if no t997 row has a parseable totals value.
+ * Returns null if the team ID's row has no parseable totals value posted yet.
  */
-function findGSLine(rawText) {
-  if (!rawText) return null;
+function findGSLine(rawText, teamId) {
+  if (!rawText || !teamId) return null;
+
+  const targetPrefix = `t${teamId}p0b`;
 
   // Each entry is wrapped in {} — parse them out
   // Format inside braces: tTEAMpPbBOOKrROW,,timestamp,value
@@ -145,15 +197,15 @@ function findGSLine(rawText) {
   while ((match = entryRegex.exec(rawText)) !== null) {
     const entry = match[1];
 
-    // Quick filter — must contain GS team ID
-    if (!entry.startsWith(`${GS_OVER_UNDER_TEAM}p0b`)) continue;
+    // Quick filter — must match the GS team ID we're hunting for
+    if (!entry.startsWith(targetPrefix)) continue;
 
     // Split on comma — expect 4 parts: key, _, timestamp, value
     const parts = entry.split(',');
     if (parts.length < 4) continue;
 
-    const key = parts[0]; // e.g. "t997p0b115r1"
-    const value = parts.slice(3).join(',').trim(); // value can theoretically contain commas, defensive
+    const key = parts[0]; // e.g. "t993p0b115r1"
+    const value = parts.slice(3).join(',').trim();
 
     if (!value) continue;
 
@@ -202,10 +254,10 @@ function findGSLine(rawText) {
   };
 }
 
-async function fetchLinesData() {
+async function fetchSportsmemoFile(url) {
   // Cache-buster — sportsmemo's frontend uses a random number in `cb=`
-  const url = `${SPORTSMEMO_DATA_URL}&cb=${Date.now()}`;
-  const res = await fetch(url, {
+  const fullUrl = `${url}&cb=${Date.now()}`;
+  const res = await fetch(fullUrl, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Accept': 'text/plain,*/*',
@@ -214,7 +266,7 @@ async function fetchLinesData() {
   });
 
   if (!res.ok) {
-    throw new Error(`Sportsmemo fetch failed: ${res.status}`);
+    throw new Error(`Sportsmemo fetch failed (${url}): ${res.status}`);
   }
 
   return await res.text();
@@ -312,18 +364,34 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    const rawText = await fetchLinesData();
-    const gsLine = findGSLine(rawText);
+    // Step 1: fetch the schedule and resolve today's MLB GS team ID dynamically.
+    // Row IDs shift day-to-day based on slate composition (e.g. 993 today, 997 yesterday).
+    const scheduleText = await fetchSportsmemoFile(SCHEDULE_URL);
+    const gsTeamId = findMLBGrandSalamiTeamId(scheduleText);
+
+    if (!gsTeamId) {
+      // No MLB Grand Salami section in schedule — likely off-season or schedule glitch
+      return res.status(200).json({
+        ok: true,
+        found: false,
+        message: 'No MLB Grand Salami section in today\'s schedule',
+      });
+    }
+
+    // Step 2: fetch the lines and look up that team ID's row
+    const rawText = await fetchSportsmemoFile(LINES_URL);
+    const gsLine = findGSLine(rawText, gsTeamId);
 
     if (!gsLine) {
       return res.status(200).json({
         ok: true,
         found: false,
-        message: 'No GS line posted yet',
+        teamId: gsTeamId,
+        message: `No GS line posted yet (watching t${gsTeamId})`,
       });
     }
 
-    console.log(`GS line found: ${gsLine.line} from ${gsLine.book} (raw: "${gsLine.raw}")`);
+    console.log(`GS line found: ${gsLine.line} from ${gsLine.book} (raw: "${gsLine.raw}", t${gsTeamId})`);
 
     const actions = [];
 
@@ -343,6 +411,7 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({
       ok: true,
       found: true,
+      teamId: gsTeamId,
       line: gsLine.line,
       overPrice: gsLine.overPrice,
       underPrice: gsLine.underPrice,
