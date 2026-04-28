@@ -581,9 +581,28 @@
     </div>
 
     <!-- Run Beta Model -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:0 4px;font-size:11px;color:var(--muted);">
+      <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none;">
+        <input type="checkbox" id="beta-save-toggle" checked
+          style="width:14px;height:14px;cursor:pointer;accent-color:var(--green);">
+        <span>Save results when complete</span>
+      </label>
+      <span style="margin-left:auto;font-size:10px;color:var(--muted);">Uncheck to preview without overwriting today's saved run</span>
+    </div>
     <button class="btn" style="background:linear-gradient(135deg,#1a3a3a,#00C46A);color:#fff;border:1px solid rgba(0,196,106,0.4);margin-bottom:16px;font-size:16px;padding:15px;letter-spacing:2px;" onclick="runBetaModel()">
       ⚡ RUN OUTLIER COUNTER
     </button>
+
+    <!-- Preview banner — shown after a run-without-save -->
+    <div id="beta-preview-banner" style="display:none;background:rgba(245,197,24,0.10);border:1px solid rgba(245,197,24,0.4);border-radius:8px;padding:10px 12px;margin-bottom:12px;align-items:center;gap:10px;">
+      <div style="font-size:18px;">⚠️</div>
+      <div style="flex:1;font-size:11px;color:var(--accent);line-height:1.4;">
+        <strong>PREVIEW — not saved.</strong>
+        <span style="color:var(--muted);">Today's saved run is unchanged. Tap to commit this preview.</span>
+      </div>
+      <button class="btn btn-sm" style="background:var(--accent);color:#000;font-weight:700;font-size:11px;padding:7px 12px;" onclick="saveBetaPreview()">Save Preview</button>
+      <button class="btn btn-sm" style="background:transparent;color:var(--muted);border:1px solid var(--border);font-size:11px;padding:7px 12px;" onclick="dismissBetaPreview()">Discard</button>
+    </div>
 
     <!-- Beta Results -->
     <div id="beta-results" style="display:none;">
@@ -632,6 +651,25 @@
           <div style="font-size:11px;color:var(--muted);">DK preferred · FD fallback · 3am daily pull</div>
         </div>
         <button id="al-fetch-btn" class="btn btn-sm" style="background:var(--purple);color:#fff;" onclick="fetchAltLinesNow()">⬇ Fetch Now</button>
+      </div>
+      <!-- Save toggle -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:11px;color:var(--muted);">
+        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none;">
+          <input type="checkbox" id="al-save-toggle" checked
+            style="width:14px;height:14px;cursor:pointer;accent-color:var(--green);">
+          <span>Save fetch when complete</span>
+        </label>
+        <span style="margin-left:auto;font-size:10px;color:var(--muted);">Uncheck to preview live data without overwriting today's pull</span>
+      </div>
+      <!-- Preview banner -->
+      <div id="al-preview-banner" style="display:none;background:rgba(245,197,24,0.10);border:1px solid rgba(245,197,24,0.4);border-radius:8px;padding:10px 12px;margin-bottom:10px;align-items:center;gap:10px;">
+        <div style="font-size:18px;">⚠️</div>
+        <div style="flex:1;font-size:11px;color:var(--accent);line-height:1.4;">
+          <strong>PREVIEW — not saved.</strong>
+          <span style="color:var(--muted);">Showing live data; today's saved pull is unchanged.</span>
+        </div>
+        <button class="btn btn-sm" style="background:var(--accent);color:#000;font-weight:700;font-size:11px;padding:7px 12px;" onclick="saveAltLinesPreview()">Save Preview</button>
+        <button class="btn btn-sm" style="background:transparent;color:var(--muted);border:1px solid var(--border);font-size:11px;padding:7px 12px;" onclick="dismissAltLinesPreview()">Discard</button>
       </div>
       <!-- Date toggle -->
       <div style="display:flex;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:3px;margin-bottom:10px;">
@@ -2781,6 +2819,10 @@ function clearBetaGames() {
   updateBetaGamesSummary();
 }
 
+// Holds the most recent computed beta payload so "Save Preview" can promote it
+// to a blob save without re-running scoreGame() across all games.
+let lastBetaRunPayload = null;
+
 function runBetaModel() {
   if (!betaGames.length) { showToast('Load games first', 'err'); return; }
   let ceiling = 0, floor = 0, neutral = 0;
@@ -2813,11 +2855,12 @@ function runBetaModel() {
   document.getElementById('beta-results').style.display = 'block';
   document.getElementById('beta-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-  // Save results to blob so they persist across refresh
+  // Build the persist payload regardless of save mode so a preview can be
+  // promoted later without re-scoring.
   const today = getTodayPDT();
   const gsLine = parseFloat(document.getElementById('b-gsline').value) || null;
   const naive  = parseFloat(document.getElementById('b-naive').value) || null;
-  saveBetaResults(today, { gsLine, naive, ceiling, floor, neutral, lean, signal,
+  const payload = { gsLine, naive, ceiling, floor, neutral, lean, signal,
     games: gameResults.map(g => ({
       matchup: g.matchup, away: g.away, home: g.home, ou: g.ou,
       bpAdj: g.bpAdj, p12: g.p12,
@@ -2827,7 +2870,40 @@ function runBetaModel() {
       awayLineup: g.awayLineup, homeLineup: g.homeLineup,
       scored: { total: g.scored.total, label: g.scored.label, s1: g.scored.s1, s2: g.scored.s2, s3: g.scored.s3, s4: g.scored.s4 },
     }))
-  });
+  };
+  lastBetaRunPayload = { date: today, payload };
+
+  const saveToggle = document.getElementById('beta-save-toggle');
+  const banner = document.getElementById('beta-preview-banner');
+  if (saveToggle && !saveToggle.checked) {
+    // Preview mode — render banner, skip save
+    if (banner) banner.style.display = 'flex';
+    showToast('Preview computed (not saved)', 'ok');
+  } else {
+    // Default — save and hide preview banner if it was up from a prior run
+    if (banner) banner.style.display = 'none';
+    saveBetaResults(today, payload);
+  }
+}
+
+// Promote the last computed preview to a saved blob.
+async function saveBetaPreview() {
+  if (!lastBetaRunPayload) {
+    showToast('No preview to save', 'err');
+    return;
+  }
+  await saveBetaResults(lastBetaRunPayload.date, lastBetaRunPayload.payload);
+  const banner = document.getElementById('beta-preview-banner');
+  if (banner) banner.style.display = 'none';
+}
+
+// Dismiss the preview banner without saving. The preview stays visible in the UI
+// until the next run, but won't overwrite the morning's saved blob.
+function dismissBetaPreview() {
+  const banner = document.getElementById('beta-preview-banner');
+  if (banner) banner.style.display = 'none';
+  lastBetaRunPayload = null;
+  showToast('Preview discarded', 'ok');
 }
 
 function renderBetaBreakdown(gameResults) {
@@ -2980,16 +3056,26 @@ async function fetchAltLinesNow() {
   const targetDate = getAltLineTargetDate();
   const label = altLineDateMode === 'tomorrow' ? "tomorrow's" : "today's";
   const btn = document.getElementById('al-fetch-btn');
+  const saveToggle = document.getElementById('al-save-toggle');
+  const banner = document.getElementById('al-preview-banner');
+  const isPreview = saveToggle && !saveToggle.checked;
   btn.disabled = true;
-  btn.innerHTML = '⏳ Fetching...';
+  btn.innerHTML = isPreview ? '⏳ Previewing...' : '⏳ Fetching...';
   document.getElementById('al-meta').textContent = `Pulling ${label} alt ladders — this may take 15-30 seconds...`;
   try {
-    const res = await fetch(`/api/alt-lines?refresh=true&date=${targetDate}`);
+    const persistParam = isPreview ? '&persist=false' : '';
+    const res = await fetch(`/api/alt-lines?refresh=true&date=${targetDate}${persistParam}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     altLinesData = data;
     renderAltLines(data);
-    showToast(`Pulled ${data.gameCount} games · ${data.creditsUsed} credits`, 'ok');
+    if (isPreview) {
+      if (banner) banner.style.display = 'flex';
+      showToast(`Preview: ${data.gameCount} games (not saved)`, 'ok');
+    } else {
+      if (banner) banner.style.display = 'none';
+      showToast(`Pulled ${data.gameCount} games · ${data.creditsUsed} credits`, 'ok');
+    }
   } catch(e) {
     console.error('fetchAltLinesNow:', e);
     showToast('Fetch failed: ' + e.message, 'err');
@@ -2998,6 +3084,32 @@ async function fetchAltLinesNow() {
     btn.disabled = false;
     btn.innerHTML = '⬇ Fetch Now';
   }
+}
+
+// Promote the in-memory preview pull to a saved blob without re-fetching.
+// Calls the persist-cached endpoint which writes the cached payload to blob —
+// no Odds API credits used.
+async function saveAltLinesPreview() {
+  const targetDate = getAltLineTargetDate();
+  const banner = document.getElementById('al-preview-banner');
+  try {
+    const res = await fetch(`/api/alt-lines?action=persist-cached&date=${targetDate}`);
+    const data = await res.json();
+    if (data.ok) {
+      if (banner) banner.style.display = 'none';
+      showToast('Preview saved ✓', 'ok');
+    } else {
+      showToast('Save failed: ' + (data.error || 'unknown'), 'err');
+    }
+  } catch(e) {
+    showToast('Save error: ' + e.message, 'err');
+  }
+}
+
+function dismissAltLinesPreview() {
+  const banner = document.getElementById('al-preview-banner');
+  if (banner) banner.style.display = 'none';
+  showToast('Preview discarded', 'ok');
 }
 
 function renderAltLines(data) {
