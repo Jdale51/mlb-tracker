@@ -371,8 +371,35 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST');
   res.setHeader('Content-Type', 'application/json');
 
+  // persist-cached: save the current in-memory cache to the blob without
+  // pulling fresh data. Used by the admin "preview → save now" workflow:
+  // user runs a preview (persist=false) to inspect, then promotes that exact
+  // cached payload to the saved blob if they like it. No Odds API credits used.
+  if (req.query && req.query.action === 'persist-cached') {
+    const target = (req.query && req.query.date) || getTodayPDT();
+    const cached = cacheByDate[target];
+    if (!cached || !cached.data) {
+      return res.status(404).json({ error: 'No cached preview found for ' + target });
+    }
+    const payload = { ...cached.data };
+    delete payload.persisted; // strip the preview marker before saving
+    try {
+      await writeStored(target, payload);
+      cacheByDate[target] = { data: payload, loadedAt: Date.now() };
+      return res.status(200).json({ ok: true, date: target, savedAt: new Date().toISOString() });
+    } catch (e) {
+      return res.status(500).json({ error: 'Save failed: ' + e.message });
+    }
+  }
+
   const isRefresh = req.method === 'POST' || (req.query && req.query.refresh === 'true');
   const target = (req.query && req.query.date) || getTodayPDT();
+  // persist=false → run a fresh pull but don't overwrite the saved blob.
+  // Used by admin "preview" reruns that want to inspect new data without
+  // committing it. In-memory cache is still updated so the same session sees
+  // the new data on subsequent reads (until the next persisted refresh).
+  // Defaults to persist=true to preserve existing cron / admin behavior.
+  const persist = !(req.query && req.query.persist === 'false');
 
   // If cache is fresh and not a forced refresh, return it
   const cached = cacheByDate[target];
@@ -394,9 +421,14 @@ module.exports = async function handler(req, res) {
   // Pull fresh
   try {
     const payload = await pullAltLines(target);
-    await writeStored(target, payload);
+    if (persist) {
+      await writeStored(target, payload);
+    } else {
+      // Mark the response so the client can show a "preview / not saved" banner
+      payload.persisted = false;
+    }
     cacheByDate[target] = { data: payload, loadedAt: Date.now() };
-    res.setHeader('X-Cache', 'MISS');
+    res.setHeader('X-Cache', persist ? 'MISS' : 'MISS-PREVIEW');
     return res.status(200).json(payload);
   } catch (e) {
     console.error('[alt-lines] pull error:', e.message);
