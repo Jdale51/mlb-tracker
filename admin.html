@@ -958,20 +958,21 @@ function starterTierForPitcher(pitcherName) {
 }
 
 // Per-team bullpen run delta, indexed by (starterTier, bullpenTier).
-// 5-tier matrix from the 2026-04-27 rebuild (Option A weights):
+// 5-tier matrix from the 2026-04-27 rebuild (Option A weights, tweaked 2026-04-28):
 //   T1 starter: bullpen muted entirely (aces finish their starts)
-//   T2 starter: small bullpen exposure (-0.25 / 0 / +0.5)
+//   T2 starter: only bad pen exposure (0 / 0 / +0.5) — T2s shove more often than they don't,
+//               so a good pen behind them is wasted insurance; only a bad pen is a real risk
 //   T3 starter: moderate bullpen exposure (-0.5 / 0 / +1.0)
 //   T4 starter: magnified bullpen exposure (-0.5 / 0 / +1.5) — fire hazard candidates
 //   T5 starter: maximum bullpen exposure (-0.5 / 0 / +2.0) — soft starters get pulled early
 // Per-team values; SUM both sides for game total.
-// Game range: -1.0 (T2-T5 starters + T1 pens both sides) to +4.0 (T5 starters + T3 pens both sides).
+// Game range: -1.0 (T3-T5 starters + T1 pens both sides) to +4.0 (T5 starters + T3 pens both sides).
 const BP_STRENGTH_MATRIX = {
-  tier1: { tier1:  0.0,  tier2: 0.0, tier3:  0.0 },
-  tier2: { tier1: -0.25, tier2: 0.0, tier3: +0.5 },
-  tier3: { tier1: -0.5,  tier2: 0.0, tier3: +1.0 },
-  tier4: { tier1: -0.5,  tier2: 0.0, tier3: +1.5 },
-  tier5: { tier1: -0.5,  tier2: 0.0, tier3: +2.0 },
+  tier1: { tier1:  0.0, tier2: 0.0, tier3:  0.0 },
+  tier2: { tier1:  0.0, tier2: 0.0, tier3: +0.5 },
+  tier3: { tier1: -0.5, tier2: 0.0, tier3: +1.0 },
+  tier4: { tier1: -0.5, tier2: 0.0, tier3: +1.5 },
+  tier5: { tier1: -0.5, tier2: 0.0, tier3: +2.0 },
 };
 
 function bpCellAdj(starterTier, bpTier) {
@@ -2525,11 +2526,11 @@ function lineupScore(profile) {
 // Per-team bullpen impact using the strength matrix. Mirrors BP_STRENGTH_MATRIX
 // in the GST calculator so the two systems stay in sync.
 //   Tier 1 starter: bullpen irrelevant (goes ~6 IP regardless of pen strength)
-//   Tier 2 starter: T1 pen -0.25, T2 pen 0.0, T3 pen +0.5
+//   Tier 2 starter: T1 pen 0.0, T2 pen 0.0, T3 pen +0.5 — only bad pen exposure
 //   Tier 3 starter: T1 pen -0.5,  T2 pen 0.0, T3 pen +1.0
 //   Tier 4 starter: T1 pen -0.5,  T2 pen 0.0, T3 pen +1.5
 //   Tier 5 starter: T1 pen -0.5,  T2 pen 0.0, T3 pen +2.0
-// Game range: -1.0 (T2-T5 starters + T1 pens both sides) to +4.0 (T5 starters + T3 pens both sides).
+// Game range: -1.0 (T3-T5 starters + T1 pens both sides) to +4.0 (T5 starters + T3 pens both sides).
 //
 // Accepts any 5-tier value or legacy 'default'/unknown (→ tier4).
 // Legacy fatigue labels ('fresh'/'taxed'/'gassed') from older saved blobs
@@ -2546,11 +2547,11 @@ function bullpenContribution(starterTier, bpTier) {
              : null; // legacy fatigue labels or unset → no contribution
   if (!bKey) return 0;
   const matrix = {
-    tier1: { tier1:  0.0,  tier2: 0.0, tier3:  0.0 },
-    tier2: { tier1: -0.25, tier2: 0.0, tier3: +0.5 },
-    tier3: { tier1: -0.5,  tier2: 0.0, tier3: +1.0 },
-    tier4: { tier1: -0.5,  tier2: 0.0, tier3: +1.5 },
-    tier5: { tier1: -0.5,  tier2: 0.0, tier3: +2.0 },
+    tier1: { tier1:  0.0, tier2: 0.0, tier3:  0.0 },
+    tier2: { tier1:  0.0, tier2: 0.0, tier3: +0.5 },
+    tier3: { tier1: -0.5, tier2: 0.0, tier3: +1.0 },
+    tier4: { tier1: -0.5, tier2: 0.0, tier3: +1.5 },
+    tier5: { tier1: -0.5, tier2: 0.0, tier3: +2.0 },
   };
   return matrix[sKey][bKey];
 }
