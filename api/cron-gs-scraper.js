@@ -71,6 +71,11 @@ function getTodayPDT() {
 function parseTotalsCell(raw) {
   if (!raw) return null;
   const cleaned = String(raw)
+    // HTML entities — sportsmemo serves these to non-browser clients
+    .replace(/&frac12;/gi, '.5')
+    .replace(/&frac14;/gi, '.25')
+    .replace(/&frac34;/gi, '.75')
+    // Unicode fraction characters
     .replace(/½/g, '.5')
     .replace(/¼/g, '.25')
     .replace(/¾/g, '.75')
