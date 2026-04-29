@@ -406,6 +406,27 @@ module.exports = async function handler(req, res) {
     const rawText = await fetchSportsmemoFile(`${LINES_URL}${dateParam}`);
     const gsLine = findGSLine(rawText, gsTeamId);
 
+    // Debug mode: dump everything we found relevant to the GS team ID
+    const debugMode = req.query?.debug === '1' || (req.url && new URL(req.url, 'http://x').searchParams.get('debug') === '1');
+    if (debugMode) {
+      const targetPrefix = `t${gsTeamId}p0b`;
+      const matches = [];
+      const entryRegex = /\{([^{}]+)\}/g;
+      let m;
+      while ((m = entryRegex.exec(rawText)) !== null) {
+        if (m[1].startsWith(targetPrefix)) matches.push(m[1]);
+      }
+      return res.status(200).json({
+        debug: true,
+        teamId: gsTeamId,
+        rawTextLength: rawText.length,
+        rawTextStart: rawText.slice(0, 200),
+        rawTextEnd: rawText.slice(-200),
+        gsTeamMatches: matches,
+        parseResult: gsLine,
+      });
+    }
+
     if (!gsLine) {
       return res.status(200).json({
         ok: true,
